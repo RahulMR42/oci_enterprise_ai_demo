@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+logs/
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.auto.tfvars
+__pycache__/
+*.py[cod]
+backend/data/
+.n8n-hosted-password
+.oci-portal-password
+.resource_suffix

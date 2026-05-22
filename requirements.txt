@@ -1,0 +1,4 @@
+oci>=2.150.0
+oci-cli>=3.60.0
+oci-openai>=1.1.0
+openai>=1.99.0

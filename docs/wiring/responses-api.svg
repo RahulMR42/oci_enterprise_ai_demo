@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Responses API OCI wiring diagram</title>
+  <desc id="desc">OCI component wiring for the Responses API demo card.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="11" markerHeight="8" refX="10" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 11 4 L 0 8 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="11" markerHeight="8" refX="10" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 11 4 L 0 8 z" fill="#15803d"/>
+    </marker>
+    <style>
+      .page { fill: #ffffff; }
+      .title { font: 700 24px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 14px Arial, sans-serif; fill: #475569; }
+      .lane-title { font: 700 15px Arial, sans-serif; fill: #0f172a; }
+      .box-title { font: 700 14px Arial, sans-serif; fill: #111827; }
+      .box-text { font: 12px Arial, sans-serif; fill: #334155; }
+      .note-text { font: 12px Arial, sans-serif; fill: #475569; }
+      .edge-label { font: 700 12px Arial, sans-serif; fill: #334155; }
+      .lane { stroke-width: 2; rx: 4; ry: 4; }
+      .lane-portal { fill: #eef6ff; stroke: #6c8ebf; }
+      .lane-runtime { fill: #f3f0ff; stroke: #9673a6; }
+      .lane-oci { fill: #eef9f0; stroke: #82b366; }
+      .lane-controls { fill: #fff7ed; stroke: #f59e0b; }
+      .box-outline { stroke-width: 2; rx: 8; ry: 8; }
+      .box-blue { fill: #dae8fc; stroke: #6c8ebf; }
+      .box-purple { fill: #e9d5ff; stroke: #9673a6; }
+      .box-green { fill: #dcfce7; stroke: #82b366; }
+      .box-orange { fill: #ffedd5; stroke: #d79b00; }
+      .box-gray { fill: #f8fafc; stroke: #94a3b8; }
+      .edge-blue { stroke: #2563eb; stroke-width: 3; fill: none; marker-end: url(#arrow-blue); }
+      .edge-green { stroke: #15803d; stroke-width: 3; fill: none; marker-end: url(#arrow-green); }
+    </style>
+  </defs>
+  <rect class="page" width="1400" height="900"/>
+  <text class="title" x="700" y="44" text-anchor="middle">Responses API - OCI Wiring Diagram</text>
+  <text class="subtitle" x="700" y="69" text-anchor="middle">OCI Generative AI | Live API</text>
+
+  <rect class="lane lane-portal" x="50" y="105" width="280" height="610"/>
+  <rect class="lane lane-runtime" x="370" y="105" width="330" height="610"/>
+  <rect class="lane lane-oci" x="740" y="105" width="330" height="610"/>
+  <rect class="lane lane-controls" x="1110" y="105" width="240" height="610"/>
+  <text class="lane-title" x="190" y="132" text-anchor="middle">User and Portal</text>
+  <text class="lane-title" x="535" y="132" text-anchor="middle">Demo Runtime</text>
+  <text class="lane-title" x="905" y="132" text-anchor="middle">OCI Services and Data</text>
+  <text class="lane-title" x="1230" y="132" text-anchor="middle">Controls</text>
+
+
+  <rect class="box-outline box-blue" x="85" y="170" width="210" height="92"/>
+  <text class="box-title" x="190" y="200" text-anchor="middle">Demo card</text>
+<text class="box-text" x="190" y="226" text-anchor="middle">Summarize a support note or</text>
+<text class="box-text" x="190" y="245" text-anchor="middle">draft an executive update.</text>
+
+  <rect class="box-outline box-blue" x="85" y="330" width="210" height="112"/>
+  <text class="box-title" x="190" y="360" text-anchor="middle">Portal run window</text>
+<text class="box-text" x="190" y="386" text-anchor="middle">Documentation</text>
+<text class="box-text" x="190" y="405" text-anchor="middle">OCI wiring diagram</text>
+<text class="box-text" x="190" y="424" text-anchor="middle">Run, trace, and output panels</text>
+
+  <rect class="box-outline box-purple" x="415" y="170" width="240" height="112"/>
+  <text class="box-title" x="535" y="200" text-anchor="middle">Server route</text>
+<text class="box-text" x="535" y="226" text-anchor="middle">backend/demos/responses_api.py</text>
+
+  <rect class="box-outline box-purple" x="415" y="350" width="240" height="124"/>
+  <text class="box-title" x="535" y="380" text-anchor="middle">OCI Generative AI Responses API</text>
+<text class="box-text" x="535" y="406" text-anchor="middle">Runs a live OCI Responses API request</text>
+<text class="box-text" x="535" y="425" text-anchor="middle">through the OpenAI-compatible OCI</text>
+<text class="box-text" x="535" y="444" text-anchor="middle">endpoint. The backend uses the OCI</text>
+<text class="box-text" x="535" y="463" text-anchor="middle">Generative AI project, API key, and</text>
+
+  <rect class="box-outline box-green" x="785" y="170" width="240" height="112"/>
+  <text class="box-title" x="905" y="200" text-anchor="middle">Terraform module</text>
+<text class="box-text" x="905" y="226" text-anchor="middle">infra/responses-api</text>
+
+  <rect class="box-outline box-green" x="785" y="350" width="240" height="124"/>
+  <text class="box-title" x="905" y="380" text-anchor="middle">Data and OCI resources</text>
+<text class="box-text" x="905" y="406" text-anchor="middle">Model endpoint, project, API key</text>
+
+  <rect class="box-outline box-orange" x="1145" y="170" width="170" height="112"/>
+  <text class="box-title" x="1230" y="200" text-anchor="middle">Security</text>
+<text class="box-text" x="1230" y="226" text-anchor="middle">IAM policy, API key</text>
+<text class="box-text" x="1230" y="245" text-anchor="middle">scope, server-side</text>
+<text class="box-text" x="1230" y="264" text-anchor="middle">secret handling</text>
+
+  <rect class="box-outline box-orange" x="1145" y="350" width="170" height="124"/>
+  <text class="box-title" x="1230" y="380" text-anchor="middle">Capabilities</text>
+<text class="box-text" x="1230" y="406" text-anchor="middle">Live OCI Responses API</text>
+<text class="box-text" x="1230" y="425" text-anchor="middle">call, OpenAI-compatible</text>
+<text class="box-text" x="1230" y="444" text-anchor="middle">endpoint, JSON response</text>
+<text class="box-text" x="1230" y="463" text-anchor="middle">inspection</text>
+
+  <rect class="box-outline box-gray" x="110" y="760" width="1180" height="82"/>
+  <text class="box-title" x="135" y="790">Response path</text>
+<text class="note-text" x="135" y="816" text-anchor="start">The portal renders relevant output, trace steps, technical details, logs, and raw JSON for the run.</text>
+
+  <path class="edge-blue" d="M190 262 L190 330"/>
+  <path class="edge-blue" d="M295 386 C350 386 358 226 415 226"/>
+  <text class="edge-label" x="328" y="303">run request</text>
+  <path class="edge-green" d="M655 226 C710 226 728 226 785 226"/>
+  <text class="edge-label" x="678" y="213">runtime config</text>
+  <path class="edge-green" d="M655 412 C710 412 728 412 785 412"/>
+  <text class="edge-label" x="680" y="400">service call</text>
+  <path class="edge-green" d="M1025 412 C1080 412 1092 412 1145 412"/>
+  <path class="edge-green" d="M1025 226 C1080 226 1092 226 1145 226"/>
+  <path class="edge-blue" d="M535 474 C535 695 1170 690 1170 760"/>
+  <path class="edge-blue" d="M1170 842 C760 875 275 825 190 442"/>
+</svg>
