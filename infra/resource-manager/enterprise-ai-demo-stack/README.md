@@ -11,7 +11,7 @@ Build and push the portal image before stack creation:
 ```bash
 export OCIR_REGION_KEY=ord
 export OCIR_NAMESPACE=<namespace>
-export IMAGE_URI="$OCIR_REGION_KEY.ocir.io/$OCIR_NAMESPACE/enterprise-ai-demo/portal:latest"
+export IMAGE_URI="$OCIR_REGION_KEY.ocir.io/$OCIR_NAMESPACE/enterprise-ai-demo/portal-rm:latest"
 
 podman build --platform linux/amd64 -t "$IMAGE_URI" ../../..
 podman push "$IMAGE_URI"
@@ -19,7 +19,13 @@ podman push "$IMAGE_URI"
 
 Keep the OCIR repository private. Use the resulting `IMAGE_URI` as `portal_image_uri` in Resource Manager.
 
-If the container instance cannot pull from private OCIR with inherited authorization, store Docker registry credentials in OCI Vault and pass the secret OCID as `ocir_pull_secret_id`. Set `ocir_registry_endpoint` to the matching OCIR endpoint, such as `ord.ocir.io`. Do not put auth tokens directly in stack variables or Terraform state.
+Alternatively, leave `portal_image_uri` empty and let Terraform derive the image URI from `ocir_region_key`, `ocir_namespace`, `portal_repository_name`, and `portal_image_tag`. The default derived URI shape is:
+
+```text
+ord.ocir.io/<namespace>/enterprise-ai-demo/portal-rm:latest
+```
+
+Do not put OCIR auth tokens in stack variables or Terraform state. Keep private image access policy-based through the stack-managed dynamic group and `read repos` policy.
 
 ## Deploy
 
@@ -33,8 +39,9 @@ Set these required inputs:
 
 - `compartment_id`
 - `tenancy_id`
-- `portal_image_uri`
 - `portal_password`
+
+Set either `portal_image_uri` directly, or keep it empty and set `portal_repository_name`/`portal_image_tag` for the derived private OCIR URI. The `portal_image_uri` stack output shows the exact image URI used by the container instance.
 
 For a quick demo, leave `existing_subnet_id` empty and keep `create_public_network=true`. For enterprise networks, set `existing_subnet_id` to a subnet that can assign a public IP or route traffic through your approved ingress path.
 
@@ -55,7 +62,7 @@ When enabling startup provisioning, start with:
 enabled_demo_modules = ["responses-api"]
 ```
 
-Broaden the list after confirming the target compartment has the required service limits and private images. With `enable_demo_policies=true`, the stack creates a dynamic group and same-compartment policies for Generative AI, Autonomous Database, Database Tools, Vault secret reads, private OCIR repository reads, and Object Storage access.
+Broaden the list after confirming the target compartment has the required service limits and private images. With `enable_demo_policies=true`, the stack creates a dynamic group and same-compartment policies for Generative AI, Autonomous Database, Database Tools, Vault secret bundle reads, private OCIR repository reads, and Object Storage access.
 
 ## State
 

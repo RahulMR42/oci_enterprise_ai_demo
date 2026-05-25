@@ -13,16 +13,6 @@ resource "oci_container_instances_container_instance" "portal" {
     ocpus = var.container_ocpus
   }
 
-  dynamic "image_pull_secrets" {
-    for_each = var.ocir_pull_secret_id == "" ? [] : [var.ocir_pull_secret_id]
-
-    content {
-      registry_endpoint = var.ocir_registry_endpoint
-      secret_id         = image_pull_secrets.value
-      secret_type       = "VAULT"
-    }
-  }
-
   vnics {
     display_name           = "${local.display_prefix}-portal-vnic"
     hostname_label         = "portal"
@@ -33,7 +23,7 @@ resource "oci_container_instances_container_instance" "portal" {
 
   containers {
     display_name          = "enterprise-ai-demo-portal"
-    image_url             = var.portal_image_uri
+    image_url             = local.portal_image_uri
     environment_variables = local.portal_environment
 
     resource_config {

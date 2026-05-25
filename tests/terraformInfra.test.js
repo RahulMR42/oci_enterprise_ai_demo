@@ -211,6 +211,7 @@ test("resource manager stack deploys portal to OCI Container Instances", () => {
   const dockerignore = read(".dockerignore");
   const stackFiles = [
     "infra/resource-manager/enterprise-ai-demo-stack/versions.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/data.tf",
     "infra/resource-manager/enterprise-ai-demo-stack/variables.tf",
     "infra/resource-manager/enterprise-ai-demo-stack/locals.tf",
     "infra/resource-manager/enterprise-ai-demo-stack/network.tf",
@@ -235,16 +236,20 @@ test("resource manager stack deploys portal to OCI Container Instances", () => {
   assert.match(terraform, /count\s+=\s+local\.create_network \? 1 : 0/);
   assert.match(terraform, /subnet_id\s+=\s+local\.subnet_id/);
   assert.match(terraform, /is_public_ip_assigned\s+=\s+true/);
-  assert.match(terraform, /image_url\s+=\s+var\.portal_image_uri/);
-  assert.match(terraform, /image_pull_secrets/);
-  assert.match(terraform, /ocir_pull_secret_id/);
-  assert.match(terraform, /secret_type\s+=\s+"VAULT"/);
+  assert.match(terraform, /data "oci_objectstorage_namespace" "portal"/);
+  assert.match(terraform, /portal_image_uri\s+=\s+var\.portal_image_uri != "" \? var\.portal_image_uri/);
+  assert.match(terraform, /image_url\s+=\s+local\.portal_image_uri/);
+  assert.match(terraform, /portal_repository_name/);
+  assert.match(terraform, /portal_image_tag/);
+  assert.doesNotMatch(terraform, /image_pull_secrets/);
+  assert.doesNotMatch(terraform, /ocir_pull_secret_id/);
   assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+var\.portal_password/);
   assert.match(terraform, /PROVISION_INFRA\s+=\s+var\.provision_demo_infra \? "true" : "false"/);
   assert.match(terraform, /resource "oci_identity_dynamic_group" "resource_manager_demo"/);
   assert.match(terraform, /resource "oci_identity_policy" "resource_manager_demo"/);
   assert.match(terraform, /variable "tenancy_id"/);
   assert.match(terraform, /read repos/);
+  assert.match(terraform, /secret-bundles/);
   assert.match(terraform, /private OCIR/);
   assert.match(terraform, /output "portal_url"/);
   assert.match(terraform, /schemaVersion:/);

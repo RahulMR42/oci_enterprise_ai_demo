@@ -6,6 +6,8 @@ locals {
   policy_name        = "${local.display_prefix}-rm-demo-policy"
   create_network     = var.existing_subnet_id == "" && var.create_public_network
   subnet_id          = var.existing_subnet_id != "" ? var.existing_subnet_id : one(oci_core_subnet.portal[*].id)
+  ocir_namespace     = var.ocir_namespace != "" ? var.ocir_namespace : data.oci_objectstorage_namespace.portal.namespace
+  portal_image_uri   = var.portal_image_uri != "" ? var.portal_image_uri : "${var.ocir_region_key}.ocir.io/${local.ocir_namespace}/${var.portal_repository_name}:${var.portal_image_tag}"
 
   freeform_tags = {
     "enterprise-ai-demo" = "true"

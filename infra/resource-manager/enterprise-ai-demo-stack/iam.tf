@@ -16,6 +16,7 @@ resource "oci_identity_policy" "resource_manager_demo" {
     "allow dynamic-group ${oci_identity_dynamic_group.resource_manager_demo[0].name} to manage autonomous-database-family in compartment id ${var.compartment_id}",
     "allow dynamic-group ${oci_identity_dynamic_group.resource_manager_demo[0].name} to manage database-tools-family in compartment id ${var.compartment_id}",
     "allow dynamic-group ${oci_identity_dynamic_group.resource_manager_demo[0].name} to read secret-family in compartment id ${var.compartment_id}",
+    "allow dynamic-group ${oci_identity_dynamic_group.resource_manager_demo[0].name} to read secret-bundles in compartment id ${var.compartment_id}",
     "allow dynamic-group ${oci_identity_dynamic_group.resource_manager_demo[0].name} to read repos in compartment id ${var.compartment_id}",
     "allow dynamic-group ${oci_identity_dynamic_group.resource_manager_demo[0].name} to manage object-family in compartment id ${var.compartment_id}"
   ]

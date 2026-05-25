@@ -20,7 +20,7 @@ output "subnet_id" {
 
 output "portal_image_uri" {
   description = "Portal image deployed by the Resource Manager stack."
-  value       = var.portal_image_uri
+  value       = local.portal_image_uri
 }
 
 output "enabled_demo_modules" {

@@ -14,8 +14,10 @@ variableGroups:
   - title: Portal Image And Runtime
     variables:
       - portal_image_uri
-      - ocir_registry_endpoint
-      - ocir_pull_secret_id
+      - ocir_region_key
+      - ocir_namespace
+      - portal_repository_name
+      - portal_image_tag
       - portal_port
       - portal_password
       - container_shape
@@ -64,24 +66,38 @@ variables:
 
   portal_image_uri:
     title: Portal Image URI
-    description: Prebuilt private OCIR image URI for the portal container.
+    description: Optional prebuilt private OCIR image URI for the portal container. Leave empty to derive it from the OCIR inputs below.
     type: string
-    required: true
-
-  ocir_registry_endpoint:
-    title: OCIR Registry Endpoint
-    description: Registry endpoint for the private portal image.
-    type: string
-    required: true
-    default: ord.ocir.io
-
-  ocir_pull_secret_id:
-    title: OCIR Pull Vault Secret OCID
-    description: Optional Vault secret containing Docker registry credentials for private OCIR image pulls.
-    type: oci:kms:secret:id
     required: false
-    sensitive: true
     default: ""
+
+  ocir_region_key:
+    title: OCIR Region Key
+    description: OCIR region key used in the derived portal image URI.
+    type: string
+    required: true
+    default: ord
+
+  ocir_namespace:
+    title: OCIR Namespace
+    description: Optional OCIR namespace. Leave empty for Terraform to read it from Object Storage.
+    type: string
+    required: false
+    default: ""
+
+  portal_repository_name:
+    title: Portal Repository Name
+    description: Private OCIR repository path that already contains the portal image.
+    type: string
+    required: true
+    default: enterprise-ai-demo/portal-rm
+
+  portal_image_tag:
+    title: Portal Image Tag
+    description: Portal image tag used when Portal Image URI is empty.
+    type: string
+    required: true
+    default: latest
 
   portal_password:
     title: Portal Password
@@ -179,7 +195,7 @@ variables:
 
   enable_demo_policies:
     title: Create Demo IAM Policies
-    description: Create stack-managed IAM policies for demo services, private OCIR repository reads, Vault secret reads, and Object Storage in the selected compartment.
+    description: Create stack-managed IAM policies for demo services, private OCIR repository reads, Vault secret bundle reads, and Object Storage in the selected compartment.
     type: boolean
     required: true
     default: true

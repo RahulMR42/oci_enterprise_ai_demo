@@ -36,31 +36,38 @@ variable "resource_suffix" {
 }
 
 variable "portal_image_uri" {
-  description = "Prebuilt private portal image URI in OCIR, for example ord.ocir.io/<namespace>/enterprise-ai-demo/portal:latest."
-  type        = string
-
-  validation {
-    condition     = can(regex("^[a-z0-9-]+\\.ocir\\.io/.+:.+$", var.portal_image_uri))
-    error_message = "portal_image_uri must be a tagged OCIR image URI."
-  }
-}
-
-variable "ocir_registry_endpoint" {
-  description = "OCIR registry endpoint used by the private portal image, for example ord.ocir.io."
-  type        = string
-  default     = "ord.ocir.io"
-}
-
-variable "ocir_pull_secret_id" {
-  description = "Optional Vault secret OCID containing Docker registry credentials for pulling the private OCIR image."
+  description = "Optional prebuilt private portal image URI in OCIR. Leave empty to derive it from OCIR inputs."
   type        = string
   default     = ""
-  sensitive   = true
 
   validation {
-    condition     = var.ocir_pull_secret_id == "" || can(regex("^ocid1\\.vaultsecret\\.", var.ocir_pull_secret_id))
-    error_message = "ocir_pull_secret_id must be empty or a valid Vault secret OCID."
+    condition     = var.portal_image_uri == "" || can(regex("^[a-z0-9-]+\\.ocir\\.io/.+:.+$", var.portal_image_uri))
+    error_message = "portal_image_uri must be empty or a tagged OCIR image URI."
   }
+}
+
+variable "ocir_region_key" {
+  description = "OCIR region key used in the private portal image URI. For us-chicago-1 this is ord."
+  type        = string
+  default     = "ord"
+}
+
+variable "ocir_namespace" {
+  description = "Optional OCIR namespace. Leave empty to read the namespace from Object Storage."
+  type        = string
+  default     = ""
+}
+
+variable "portal_repository_name" {
+  description = "Private OCIR repository path for the portal image."
+  type        = string
+  default     = "enterprise-ai-demo/portal-rm"
+}
+
+variable "portal_image_tag" {
+  description = "Portal image tag used when portal_image_uri is not supplied."
+  type        = string
+  default     = "latest"
 }
 
 variable "portal_password" {
@@ -157,7 +164,7 @@ variable "require_demo_infra" {
 }
 
 variable "enable_demo_policies" {
-  description = "When true, create IAM policies that let stack-created resources access demo services, private OCIR repositories, Vault secrets, and Object Storage in the same compartment."
+  description = "When true, create IAM policies that let stack-created resources access demo services, private OCIR repositories, Vault secret bundles, and Object Storage in the same compartment."
   type        = bool
   default     = true
 }
