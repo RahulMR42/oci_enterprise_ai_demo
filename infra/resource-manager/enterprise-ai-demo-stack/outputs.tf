@@ -1,11 +1,11 @@
 output "portal_public_ip" {
   description = "Public IP assigned to the portal container instance VNIC."
-  value       = try(oci_container_instances_container_instance.portal.vnics[0].public_ip, "")
+  value       = data.oci_core_vnic.portal.public_ip_address
 }
 
 output "portal_url" {
   description = "HTTP URL for the deployed portal."
-  value       = format("http://%s:%d", try(oci_container_instances_container_instance.portal.vnics[0].public_ip, ""), var.portal_port)
+  value       = format("http://%s:%d", data.oci_core_vnic.portal.public_ip_address, var.portal_port)
 }
 
 output "container_instance_id" {

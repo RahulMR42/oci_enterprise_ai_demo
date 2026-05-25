@@ -32,3 +32,7 @@ resource "oci_container_instances_container_instance" "portal" {
     }
   }
 }
+
+data "oci_core_vnic" "portal" {
+  vnic_id = oci_container_instances_container_instance.portal.vnics[0].vnic_id
+}
