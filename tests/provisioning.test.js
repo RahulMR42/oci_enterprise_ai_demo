@@ -15,6 +15,7 @@ import {
   demoProcessEnv,
   isAuthorizedRequest,
   idcsDemoCredentialPosture,
+  llamaIndexControlTowerProxyTargetUrl,
   sharedResponsesDemoComponents,
   summarizeInfrastructureState,
   normalizeProvisionConfig,
@@ -119,6 +120,27 @@ test("IDCS demo credential posture is redacted for Python demos", () => {
     scope: "read"
   });
   assert.equal(JSON.stringify(posture).includes("super-secret"), false);
+});
+
+test("LlamaIndex control tower proxy target preserves hosted app suffixes", () => {
+  const target = llamaIndexControlTowerProxyTargetUrl(
+    "/api/llamaindex/launch/agent/control-tower/respond",
+    "?trace=true",
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.example/actions/invoke/"
+  );
+
+  assert.equal(
+    target.toString(),
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.example/actions/invoke/agent/control-tower/respond?trace=true"
+  );
+});
+
+test("server exposes LlamaIndex launch proxy route", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /\/api\/llamaindex\/launch/);
+  assert.match(server, /proxyLlamaIndexControlTowerLaunch/);
+  assert.match(server, /llamaindex_control_tower\.json/);
 });
 
 test("n8n launch proxy rewrites root-relative UI assets through the proxy path", () => {

@@ -920,6 +920,15 @@ function readOpenClawLaunchUrl() {
   return gateway.url || gateway.endpoint || hostedApplicationInvokeUrl(gateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
 }
 
+function readLlamaIndexControlTowerMetadata() {
+  return readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_control_tower.json"));
+}
+
+function readLlamaIndexControlTowerLaunchUrl() {
+  const controlTower = readLlamaIndexControlTowerMetadata();
+  return controlTower.url || controlTower.endpoint || hostedApplicationInvokeUrl(controlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+}
+
 function readN8nIdcsLaunchConfig() {
   const config = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_idcs_client.json"));
   return {
@@ -1086,6 +1095,19 @@ function openclawProxyTargetUrl(requestPath, search = "") {
 
   const base = new URL(launchUrl);
   const suffix = requestPath.replace(/^\/api\/openclaw\/launch\/?/, "");
+  const basePath = base.pathname.replace(/\/?$/, "/");
+  base.pathname = suffix ? `${basePath}${suffix}` : basePath;
+  base.search = search || base.search;
+  return base;
+}
+
+export function llamaIndexControlTowerProxyTargetUrl(requestPath, search = "", launchUrl = readLlamaIndexControlTowerLaunchUrl()) {
+  if (!launchUrl) {
+    throw new Error("LlamaIndex control tower hosted URL is not available. Provision hosted application infrastructure and refresh Resources first.");
+  }
+
+  const base = new URL(launchUrl);
+  const suffix = requestPath.replace(/^\/api\/llamaindex\/launch\/?/, "");
   const basePath = base.pathname.replace(/\/?$/, "/");
   base.pathname = suffix ? `${basePath}${suffix}` : basePath;
   base.search = search || base.search;
@@ -1400,6 +1422,66 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
   }
 }
 
+export async function proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl) {
+  const startedAt = Date.now();
+  const featureId = "agentic-control-tower";
+  try {
+    const targetUrl = llamaIndexControlTowerProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
+    const token = await getIdcsAccessToken();
+    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
+    const upstream = await fetch(targetUrl, {
+      method: request.method,
+      headers: forwardedHeaders(request.headers, token),
+      body,
+      redirect: "manual"
+    });
+    const contentType = upstream.headers.get("content-type") || "";
+    const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
+    const logFile = writeDemoLog(featureId, {
+      action: "launch",
+      status: upstream.ok ? "success" : "failed",
+      durationMs: Date.now() - startedAt,
+      request: {
+        method: request.method,
+        path: parsedUrl.pathname
+      },
+      upstream: {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        contentType,
+        opcRequestId: upstream.headers.get("opc-request-id") || "",
+        target: `${targetUrl.origin}${targetUrl.pathname}`,
+        bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
+      }
+    });
+    response.writeHead(upstream.status, {
+      ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
+        launchUrl: readLlamaIndexControlTowerLaunchUrl(),
+        proxyBase: "/api/llamaindex/launch/"
+      }),
+      "X-Demo-Log-File": logFile
+    });
+    response.end(responseBody);
+  } catch (error) {
+    const logFile = writeDemoLog(featureId, {
+      action: "launch",
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      request: {
+        method: request.method,
+        path: parsedUrl.pathname
+      },
+      error: error.message || String(error)
+    });
+    response.writeHead(502, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Demo-Log-File": logFile
+    });
+    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>LlamaIndex launch failed</title></head><body><h1>LlamaIndex launch failed</h1><p>${String(error.message || error).replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p><p>Log file: ${logFile.replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p></body></html>`);
+  }
+}
+
 export function rewriteLangfuseLaunchHtml(html) {
   return String(html);
 }
@@ -1533,22 +1615,26 @@ function demoRuntimeComponents() {
   const n8nWorkflow = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_workflow.json"));
   const langfuseObservability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
   const openclawGateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
+  const llamaIndexControlTower = readLlamaIndexControlTowerMetadata();
   const ocirRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "ocir_repository.json")).data || {};
   const langGraphRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_ocir_repository.json")).data || {};
   const n8nRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_ocir_repository.json")).data || {};
   const langfuseRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_ocir_repository.json")).data || {};
   const openclawRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_ocir_repository.json")).data || {};
+  const llamaIndexRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_ocir_repository.json")).data || {};
   const langfuseRepositoryId = langfuseObservability.repositoryId || langfuseRepository.id || "";
   const hostedApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_application.json")).data || {};
   const langGraphApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_application.json")).data || {};
   const n8nApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_application.json")).data || {};
   const langfuseApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_application.json")).data || {};
   const openclawApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_application.json")).data || {};
+  const llamaIndexApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_hosted_application.json")).data || {};
   const hostedDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_deployment.json")).data || {};
   const langGraphDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_deployment.json")).data || {};
   const n8nDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_deployment.json")).data || {};
   const langfuseDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_deployment.json")).data || {};
   const openclawDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_deployment.json")).data || {};
+  const llamaIndexDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_hosted_deployment.json")).data || {};
   const lifecycleValue = (value) => value["lifecycle-state"] || value.lifecycle_state || value.status || "";
   const artifactContainerUri = (artifact) => artifact["container-uri"] || artifact.container_uri || "";
   const hostedArtifact = hostedDeployment["active-artifact"] || hostedDeployment.active_artifact || {};
@@ -1556,9 +1642,11 @@ function demoRuntimeComponents() {
   const n8nArtifact = n8nDeployment["active-artifact"] || n8nDeployment.active_artifact || {};
   const langfuseArtifact = langfuseDeployment["active-artifact"] || langfuseDeployment.active_artifact || {};
   const openclawArtifact = openclawDeployment["active-artifact"] || openclawDeployment.active_artifact || {};
+  const llamaIndexArtifact = llamaIndexDeployment["active-artifact"] || llamaIndexDeployment.active_artifact || {};
   const n8nHostedUrl = n8nWorkflow.url || n8nWorkflow.endpoint || hostedApplicationInvokeUrl(n8nWorkflow.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const langfuseHostedUrl = langfuseObservability.url || langfuseObservability.endpoint || hostedApplicationInvokeUrl(langfuseObservability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const openclawHostedUrl = openclawGateway.url || openclawGateway.endpoint || hostedApplicationInvokeUrl(openclawGateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+  const llamaIndexHostedUrl = llamaIndexControlTower.url || llamaIndexControlTower.endpoint || hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
 
   return [
     ...fileSearchRuntimeComponents({ vectorStore, vectorStoreFiles }),
@@ -1597,6 +1685,42 @@ function demoRuntimeComponents() {
       "Hosted Agent Image URI",
       hostedAgent.imageUri ? "created" : "not-created",
       hostedAgent.imageUri || "Run provisioning to push hosted agent image"
+    ),
+    component(
+      "generated.llamaindex_control_tower_ocir_repository",
+      "LlamaIndex Control Tower OCIR Repository",
+      llamaIndexControlTower.repositoryId ? "created" : "not-created",
+      llamaIndexControlTower.repositoryName || "Run provisioning to create LlamaIndex OCIR repository"
+    ),
+    component(
+      "generated.llamaindex_control_tower_ocir_repository_id",
+      "LlamaIndex Control Tower OCIR Repository ID",
+      llamaIndexControlTower.repositoryId ? statusFromLifecycle(llamaIndexRepository["lifecycle-state"], "created") : "not-created",
+      llamaIndexControlTower.repositoryId || "Run provisioning to create LlamaIndex OCIR repository"
+    ),
+    component(
+      "generated.llamaindex_control_tower_hosted_application",
+      "LlamaIndex Control Tower Hosted Application",
+      llamaIndexControlTower.hostedApplicationId ? statusFromLifecycle(lifecycleValue(llamaIndexApplication), "created") : "not-created",
+      llamaIndexControlTower.hostedApplicationId || "Run provisioning to create LlamaIndex hosted application"
+    ),
+    component(
+      "generated.llamaindex_control_tower_hosted_deployment",
+      "LlamaIndex Control Tower Hosted Deployment",
+      llamaIndexControlTower.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(llamaIndexDeployment), "created") : "not-created",
+      llamaIndexControlTower.hostedDeploymentId || "Run provisioning to create LlamaIndex hosted deployment"
+    ),
+    component(
+      "generated.llamaindex_control_tower_hosted_url",
+      "LlamaIndex Control Tower Hosted URL",
+      llamaIndexHostedUrl ? "created" : "not-created",
+      llamaIndexHostedUrl || "Run provisioning to expose LlamaIndex hosted URL"
+    ),
+    component(
+      "generated.llamaindex_control_tower_image",
+      "LlamaIndex Control Tower Image URI",
+      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) ? "created" : "not-created",
+      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) || "Run provisioning to push LlamaIndex image"
     ),
     component(
       "generated.hosted_agent_application",
@@ -1857,7 +1981,10 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
       langfuseHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "Langfuse OCI Hosted Deployment")?.status || "",
       openclawHostedUrl: runtimeComponents.find((component) => component.name === "OpenClaw Hosted URL")?.value || "",
       openclawHostedDeploymentId: runtimeComponents.find((component) => component.name === "OpenClaw OCI Hosted Deployment")?.value || "",
-      openclawHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "OpenClaw OCI Hosted Deployment")?.status || ""
+      openclawHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "OpenClaw OCI Hosted Deployment")?.status || "",
+      llamaIndexHostedUrl: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted URL")?.value || "",
+      llamaIndexHostedDeploymentId: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted Deployment")?.value || "",
+      llamaIndexHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted Deployment")?.status || ""
     },
     logs: [...refreshLogs, ...currentState.logs]
   };
@@ -2019,6 +2146,67 @@ sendJson(response, 200, parsed);`,
   ];
 }
 
+async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt = Date.now()) {
+  const featureId = "agentic-control-tower";
+  const targetUrl = llamaIndexControlTowerProxyTargetUrl("/api/llamaindex/launch/agent/control-tower/respond");
+  const token = await getIdcsAccessToken();
+  const requestPayload = {
+    id: payload.sessionId || "portal-control-tower-run",
+    prompt: payload.prompt || "Coordinate an enterprise incident response."
+  };
+  const upstream = await fetch(targetUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(requestPayload)
+  });
+  const responseBody = await upstream.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(responseBody);
+  } catch {
+    throw new Error(`Hosted LlamaIndex response was not JSON: ${responseBody.slice(0, 500)}`);
+  }
+  const durationMs = Date.now() - startedAt;
+  const result = {
+    feature: "Agentic Control Tower",
+    mode: "agentic-control-tower",
+    hosted: true,
+    runtime: "llamaindex",
+    request: {
+      model: payload.model || defaultResponsesModel,
+      prompt: requestPayload.prompt,
+      hostedUrl: `${targetUrl.origin}${targetUrl.pathname}`
+    },
+    output: parsed.response || JSON.stringify(parsed.workflow || parsed),
+    hostedResponse: parsed,
+    trace: [
+      "Resolved active OCI hosted LlamaIndex deployment",
+      "Fetched IDCS access token with server-side launch client",
+      "Called hosted LlamaIndex control tower endpoint",
+      "Returned hosted workflow response to portal"
+    ],
+    status: upstream.ok ? "success" : "failed",
+    durationMs
+  };
+  result.logFile = writeDemoLog(featureId, {
+    action: "run-hosted",
+    status: upstream.ok ? "success" : "failed",
+    durationMs,
+    runtimeConfig,
+    request: requestPayload,
+    response: result
+  });
+  if (!upstream.ok) {
+    const error = new Error(parsed.error || `Hosted LlamaIndex call failed with status ${upstream.status}`);
+    error.payload = result;
+    throw error;
+  }
+  return result;
+}
+
 export function runFeatureDemo(featureId, payload) {
   const scriptName = demoScripts[featureId];
   if (!scriptName) {
@@ -2028,15 +2216,27 @@ export function runFeatureDemo(featureId, payload) {
   const provisionedDetails = readProvisionedDetails();
   const startedAt = Date.now();
   const idcsPosture = idcsDemoCredentialPosture();
+  const hostedLlamaIndexMetadata = featureId === "agentic-control-tower" ? readLlamaIndexControlTowerMetadata() : {};
+  const hostedLlamaIndexUrl = featureId === "agentic-control-tower" ? readLlamaIndexControlTowerLaunchUrl() : "";
   const runtimeConfig = {
     region: payload.region || process.env.OCI_GENAI_REGION || "",
     projectConfigured: Boolean(payload.projectId || provisionedDetails.projectId || process.env.OCI_GENAI_PROJECT_ID),
     apiKeyConfigured: Boolean(payload.apiKey || provisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY),
     vectorStoreConfigured: Boolean(payload.vectorStoreId || process.env.OCI_GENAI_VECTOR_STORE_ID),
     codeInterpreterContainerConfigured: Boolean(payload.codeInterpreterContainer || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER),
-    idcsConfigured: idcsPosture.configured
+    idcsConfigured: idcsPosture.configured,
+    hostedLlamaIndexConfigured: Boolean(hostedLlamaIndexUrl),
+    hostedLlamaIndexDeploymentStatus: hostedLlamaIndexMetadata.hostedDeploymentLifecycleState || ""
   };
   console.log(`[demo-run] starting feature=${featureId} script=${scriptName} config=${JSON.stringify(runtimeConfig)}`);
+
+  if (
+    featureId === "agentic-control-tower" &&
+    hostedLlamaIndexUrl &&
+    String(hostedLlamaIndexMetadata.hostedDeploymentLifecycleState || "").toUpperCase() === "ACTIVE"
+  ) {
+    return runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt);
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn(pythonExecutable, [join(root, `backend/demos/${scriptName}`)], {
@@ -2270,6 +2470,11 @@ export const server = createServer(async (request, response) => {
 
   if (requestPath === "/api/openclaw/launch" || requestPath.startsWith("/api/openclaw/launch/")) {
     await proxyOpenClawLaunch(request, response, parsedUrl);
+    return;
+  }
+
+  if (requestPath === "/api/llamaindex/launch" || requestPath.startsWith("/api/llamaindex/launch/")) {
+    await proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl);
     return;
   }
 

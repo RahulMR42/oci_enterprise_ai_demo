@@ -70,9 +70,9 @@ test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   assert.equal(feature.title, "Agentic Control Tower");
   assert.equal(feature.sdkModule, "backend/demos/agentic_control_tower.py");
   assert.match(feature.summary, /LlamaIndex/);
-  assert.match(feature.details, /IDCS credential posture/);
+  assert.match(feature.details, /IDCS proxy/);
   assert.match(feature.provisioningDetails, /Terraform-generated IDCS launch client/);
-  assert.deepEqual(feature.capabilities, ["LlamaIndex workflow", "Tool critique loop", "IDCS credential posture"]);
+  assert.deepEqual(feature.capabilities, ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]);
 });
 
 test("portal exposes mermaid-style flow diagrams for feature cards", () => {

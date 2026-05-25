@@ -288,12 +288,12 @@ export const aiFeatures = [
     id: "agentic-control-tower",
     title: "Agentic Control Tower",
     serviceArea: "OCI Generative AI Agents",
-    summary: "Run a LlamaIndex control workflow that plans tools, reviews evidence, gates approval, and reports IDCS posture.",
+    summary: "Run a hosted LlamaIndex control workflow that plans tools, reviews evidence, gates approval, and reports IDCS posture.",
     details:
-      "Runs a real LlamaIndex workflow with deterministic enterprise tools, evidence review, approval gating, memory note generation, and OCI Responses API synthesis. The result includes server-side IDCS credential posture from the Terraform-generated hosted app launch client without exposing secrets.",
+      "Runs a real LlamaIndex workflow in an OCI Generative AI Hosted Application with deterministic enterprise tools, evidence review, approval gating, memory note generation, and hosted runtime output. The portal calls the hosted app through the server-side IDCS proxy without exposing secrets.",
     provisioningDetails:
-      "Uses the shared OCI Generative AI project/API key and reuses the Terraform-generated IDCS launch client metadata from the hosted-agentic-applications module. No new Terraform resource is required for the first local workflow version.",
-    status: "Live OSS Agent",
+      "Uses the hosted-agentic-applications Terraform module to create an OCIR image, OCI hosted application, hosted deployment, and generated runtime metadata. The launch path reuses the Terraform-generated IDCS launch client metadata.",
+    status: "Live Hosted OSS Agent",
     accent: "green",
     terraformPath: "infra/hosted-agentic-applications",
     sdkModule: "backend/demos/agentic_control_tower.py",
@@ -301,7 +301,7 @@ export const aiFeatures = [
     demoHref: "#demo-agentic-control-tower",
     docsHref: "https://docs.llamaindex.ai/en/stable/module_guides/workflow/",
     actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["LlamaIndex workflow", "Tool critique loop", "IDCS credential posture"]
+    capabilities: ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]
   },
   {
     id: "agentic-rag-planner",

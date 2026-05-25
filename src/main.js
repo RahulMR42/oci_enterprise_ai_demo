@@ -321,7 +321,7 @@ const demoDefaults = {
     title: "Agentic Control Tower Workbench",
     prompt: "Coordinate checkout delay triage with evidence review, approval gating, audit recording, and an executive next action.",
     button: "Run Control Tower Demo",
-    output: "Run a real LlamaIndex workflow, review deterministic tool evidence, and synthesize the governed result with OCI Responses API when configured.",
+    output: "Call the hosted LlamaIndex control tower through the IDCS proxy when provisioned, with local fallback for diagnostics.",
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -661,15 +661,15 @@ const demoBriefs = {
   },
   "agentic-control-tower": {
     services: [
-      "Real LlamaIndex workflow for multi-step agent orchestration.",
-      "OCI Responses API for final synthesis when live configuration is present."
+      "OCI Generative AI Hosted Application running a real LlamaIndex workflow.",
+      "Portal IDCS proxy for calling the hosted control tower endpoint."
     ],
     security: [
       "IDCS credential posture is loaded server-side from Terraform-generated metadata.",
-      "Client secret and API key values are redacted before browser output."
+      "Client secret and hosted app bearer token stay in the Node proxy."
     ],
     result: [
-      "Shows planning, tool execution, evidence review, approval, memory, and audit in one agent run.",
+      "Shows hosted planning, tool execution, evidence review, approval, memory, and audit in one agent run.",
       "Useful for enterprise control tower and incident command workflows."
     ]
   },
@@ -2021,24 +2021,24 @@ const demoTechnicalFlows = {
       ...defaultTechnicalFlow[1],
       title: "LlamaIndex",
       subtitle: "Workflow planner",
-      feature: "The Python demo uses LlamaIndex workflow steps to plan, execute tools, review evidence, and prepare memory.",
-      auth: "The workflow receives only redacted IDCS posture and non-secret runtime values.",
-      interaction: "The workflow produces a governed incident plan before model synthesis."
+      feature: "The portal calls an OCI hosted application running LlamaIndex workflow steps.",
+      auth: "The Node proxy obtains an IDCS bearer token with the Terraform-generated launch client.",
+      interaction: "The hosted workflow produces a governed incident plan before returning a response."
     },
     {
       ...defaultTechnicalFlow[2],
       title: "Tool Review",
       subtitle: "Evidence and approval",
-      feature: "Local enterprise tools return incident, policy, metric, approval, and audit artifacts.",
-      auth: "Tools are deterministic and constrained to the demo process.",
+      feature: "Hosted enterprise tools return incident, policy, metric, approval, and audit artifacts.",
+      auth: "Tools are deterministic and constrained to the hosted container process.",
       interaction: "Evidence sufficiency and approval requirements are checked before final response."
     },
     {
       ...defaultTechnicalFlow[3],
-      title: "OCI Synthesis",
-      subtitle: "Responses API",
-      feature: "OCI Responses API summarizes the workflow when live configuration is present.",
-      auth: "The shared project/API key remains server-side.",
+      title: "Hosted Response",
+      subtitle: "LlamaIndex runtime",
+      feature: "The hosted LlamaIndex service returns the workflow result to the portal.",
+      auth: "Hosted app inbound auth remains enforced by IDCS.",
       interaction: "The final output combines plan, evidence, approval state, and IDCS posture."
     },
     defaultTechnicalFlow[4]
