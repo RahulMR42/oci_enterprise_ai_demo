@@ -42,6 +42,7 @@ const demoScripts = {
   "hosted-agentic-applications": "hosted_agentic_applications.py",
   "langgraph-hosted-agent-mcp": "langgraph_hosted_agent_mcp.py",
   "a2a-agent-collaboration": "a2a_agent_collaboration.py",
+  "agentic-control-tower": "agentic_control_tower.py",
   "agentic-rag-planner": "agentic_rag_planner.py",
   "human-approval-agent": "human_approval_agent.py",
   "governance-center": "governance_center.py",
@@ -927,19 +928,36 @@ function readN8nIdcsLaunchConfig() {
     clientId: String(config.clientId || ""),
     clientSecret: String(config.clientSecret || ""),
     audience: String(config.audience || ""),
-    scope: String(config.scope || config.scopeFqs || "")
+    scope: String(config.scope || config.scopeFqs || ""),
+    source: config.clientId || config.clientSecret ? "terraform-generated" : "not-configured"
   };
 }
 
 function idcsConfig() {
   const generated = readN8nIdcsLaunchConfig();
+  const hasGeneratedCredentials = Boolean(generated.clientId || generated.clientSecret);
   return {
     domainUrl: String(generated.domainUrl || process.env.IDCS_DOMAIN_URL || process.env.OCI_HOSTED_APP_IDCS_DOMAIN_URL || "").replace(/\/+$/, ""),
     tokenUrl: String(generated.tokenUrl || process.env.IDCS_TOKEN_URL || process.env.OCI_HOSTED_APP_IDCS_TOKEN_URL || ""),
     clientId: String(generated.clientId || process.env.IDCS_CLIENT_ID || process.env.OCI_HOSTED_APP_IDCS_CLIENT_ID || ""),
     clientSecret: String(generated.clientSecret || process.env.IDCS_CLIENT_SECRET || process.env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET || ""),
     audience: String(generated.audience || process.env.IDCS_AUDIENCE || process.env.OCI_HOSTED_APP_IDCS_AUDIENCE || ""),
-    scope: String(generated.scope || process.env.IDCS_SCOPE || process.env.OCI_HOSTED_APP_IDCS_SCOPE || "read")
+    scope: String(generated.scope || process.env.IDCS_SCOPE || process.env.OCI_HOSTED_APP_IDCS_SCOPE || "read"),
+    source: hasGeneratedCredentials ? "terraform-generated" : "environment"
+  };
+}
+
+export function idcsDemoCredentialPosture(config = idcsConfig()) {
+  const source = config.source || (config.clientId || config.clientSecret ? "env-or-generated" : "not-configured");
+  return {
+    configured: Boolean(config.domainUrl && config.tokenUrl && config.clientId && config.clientSecret),
+    source,
+    domainUrl: config.domainUrl || "",
+    tokenUrlConfigured: Boolean(config.tokenUrl),
+    clientIdConfigured: Boolean(config.clientId),
+    clientSecretConfigured: Boolean(config.clientSecret),
+    audience: config.audience || "",
+    scope: config.scope || ""
   };
 }
 
@@ -1880,6 +1898,9 @@ result = call_hosted_agent_or_return_config(metadata, request)`,
 mcp_tools = graph.discover_mcp_tools()
 selected_tool = graph.select_tool(prompt, mcp_tools)
 response = call_oci_responses_api(build_agent_prompt(graph, selected_tool), temperature, model, config)`,
+    "agentic-control-tower": `workflow = build_llamaindex_control_tower()
+workflow_result = run_workflow(workflow, prompt, idcs_posture)
+response = call_oci_responses_api(build_control_tower_prompt(workflow_result), temperature, model, config)`,
     "agentic-rag-planner": `plan = build_retrieval_plan(prompt)
 queries = plan["retrievalQueries"]
 response = call_oci_responses_api(build_grounded_plan_prompt(plan), temperature, model, config)`,
@@ -2006,12 +2027,14 @@ export function runFeatureDemo(featureId, payload) {
 
   const provisionedDetails = readProvisionedDetails();
   const startedAt = Date.now();
+  const idcsPosture = idcsDemoCredentialPosture();
   const runtimeConfig = {
     region: payload.region || process.env.OCI_GENAI_REGION || "",
     projectConfigured: Boolean(payload.projectId || provisionedDetails.projectId || process.env.OCI_GENAI_PROJECT_ID),
     apiKeyConfigured: Boolean(payload.apiKey || provisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY),
     vectorStoreConfigured: Boolean(payload.vectorStoreId || process.env.OCI_GENAI_VECTOR_STORE_ID),
-    codeInterpreterContainerConfigured: Boolean(payload.codeInterpreterContainer || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER)
+    codeInterpreterContainerConfigured: Boolean(payload.codeInterpreterContainer || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER),
+    idcsConfigured: idcsPosture.configured
   };
   console.log(`[demo-run] starting feature=${featureId} script=${scriptName} config=${JSON.stringify(runtimeConfig)}`);
 
@@ -2024,7 +2047,11 @@ export function runFeatureDemo(featureId, payload) {
         OCI_GENAI_PROJECT_ID: payload.projectId || provisionedDetails.projectId || process.env.OCI_GENAI_PROJECT_ID || "",
         OCI_GENAI_API_KEY: payload.apiKey || provisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY || "",
         OCI_GENAI_VECTOR_STORE_ID: payload.vectorStoreId || process.env.OCI_GENAI_VECTOR_STORE_ID || "",
-        OCI_GENAI_CODE_INTERPRETER_CONTAINER: payload.codeInterpreterContainer || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || ""
+        OCI_GENAI_CODE_INTERPRETER_CONTAINER: payload.codeInterpreterContainer || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || "",
+        OCI_HOSTED_APP_IDCS_POSTURE: JSON.stringify(idcsPosture),
+        OCI_HOSTED_APP_IDCS_DOMAIN_URL: idcsPosture.domainUrl,
+        OCI_HOSTED_APP_IDCS_AUDIENCE: idcsPosture.audience,
+        OCI_HOSTED_APP_IDCS_SCOPE: idcsPosture.scope
       })
     });
 
