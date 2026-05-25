@@ -18,7 +18,6 @@ A local portal for OCI Enterprise AI demos. It combines runnable UI cards, Pytho
 | Multi-Model Routing | OCI route candidates, scoring, and selected answer | Shared GenAI project |
 | Hosted Agentic Applications | OCI hosted application and deployment backed by OCIR | OCIR repository, hosted app, hosted deployment |
 | LangGraph Hosted Agent | Hosted LangGraph wrapper image | OCIR repository, hosted app, hosted deployment |
-| n8n Hosted Workflow | Ephemeral hosted n8n workflow UI | Hosted app, hosted deployment, optional IDCS launch client |
 | Langfuse Hosted Observability | Hosted Langfuse UI with OCI-managed dependencies | VCN, private subnet, PostgreSQL, ClickHouse, Redis, Object Storage, hosted app |
 | OpenClaw Hosted Gateway | Hosted gateway demo UI with run controls and next steps | OCIR repository, hosted app, hosted deployment |
 | Governance Center | Local policy controls, audit event, and OCI reviewer summary | Shared GenAI project and shared IAM visibility |

@@ -155,7 +155,6 @@ __pycache__
 *.pyc
 .oci-portal-password
 .resource_suffix
-.n8n-hosted-password
 ```
 
 - [ ] **Step 3: Run the focused test and verify partial progress**
@@ -446,4 +445,3 @@ No new failures should appear in Resource Manager stack coverage.
 - Spec coverage: the plan covers the root Docker image, Resource Manager Terraform package, schema form, README instructions, Resource Manager-owned state, optional Object Storage backend wording, and tests.
 - Placeholder scan: no task uses unspecified implementation placeholders.
 - Type consistency: file names and Terraform local/variable names are consistent across tests, code snippets, and docs.
-

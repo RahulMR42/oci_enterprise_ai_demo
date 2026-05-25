@@ -458,10 +458,9 @@ export function buildTerraformStateCommandForModule(modulePath) {
 function buildHostedTerraformRefreshCommand() {
   const hostedInput = readHostedTerraformInput("hosted_agentic_application");
   const langGraphInput = readHostedTerraformInput("langgraph_hosted_agentic_application");
-  const n8nInput = readHostedTerraformInput("n8n_hosted_workflow_automation");
   const langfuseInput = readHostedTerraformInput("langfuse_hosted_observability");
   const openclawInput = readHostedTerraformInput("openclaw_hosted_agent_gateway");
-  const input = { ...hostedInput, ...langGraphInput, ...n8nInput, ...langfuseInput, ...openclawInput };
+  const input = { ...hostedInput, ...langGraphInput, ...langfuseInput, ...openclawInput };
   return {
     label: "infra/hosted-agentic-applications refresh",
     cmd: "terraform",
@@ -478,9 +477,6 @@ function buildHostedTerraformRefreshCommand() {
       `-var=idcs_domain_url=${input.idcs_domain_url || "unused"}`,
       `-var=idcs_audience=${input.idcs_audience || "unused"}`,
       `-var=idcs_scope=${input.idcs_scope || "unused"}`,
-      `-var=n8n_basic_auth_user=${input.n8n_basic_auth_user || "admin"}`,
-      `-var=n8n_image_repository_uri=${input.n8n_image_repository_uri || ""}`,
-      `-var=n8n_basic_auth_password=${process.env.OCI_HOSTED_N8N_BASIC_AUTH_PASSWORD || readLocalN8nPassword()}`,
       `-var=langfuse_image_repository_uri=${input.langfuse_image_repository_uri || ""}`,
       `-var=langfuse_database_url=${process.env.LANGFUSE_DATABASE_URL || ""}`,
       `-var=langfuse_clickhouse_url=${process.env.LANGFUSE_CLICKHOUSE_URL || ""}`,
@@ -531,14 +527,6 @@ function readHostedTerraformInput(resourceName) {
   const state = readJsonFile(join(root, "infra/hosted-agentic-applications/terraform.tfstate"));
   const resource = (state.resources || []).find((candidate) => candidate.type === "terraform_data" && candidate.name === resourceName);
   return resource?.instances?.[0]?.attributes?.input || {};
-}
-
-function readLocalN8nPassword() {
-  try {
-    return readFileSync(join(root, ".n8n-hosted-password"), "utf8").trim();
-  } catch {
-    return "";
-  }
 }
 
 export function readProvisionedDetails() {
@@ -592,7 +580,6 @@ export function parseTerraformStateResources(stateJson = {}) {
       "terraform_data.file_search_seed_documents": "File Search Seed Documents",
       "terraform_data.code_interpreter_container": "Code Interpreter Container",
       "terraform_data.hosted_agentic_application": "Hosted Agentic Application Module",
-      "terraform_data.n8n_hosted_workflow_automation": "N8N Hosted Workflow Automation Module",
       "terraform_data.langfuse_hosted_observability": "Langfuse Hosted Observability Module",
       "terraform_data.openclaw_hosted_agent_gateway": "OpenClaw Hosted Agent Gateway Module",
       "oci_core_vcn.langfuse": "Langfuse VCN",
@@ -778,12 +765,10 @@ async function refreshGeneratedRuntimeState() {
   const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
   const hostedRuntimeFile = join(hostedDir, "hosted_agent.json");
   const langGraphRuntimeFile = join(hostedDir, "langgraph_hosted_agent.json");
-  const n8nRuntimeFile = join(hostedDir, "n8n_hosted_workflow.json");
   const langfuseRuntimeFile = join(hostedDir, "langfuse_hosted_observability.json");
   const openclawRuntimeFile = join(hostedDir, "openclaw_hosted_gateway.json");
   const hostedAgent = readJsonFile(hostedRuntimeFile);
   const langGraphAgent = readJsonFile(langGraphRuntimeFile);
-  const n8nWorkflow = readJsonFile(n8nRuntimeFile);
   const langfuseObservability = readJsonFile(langfuseRuntimeFile);
   const openclawGateway = readJsonFile(openclawRuntimeFile);
 
@@ -818,22 +803,6 @@ async function refreshGeneratedRuntimeState() {
       targetFile: join(hostedDir, "langgraph_hosted_deployment.json"),
       commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
       runtimeFile: langGraphRuntimeFile,
-      runtimeKey: "hostedDeploymentLifecycleState"
-    }),
-    refreshHostedJsonFile({
-      label: "OCI n8n hosted application refresh",
-      id: n8nWorkflow.hostedApplicationId,
-      targetFile: join(hostedDir, "n8n_hosted_application.json"),
-      commandArgs: (id) => ["generative-ai", "hosted-application", "get", "--hosted-application-id", id],
-      runtimeFile: n8nRuntimeFile,
-      runtimeKey: "hostedApplicationLifecycleState"
-    }),
-    refreshHostedJsonFile({
-      label: "OCI n8n hosted deployment refresh",
-      id: n8nWorkflow.hostedDeploymentId,
-      targetFile: join(hostedDir, "n8n_hosted_deployment.json"),
-      commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
-      runtimeFile: n8nRuntimeFile,
       runtimeKey: "hostedDeploymentLifecycleState"
     }),
     refreshHostedJsonFile({
@@ -905,11 +874,6 @@ function hostedApplicationInvokeUrl(hostedApplicationId, region = "us-chicago-1"
     : "";
 }
 
-function readN8nLaunchUrl() {
-  const workflow = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_workflow.json"));
-  return workflow.url || workflow.endpoint || hostedApplicationInvokeUrl(workflow.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
-}
-
 function readLangfuseLaunchUrl() {
   const observability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
   return observability.url || observability.endpoint || hostedApplicationInvokeUrl(observability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
@@ -929,30 +893,15 @@ function readLlamaIndexControlTowerLaunchUrl() {
   return controlTower.url || controlTower.endpoint || hostedApplicationInvokeUrl(controlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
 }
 
-function readN8nIdcsLaunchConfig() {
-  const config = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_idcs_client.json"));
-  return {
-    domainUrl: String(config.domainUrl || "").replace(/\/+$/, ""),
-    tokenUrl: String(config.tokenUrl || ""),
-    clientId: String(config.clientId || ""),
-    clientSecret: String(config.clientSecret || ""),
-    audience: String(config.audience || ""),
-    scope: String(config.scope || config.scopeFqs || ""),
-    source: config.clientId || config.clientSecret ? "terraform-generated" : "not-configured"
-  };
-}
-
 function idcsConfig() {
-  const generated = readN8nIdcsLaunchConfig();
-  const hasGeneratedCredentials = Boolean(generated.clientId || generated.clientSecret);
   return {
-    domainUrl: String(generated.domainUrl || process.env.IDCS_DOMAIN_URL || process.env.OCI_HOSTED_APP_IDCS_DOMAIN_URL || "").replace(/\/+$/, ""),
-    tokenUrl: String(generated.tokenUrl || process.env.IDCS_TOKEN_URL || process.env.OCI_HOSTED_APP_IDCS_TOKEN_URL || ""),
-    clientId: String(generated.clientId || process.env.IDCS_CLIENT_ID || process.env.OCI_HOSTED_APP_IDCS_CLIENT_ID || ""),
-    clientSecret: String(generated.clientSecret || process.env.IDCS_CLIENT_SECRET || process.env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET || ""),
-    audience: String(generated.audience || process.env.IDCS_AUDIENCE || process.env.OCI_HOSTED_APP_IDCS_AUDIENCE || ""),
-    scope: String(generated.scope || process.env.IDCS_SCOPE || process.env.OCI_HOSTED_APP_IDCS_SCOPE || "read"),
-    source: hasGeneratedCredentials ? "terraform-generated" : "environment"
+    domainUrl: String(process.env.IDCS_DOMAIN_URL || process.env.OCI_HOSTED_APP_IDCS_DOMAIN_URL || "").replace(/\/+$/, ""),
+    tokenUrl: String(process.env.IDCS_TOKEN_URL || process.env.OCI_HOSTED_APP_IDCS_TOKEN_URL || ""),
+    clientId: String(process.env.IDCS_CLIENT_ID || process.env.OCI_HOSTED_APP_IDCS_CLIENT_ID || ""),
+    clientSecret: String(process.env.IDCS_CLIENT_SECRET || process.env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET || ""),
+    audience: String(process.env.IDCS_AUDIENCE || process.env.OCI_HOSTED_APP_IDCS_AUDIENCE || ""),
+    scope: String(process.env.IDCS_SCOPE || process.env.OCI_HOSTED_APP_IDCS_SCOPE || "read"),
+    source: "environment"
   };
 }
 
@@ -1057,20 +1006,6 @@ export async function getIdcsAccessToken() {
   return idcsTokenCache.value;
 }
 
-function n8nProxyTargetUrl(requestPath, search = "") {
-  const launchUrl = readN8nLaunchUrl();
-  if (!launchUrl) {
-    throw new Error("n8n hosted URL is not available. Provision hosted application infrastructure and refresh Resources first.");
-  }
-
-  const base = new URL(launchUrl);
-  const suffix = requestPath.replace(/^\/api\/n8n\/launch\/?/, "");
-  const basePath = base.pathname.replace(/\/?$/, "/");
-  base.pathname = suffix ? `${basePath}${suffix}` : basePath;
-  base.search = search || base.search;
-  return base;
-}
-
 function langfuseProxyTargetUrl(requestPath, search = "") {
   const launchUrl = readLangfuseLaunchUrl();
   if (!launchUrl) {
@@ -1135,27 +1070,6 @@ function isLangfusePassthroughPath(requestPath = "") {
   ].some((prefix) => requestPath === prefix.replace(/\/$/, "") || requestPath.startsWith(prefix));
 }
 
-export function n8nForwardedCookieHeader(cookieHeader = "") {
-  return String(cookieHeader)
-    .split(";")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .filter((part) => !part.startsWith(`${portalSessionCookie}=`))
-    .join("; ");
-}
-
-export function n8nExecutionListFallbackPayload(requestPath = "") {
-  const path = String(requestPath).split("?")[0].replace(/\/+$/, "");
-  return path === "/api/n8n/launch/rest/executions" || path === "/api/n8n/launch/rest/executions-current"
-    ? { data: [] }
-    : null;
-}
-
-export function n8nPushStreamFallbackPayload(requestPath = "") {
-  const path = String(requestPath).split("?")[0].replace(/\/+$/, "");
-  return path === "/api/n8n/launch/rest/push" ? ": connected\n\n" : null;
-}
-
 function forwardedHeaders(sourceHeaders, token) {
   const blocked = new Set(["authorization", "connection", "content-length", "host", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
   const headers = {};
@@ -1164,7 +1078,12 @@ function forwardedHeaders(sourceHeaders, token) {
       headers[name] = value;
     }
   }
-  const cookie = n8nForwardedCookieHeader(sourceHeaders.cookie || "");
+  const cookie = String(sourceHeaders.cookie || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !part.startsWith(`${portalSessionCookie}=`))
+    .join("; ");
   if (cookie) {
     headers.cookie = cookie;
   } else {
@@ -1176,7 +1095,7 @@ function forwardedHeaders(sourceHeaders, token) {
   };
 }
 
-function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchUrl(), proxyBase = "/api/n8n/launch/" } = {}) {
+function proxyResponseHeaders(headers, requestPath, { launchUrl = "", proxyBase = "/" } = {}) {
   const blocked = new Set(["connection", "content-encoding", "content-length", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
   const result = {};
   for (const [name, value] of headers.entries()) {
@@ -1201,165 +1120,10 @@ function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchU
   return result;
 }
 
-export function rewriteN8nLaunchHtml(html) {
-  const proxyBase = "/api/n8n/launch/";
-  return String(html)
-    .replace(/window\.BASE_PATH\s*=\s*['"]\/['"];/g, `window.BASE_PATH = '${proxyBase}';`)
-    .replace(/\b(src|href)=["']\/(?!\/)([^"']*)["']/g, (_match, attribute, path) => `${attribute}="${proxyBase}${path}"`);
-}
-
-function n8nProxyOrigin(request) {
+function langfuseProxyOrigin(request) {
   const host = request?.headers?.host || "127.0.0.1:5175";
   const protocol = request?.headers?.["x-forwarded-proto"] || "http";
   return `${protocol}://${host}`;
-}
-
-function langfuseProxyOrigin(request) {
-  return n8nProxyOrigin(request);
-}
-
-export function rewriteN8nLaunchJson(jsonText, requestPath = "", proxyOrigin = "") {
-  const path = String(requestPath).split("?")[0].replace(/\/+$/, "");
-  if (path !== "/api/n8n/launch/rest/settings") {
-    return jsonText;
-  }
-
-  const payload = JSON.parse(jsonText);
-  if (!payload?.data || !proxyOrigin) {
-    return jsonText;
-  }
-
-  const proxyBase = `${proxyOrigin}/api/n8n/launch`;
-  payload.data.urlBaseEditor = proxyBase;
-  payload.data.urlBaseWebhook = `${proxyBase}/`;
-  if (payload.data.oauthCallbackUrls) {
-    payload.data.oauthCallbackUrls.oauth1 = `${proxyBase}/rest/oauth1-credential/callback`;
-    payload.data.oauthCallbackUrls.oauth2 = `${proxyBase}/rest/oauth2-credential/callback`;
-  }
-  return JSON.stringify(payload);
-}
-
-export async function proxyN8nLaunch(request, response, parsedUrl) {
-  const startedAt = Date.now();
-  const featureId = "n8n-hosted-workflow-automation";
-  try {
-    const pushFallbackPayload = n8nPushStreamFallbackPayload(parsedUrl.pathname);
-    if (request.method === "GET" && pushFallbackPayload) {
-      const logFile = writeDemoLog(featureId, {
-        action: "launch",
-        status: "success",
-        durationMs: Date.now() - startedAt,
-        request: {
-          method: request.method,
-          path: parsedUrl.pathname
-        },
-        upstream: {
-          status: 200,
-          statusText: "Local SSE fallback",
-          contentType: "text/event-stream"
-        }
-      });
-      response.writeHead(200, {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-store, no-transform",
-        Connection: "keep-alive",
-        "X-Demo-Log-File": logFile
-      });
-      response.write(pushFallbackPayload);
-      const heartbeat = setInterval(() => {
-        response.write(": heartbeat\n\n");
-      }, 25000);
-      request.on("close", () => {
-        clearInterval(heartbeat);
-        response.end();
-      });
-      return;
-    }
-
-    const targetUrl = n8nProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
-    const token = await getIdcsAccessToken();
-    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
-    const upstream = await fetch(targetUrl, {
-      method: request.method,
-      headers: forwardedHeaders(request.headers, token),
-      body,
-      redirect: "manual"
-    });
-    if (request.method === "HEAD") {
-      const logFile = writeDemoLog("n8n-hosted-workflow-automation", {
-        action: "launch",
-        status: upstream.ok ? "success" : "failed",
-        durationMs: Date.now() - startedAt,
-        request: {
-          method: request.method,
-          path: parsedUrl.pathname
-        },
-        upstream: {
-          status: upstream.status,
-          statusText: upstream.statusText,
-          opcRequestId: upstream.headers.get("opc-request-id") || "",
-          target: `${targetUrl.origin}${targetUrl.pathname}`
-        }
-      });
-      response.writeHead(upstream.status, {
-        ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname),
-        "X-Demo-Log-File": logFile
-      });
-      response.end();
-      return;
-    }
-    const contentType = upstream.headers.get("content-type") || "";
-    const arrayBuffer = await upstream.arrayBuffer();
-    const upstreamBody = Buffer.from(arrayBuffer);
-    const fallbackPayload = upstream.status >= 500 ? n8nExecutionListFallbackPayload(parsedUrl.pathname) : null;
-    const responseBody = fallbackPayload
-      ? Buffer.from(JSON.stringify(fallbackPayload))
-      : contentType.includes("text/html")
-      ? Buffer.from(rewriteN8nLaunchHtml(upstreamBody.toString("utf8")))
-      : contentType.includes("application/json")
-      ? Buffer.from(rewriteN8nLaunchJson(upstreamBody.toString("utf8"), parsedUrl.pathname, n8nProxyOrigin(request)))
-      : upstreamBody;
-    const logFile = writeDemoLog(featureId, {
-      action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
-      request: {
-        method: request.method,
-        path: parsedUrl.pathname
-      },
-      upstream: {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        contentType,
-        opcRequestId: upstream.headers.get("opc-request-id") || "",
-        target: `${targetUrl.origin}${targetUrl.pathname}`,
-        bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
-      }
-    });
-    response.writeHead(fallbackPayload ? 200 : upstream.status, {
-      ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname),
-      ...(fallbackPayload ? { "Content-Type": "application/json; charset=utf-8" } : {}),
-      "X-Demo-Log-File": logFile
-    });
-    response.end(responseBody);
-  } catch (error) {
-    const logFile = writeDemoLog(featureId, {
-      action: "launch",
-      status: "failed",
-      durationMs: Date.now() - startedAt,
-      request: {
-        method: request.method,
-        path: parsedUrl.pathname
-      },
-      error: error.message || String(error)
-    });
-    response.writeHead(502, {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Demo-Log-File": logFile
-    });
-    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>n8n launch failed</title></head><body><h1>n8n launch failed</h1><p>${String(error.message || error).replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p><p>Log file: ${logFile.replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p></body></html>`);
-  }
 }
 
 export async function proxyOpenClawLaunch(request, response, parsedUrl) {
@@ -1612,26 +1376,22 @@ function demoRuntimeComponents() {
   const codeContainer = readJsonFile(join(demoGeneratedDirs["code-interpreter"], "container.json"));
   const hostedAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_agent.json"));
   const langGraphAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_agent.json"));
-  const n8nWorkflow = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_workflow.json"));
   const langfuseObservability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
   const openclawGateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
   const llamaIndexControlTower = readLlamaIndexControlTowerMetadata();
   const ocirRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "ocir_repository.json")).data || {};
   const langGraphRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_ocir_repository.json")).data || {};
-  const n8nRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_ocir_repository.json")).data || {};
   const langfuseRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_ocir_repository.json")).data || {};
   const openclawRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_ocir_repository.json")).data || {};
   const llamaIndexRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_ocir_repository.json")).data || {};
   const langfuseRepositoryId = langfuseObservability.repositoryId || langfuseRepository.id || "";
   const hostedApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_application.json")).data || {};
   const langGraphApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_application.json")).data || {};
-  const n8nApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_application.json")).data || {};
   const langfuseApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_application.json")).data || {};
   const openclawApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_application.json")).data || {};
   const llamaIndexApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_hosted_application.json")).data || {};
   const hostedDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_deployment.json")).data || {};
   const langGraphDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_deployment.json")).data || {};
-  const n8nDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_deployment.json")).data || {};
   const langfuseDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_deployment.json")).data || {};
   const openclawDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_deployment.json")).data || {};
   const llamaIndexDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_hosted_deployment.json")).data || {};
@@ -1639,11 +1399,9 @@ function demoRuntimeComponents() {
   const artifactContainerUri = (artifact) => artifact["container-uri"] || artifact.container_uri || "";
   const hostedArtifact = hostedDeployment["active-artifact"] || hostedDeployment.active_artifact || {};
   const langGraphArtifact = langGraphDeployment["active-artifact"] || langGraphDeployment.active_artifact || {};
-  const n8nArtifact = n8nDeployment["active-artifact"] || n8nDeployment.active_artifact || {};
   const langfuseArtifact = langfuseDeployment["active-artifact"] || langfuseDeployment.active_artifact || {};
   const openclawArtifact = openclawDeployment["active-artifact"] || openclawDeployment.active_artifact || {};
   const llamaIndexArtifact = llamaIndexDeployment["active-artifact"] || llamaIndexDeployment.active_artifact || {};
-  const n8nHostedUrl = n8nWorkflow.url || n8nWorkflow.endpoint || hostedApplicationInvokeUrl(n8nWorkflow.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const langfuseHostedUrl = langfuseObservability.url || langfuseObservability.endpoint || hostedApplicationInvokeUrl(langfuseObservability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const openclawHostedUrl = openclawGateway.url || openclawGateway.endpoint || hostedApplicationInvokeUrl(openclawGateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const llamaIndexHostedUrl = llamaIndexControlTower.url || llamaIndexControlTower.endpoint || hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
@@ -1783,48 +1541,6 @@ function demoRuntimeComponents() {
       artifactContainerUri(langGraphArtifact)
         ? `${artifactContainerUri(langGraphArtifact)}:${langGraphArtifact.tag || ""}`
         : "Run provisioning to attach LangGraph hosted deployment artifact"
-    ),
-    component(
-      "generated.n8n_hosted_workflow_ocir_repository",
-      "n8n OCIR Repository",
-      n8nWorkflow.repositoryId ? "created" : "not-created",
-      n8nWorkflow.repositoryName || "Run provisioning to create n8n OCIR repository"
-    ),
-    component(
-      "generated.n8n_hosted_workflow_ocir_repository_id",
-      "n8n OCIR Repository ID",
-      n8nWorkflow.repositoryId ? statusFromLifecycle(n8nRepository["lifecycle-state"], "created") : "not-created",
-      n8nWorkflow.repositoryId || "Run provisioning to create n8n OCIR repository"
-    ),
-    component(
-      "generated.n8n_hosted_workflow_image",
-      "n8n Image URI",
-      n8nWorkflow.imageUri ? "created" : "not-created",
-      n8nWorkflow.imageUri || "Run provisioning to push n8n image"
-    ),
-    component(
-      "generated.n8n_hosted_workflow_application",
-      "n8n OCI Hosted Application",
-      n8nWorkflow.hostedApplicationId ? statusFromLifecycle(n8nApplication.status, "created") : "not-created",
-      n8nWorkflow.hostedApplicationId || "Run provisioning to create n8n hosted application"
-    ),
-    component(
-      "generated.n8n_hosted_workflow_deployment",
-      "n8n OCI Hosted Deployment",
-      n8nWorkflow.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(n8nDeployment), "created") : "not-created",
-      n8nWorkflow.hostedDeploymentId || "Run provisioning to create n8n hosted deployment"
-    ),
-    component(
-      "generated.n8n_hosted_workflow_deployment_artifact",
-      "n8n OCI Hosted Deployment Artifact",
-      n8nArtifact.id ? statusFromLifecycle(n8nArtifact.status, "created") : "not-created",
-      artifactContainerUri(n8nArtifact) ? `${artifactContainerUri(n8nArtifact)}:${n8nArtifact.tag || ""}` : "Run provisioning to attach n8n hosted deployment artifact"
-    ),
-    component(
-      "generated.n8n_hosted_workflow_url",
-      "n8n Hosted URL",
-      n8nHostedUrl ? "created" : "not-created",
-      n8nHostedUrl || "Run provisioning to create n8n hosted URL"
     ),
     component(
       "generated.langfuse_hosted_observability_ocir_repository",
@@ -1973,9 +1689,6 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
       ...summarizeInfrastructureState(currentState.resources, provisionedDetails).values,
       vectorStoreId: runtimeComponents.find((component) => component.name === "File Search Vector Store")?.value || "",
       codeInterpreterContainerId: runtimeComponents.find((component) => component.name === "Code Interpreter Container")?.value || "",
-      n8nHostedUrl: runtimeComponents.find((component) => component.name === "n8n Hosted URL")?.value || "",
-      n8nHostedDeploymentId: runtimeComponents.find((component) => component.name === "n8n OCI Hosted Deployment")?.value || "",
-      n8nHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "n8n OCI Hosted Deployment")?.status || "",
       langfuseHostedUrl: runtimeComponents.find((component) => component.name === "Langfuse Hosted URL")?.value || "",
       langfuseHostedDeploymentId: runtimeComponents.find((component) => component.name === "Langfuse OCI Hosted Deployment")?.value || "",
       langfuseHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "Langfuse OCI Hosted Deployment")?.status || "",
@@ -2455,11 +2168,6 @@ export const server = createServer(async (request, response) => {
 
   if (!isAuthorizedRequest(request)) {
     requestLogin(request, response, requestPath);
-    return;
-  }
-
-  if (requestPath === "/api/n8n/launch" || requestPath.startsWith("/api/n8n/launch/")) {
-    await proxyN8nLaunch(request, response, parsedUrl);
     return;
   }
 

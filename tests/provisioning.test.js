@@ -18,12 +18,7 @@ import {
   llamaIndexControlTowerProxyTargetUrl,
   sharedResponsesDemoComponents,
   summarizeInfrastructureState,
-  normalizeProvisionConfig,
-  n8nExecutionListFallbackPayload,
-  n8nForwardedCookieHeader,
-  n8nPushStreamFallbackPayload,
-  rewriteN8nLaunchJson,
-  rewriteN8nLaunchHtml
+  normalizeProvisionConfig
 } from "../server.mjs";
 
 test("normalizes provisioning config with OCI defaults", () => {
@@ -102,7 +97,7 @@ test("IDCS demo credential posture is redacted for Python demos", () => {
   const posture = idcsDemoCredentialPosture({
     domainUrl: "https://idcs.example.com",
     tokenUrl: "https://idcs.example.com/oauth2/v1/token",
-    clientId: "enterprise-ai-demo-n8n-launch-ab12cd",
+    clientId: "enterprise-ai-demo-launch-ab12cd",
     clientSecret: "super-secret",
     audience: "https://genaisolutions.com/",
     scope: "read",
@@ -141,81 +136,6 @@ test("server exposes LlamaIndex launch proxy route", () => {
   assert.match(server, /\/api\/llamaindex\/launch/);
   assert.match(server, /proxyLlamaIndexControlTowerLaunch/);
   assert.match(server, /llamaindex_control_tower\.json/);
-});
-
-test("n8n launch proxy rewrites root-relative UI assets through the proxy path", () => {
-  const html = `<!doctype html><script>window.BASE_PATH = '/';</script><script src="/assets/index.js"></script><link href="/assets/main.css"><link rel="icon" href="/favicon.ico">`;
-  const rewritten = rewriteN8nLaunchHtml(html);
-
-  assert.match(rewritten, /window\.BASE_PATH = '\/api\/n8n\/launch\/';/);
-  assert.match(rewritten, /src="\/api\/n8n\/launch\/assets\/index\.js"/);
-  assert.match(rewritten, /href="\/api\/n8n\/launch\/assets\/main\.css"/);
-  assert.match(rewritten, /href="\/api\/n8n\/launch\/favicon\.ico"/);
-});
-
-test("n8n launch proxy forwards n8n cookies but strips the portal session", () => {
-  const cookie = n8nForwardedCookieHeader("oci_portal_session=portal-token; n8n-auth=n8n-token; theme=dark");
-
-  assert.equal(cookie, "n8n-auth=n8n-token; theme=dark");
-});
-
-test("n8n launch proxy can mask empty execution-list upstream failures", () => {
-  assert.deepEqual(n8nExecutionListFallbackPayload("/api/n8n/launch/rest/executions"), { data: [] });
-  assert.deepEqual(n8nExecutionListFallbackPayload("/api/n8n/launch/rest/executions-current"), { data: [] });
-  assert.equal(n8nExecutionListFallbackPayload("/api/n8n/launch/rest/workflows"), null);
-});
-
-test("n8n launch proxy rewrites advertised editor URLs to the local proxy", () => {
-  const payload = {
-    data: {
-      urlBaseEditor: "http://0.0.0.0:8080",
-      urlBaseWebhook: "http://0.0.0.0:8080/",
-      oauthCallbackUrls: {
-        oauth1: "http://0.0.0.0:8080/rest/oauth1-credential/callback",
-        oauth2: "http://0.0.0.0:8080/rest/oauth2-credential/callback"
-      },
-      pushBackend: "sse"
-    }
-  };
-
-  const rewritten = JSON.parse(rewriteN8nLaunchJson(JSON.stringify(payload), "/api/n8n/launch/rest/settings", "http://127.0.0.1:5175"));
-
-  assert.equal(rewritten.data.urlBaseEditor, "http://127.0.0.1:5175/api/n8n/launch");
-  assert.equal(rewritten.data.urlBaseWebhook, "http://127.0.0.1:5175/api/n8n/launch/");
-  assert.equal(rewritten.data.oauthCallbackUrls.oauth1, "http://127.0.0.1:5175/api/n8n/launch/rest/oauth1-credential/callback");
-  assert.equal(rewritten.data.oauthCallbackUrls.oauth2, "http://127.0.0.1:5175/api/n8n/launch/rest/oauth2-credential/callback");
-});
-
-test("n8n launch proxy preserves hosted onboarding and template settings", () => {
-  const settings = {
-    data: {
-      personalizationSurveyEnabled: true,
-      onboardingCallPromptEnabled: true,
-      templates: {
-        enabled: true,
-        host: "https://api.n8n.io/api/"
-      }
-    }
-  };
-  const newWorkflow = {
-    data: {
-      name: "My workflow",
-      onboardingFlowEnabled: true
-    }
-  };
-
-  const rewrittenSettings = JSON.parse(rewriteN8nLaunchJson(JSON.stringify(settings), "/api/n8n/launch/rest/settings", "http://127.0.0.1:5175"));
-  const rewrittenNewWorkflow = JSON.parse(rewriteN8nLaunchJson(JSON.stringify(newWorkflow), "/api/n8n/launch/rest/workflows/new", "http://127.0.0.1:5175"));
-
-  assert.equal(rewrittenSettings.data.personalizationSurveyEnabled, true);
-  assert.equal(rewrittenSettings.data.onboardingCallPromptEnabled, true);
-  assert.equal(rewrittenSettings.data.templates.enabled, true);
-  assert.equal(rewrittenNewWorkflow.data.onboardingFlowEnabled, true);
-});
-
-test("n8n launch proxy provides a local SSE fallback for the push stream", () => {
-  assert.match(n8nPushStreamFallbackPayload("/api/n8n/launch/rest/push"), /^: connected\n\n/);
-  assert.equal(n8nPushStreamFallbackPayload("/api/n8n/launch/rest/settings"), null);
 });
 
 test("extracts project values from OCI provisioning logs", () => {
@@ -344,17 +264,6 @@ test("parses demo terraform resources into infrastructure component labels", () 
             }
           },
           {
-            address: "terraform_data.n8n_hosted_workflow_automation",
-            type: "terraform_data",
-            name: "n8n_hosted_workflow_automation",
-            values: {
-              input: {
-                hosted_application_display_name: "enterprise-ai-demo-n8n-ab12cd",
-                n8n_basic_auth_password: "do-not-expose"
-              }
-            }
-          },
-          {
             address: "terraform_data.langfuse_hosted_observability",
             type: "terraform_data",
             name: "langfuse_hosted_observability",
@@ -449,7 +358,6 @@ test("parses demo terraform resources into infrastructure component labels", () 
       ["File Search Seed Documents", "created"],
       ["Code Interpreter Container", "created"],
       ["Hosted Agentic Application Module", "created"],
-      ["N8N Hosted Workflow Automation Module", "created"],
       ["Langfuse Hosted Observability Module", "created"],
       ["SQL Search Vault", "created"],
       ["SQL Search Vault Key", "created"],

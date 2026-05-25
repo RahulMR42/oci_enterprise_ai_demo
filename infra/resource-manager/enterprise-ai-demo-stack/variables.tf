@@ -8,6 +8,16 @@ variable "compartment_id" {
   }
 }
 
+variable "tenancy_id" {
+  description = "Tenancy OCID used for optional stack-managed dynamic group creation."
+  type        = string
+
+  validation {
+    condition     = can(regex("^ocid1\\.tenancy\\.", var.tenancy_id))
+    error_message = "tenancy_id must be a valid tenancy OCID."
+  }
+}
+
 variable "region" {
   description = "OCI region for the Resource Manager deployment and portal runtime."
   type        = string
@@ -26,12 +36,30 @@ variable "resource_suffix" {
 }
 
 variable "portal_image_uri" {
-  description = "Prebuilt portal image URI in OCIR, for example ord.ocir.io/<namespace>/enterprise-ai-demo/portal:latest."
+  description = "Prebuilt private portal image URI in OCIR, for example ord.ocir.io/<namespace>/enterprise-ai-demo/portal:latest."
   type        = string
 
   validation {
     condition     = can(regex("^[a-z0-9-]+\\.ocir\\.io/.+:.+$", var.portal_image_uri))
     error_message = "portal_image_uri must be a tagged OCIR image URI."
+  }
+}
+
+variable "ocir_registry_endpoint" {
+  description = "OCIR registry endpoint used by the private portal image, for example ord.ocir.io."
+  type        = string
+  default     = "ord.ocir.io"
+}
+
+variable "ocir_pull_secret_id" {
+  description = "Optional Vault secret OCID containing Docker registry credentials for pulling the private OCIR image."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = var.ocir_pull_secret_id == "" || can(regex("^ocid1\\.vaultsecret\\.", var.ocir_pull_secret_id))
+    error_message = "ocir_pull_secret_id must be empty or a valid Vault secret OCID."
   }
 }
 
@@ -126,4 +154,10 @@ variable "require_demo_infra" {
   description = "When true, portal startup fails if selected demo infrastructure provisioning fails."
   type        = bool
   default     = false
+}
+
+variable "enable_demo_policies" {
+  description = "When true, create IAM policies that let stack-created resources access demo services, private OCIR repositories, Vault secrets, and Object Storage in the same compartment."
+  type        = bool
+  default     = true
 }

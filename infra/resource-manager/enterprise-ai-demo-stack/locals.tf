@@ -1,9 +1,11 @@
 locals {
-  normalized_suffix = lower(replace(var.resource_suffix, "-", ""))
-  name_suffix       = substr(local.normalized_suffix, 0, 8)
-  display_prefix    = "enterprise-ai-demo-${local.name_suffix}"
-  create_network    = var.existing_subnet_id == "" && var.create_public_network
-  subnet_id         = var.existing_subnet_id != "" ? var.existing_subnet_id : one(oci_core_subnet.portal[*].id)
+  normalized_suffix  = lower(replace(var.resource_suffix, "-", ""))
+  name_suffix        = substr(local.normalized_suffix, 0, 8)
+  display_prefix     = "enterprise-ai-demo-${local.name_suffix}"
+  dynamic_group_name = "${local.display_prefix}-rm-demo-dg"
+  policy_name        = "${local.display_prefix}-rm-demo-policy"
+  create_network     = var.existing_subnet_id == "" && var.create_public_network
+  subnet_id          = var.existing_subnet_id != "" ? var.existing_subnet_id : one(oci_core_subnet.portal[*].id)
 
   freeform_tags = {
     "enterprise-ai-demo" = "true"

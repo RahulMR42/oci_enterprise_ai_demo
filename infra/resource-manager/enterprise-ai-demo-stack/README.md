@@ -2,7 +2,7 @@
 
 Resource Manager is the primary one-click Terraform deployment path for the Enterprise AI Demo Portal. Resource Manager owns Terraform state for this stack.
 
-This stack deploys a prebuilt portal image to OCI Container Instances. It can create a small public demo network, or it can use an existing subnet supplied by the stack user.
+This stack deploys a prebuilt private portal image to OCI Container Instances. It can create a small public demo network, or it can use an existing subnet supplied by the stack user. It can also create same-compartment IAM policies for the demo services that the portal provisions progressively.
 
 ## Image
 
@@ -17,7 +17,9 @@ podman build --platform linux/amd64 -t "$IMAGE_URI" ../../..
 podman push "$IMAGE_URI"
 ```
 
-Use the resulting `IMAGE_URI` as `portal_image_uri` in Resource Manager.
+Keep the OCIR repository private. Use the resulting `IMAGE_URI` as `portal_image_uri` in Resource Manager.
+
+If the container instance cannot pull from private OCIR with inherited authorization, store Docker registry credentials in OCI Vault and pass the secret OCID as `ocir_pull_secret_id`. Set `ocir_registry_endpoint` to the matching OCIR endpoint, such as `ord.ocir.io`. Do not put auth tokens directly in stack variables or Terraform state.
 
 ## Deploy
 
@@ -30,6 +32,7 @@ infra/resource-manager/enterprise-ai-demo-stack
 Set these required inputs:
 
 - `compartment_id`
+- `tenancy_id`
 - `portal_image_uri`
 - `portal_password`
 
@@ -44,7 +47,7 @@ password: <portal_password>
 
 ## Demo Infrastructure
 
-The first Resource Manager stack version focuses on deploying the portal reliably. `provision_demo_infra` is disabled by default because several existing demo modules still depend on local runtime files or separately built hosted-app images.
+The first Resource Manager stack version focuses on deploying the portal reliably, then allowing demo infrastructure to be enabled progressively from Resource Manager-owned state. `provision_demo_infra` is disabled by default because several hosted-app demos require prebuilt private images or service limits in the target compartment.
 
 When enabling startup provisioning, start with:
 
@@ -52,7 +55,7 @@ When enabling startup provisioning, start with:
 enabled_demo_modules = ["responses-api"]
 ```
 
-Broaden the list only after confirming the target compartment has the required policies and service limits.
+Broaden the list after confirming the target compartment has the required service limits and private images. With `enable_demo_policies=true`, the stack creates a dynamic group and same-compartment policies for Generative AI, Autonomous Database, Database Tools, Vault secret reads, private OCIR repository reads, and Object Storage access.
 
 ## State
 
@@ -64,5 +67,4 @@ Object Storage backend is optional for non-Resource-Manager local or OCI DevOps 
 
 - Restrict `allowed_ingress_cidr` for non-demo deployments.
 - Do not place OCI user API keys, private keys, IDCS client secrets, or OCIR auth tokens in Terraform variables.
-- Use a prebuilt OCIR image. Resource Manager should not build Docker images during apply.
-
+- Use a prebuilt private OCIR image. Resource Manager should not build Docker images during apply.

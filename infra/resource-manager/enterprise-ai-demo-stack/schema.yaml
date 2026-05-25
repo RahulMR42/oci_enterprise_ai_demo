@@ -8,11 +8,14 @@ variableGroups:
   - title: Target
     variables:
       - compartment_id
+      - tenancy_id
       - region
       - resource_suffix
   - title: Portal Image And Runtime
     variables:
       - portal_image_uri
+      - ocir_registry_endpoint
+      - ocir_pull_secret_id
       - portal_port
       - portal_password
       - container_shape
@@ -30,12 +33,19 @@ variableGroups:
       - provision_demo_infra
       - enabled_demo_modules
       - require_demo_infra
+      - enable_demo_policies
 
 variables:
   compartment_id:
     title: Compartment OCID
     description: Compartment where Resource Manager creates the portal resources.
     type: oci:identity:compartment:id
+    required: true
+
+  tenancy_id:
+    title: Tenancy OCID
+    description: Tenancy where Resource Manager creates the optional dynamic group.
+    type: string
     required: true
 
   region:
@@ -54,9 +64,24 @@ variables:
 
   portal_image_uri:
     title: Portal Image URI
-    description: Prebuilt OCIR image URI for the portal container.
+    description: Prebuilt private OCIR image URI for the portal container.
     type: string
     required: true
+
+  ocir_registry_endpoint:
+    title: OCIR Registry Endpoint
+    description: Registry endpoint for the private portal image.
+    type: string
+    required: true
+    default: ord.ocir.io
+
+  ocir_pull_secret_id:
+    title: OCIR Pull Vault Secret OCID
+    description: Optional Vault secret containing Docker registry credentials for private OCIR image pulls.
+    type: oci:kms:secret:id
+    required: false
+    sensitive: true
+    default: ""
 
   portal_password:
     title: Portal Password
@@ -152,6 +177,13 @@ variables:
     required: true
     default: false
 
+  enable_demo_policies:
+    title: Create Demo IAM Policies
+    description: Create stack-managed IAM policies for demo services, private OCIR repository reads, Vault secret reads, and Object Storage in the selected compartment.
+    type: boolean
+    required: true
+    default: true
+
 outputs:
   portal_url:
     title: Portal URL
@@ -161,4 +193,10 @@ outputs:
     type: string
   container_instance_id:
     title: Container Instance OCID
+    type: string
+  demo_dynamic_group_name:
+    title: Demo Dynamic Group
+    type: string
+  demo_policy_name:
+    title: Demo IAM Policy
     type: string

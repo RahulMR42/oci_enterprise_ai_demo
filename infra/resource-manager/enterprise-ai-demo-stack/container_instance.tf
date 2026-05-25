@@ -13,6 +13,16 @@ resource "oci_container_instances_container_instance" "portal" {
     ocpus = var.container_ocpus
   }
 
+  dynamic "image_pull_secrets" {
+    for_each = var.ocir_pull_secret_id == "" ? [] : [var.ocir_pull_secret_id]
+
+    content {
+      registry_endpoint = var.ocir_registry_endpoint
+      secret_id         = image_pull_secrets.value
+      secret_type       = "VAULT"
+    }
+  }
+
   vnics {
     display_name           = "${local.display_prefix}-portal-vnic"
     hostname_label         = "portal"

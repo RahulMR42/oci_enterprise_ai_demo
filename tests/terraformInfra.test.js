@@ -82,8 +82,6 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   const terraform = [
     read("infra/hosted-agentic-applications/hosted_application.tf"),
     read("infra/hosted-agentic-applications/langgraph_hosted_application.tf"),
-    read("infra/hosted-agentic-applications/n8n_idcs_client.tf"),
-    read("infra/hosted-agentic-applications/n8n_hosted_application.tf"),
     read("infra/hosted-agentic-applications/langfuse_dependencies.tf"),
     read("infra/hosted-agentic-applications/langfuse_hosted_application.tf"),
     read("infra/hosted-agentic-applications/openclaw_hosted_application.tf"),
@@ -94,7 +92,6 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   ].join("\n");
   const dockerfile = read("apps/hosted-agent/Dockerfile");
   const langgraphDockerfile = read("apps/hosted-langgraph-agent/Dockerfile");
-  const n8nDockerfile = read("apps/hosted-n8n/Dockerfile");
   const langfuseDockerfile = read("apps/hosted-langfuse/Dockerfile");
   const openclawDockerfile = read("apps/hosted-openclaw/Dockerfile");
   const llamaIndexDockerfile = read("apps/hosted-llamaindex-control-tower/Dockerfile");
@@ -103,7 +100,7 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
 
   assert.match(terraform, /resource "terraform_data" "hosted_agentic_application"/);
   assert.match(terraform, /resource "terraform_data" "langgraph_hosted_agentic_application"/);
-  assert.match(terraform, /resource "terraform_data" "n8n_hosted_workflow_automation"/);
+  assert.doesNotMatch(terraform, /n8n/i);
   assert.match(terraform, /resource "terraform_data" "langfuse_hosted_observability"/);
   assert.match(terraform, /resource "terraform_data" "openclaw_hosted_agent_gateway"/);
   assert.match(terraform, /resource "terraform_data" "llamaindex_control_tower"/);
@@ -120,26 +117,11 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /resource "oci_container_instances_container_instance" "langfuse_redis"/);
   assert.match(terraform, /resource "oci_objectstorage_bucket" "langfuse"/);
   assert.match(terraform, /data "oci_psql_db_system_connection_detail" "langfuse"/);
-  assert.match(terraform, /resource "oci_identity_domains_app" "n8n_launch_client"/);
-  assert.match(terraform, /hosted UI launch proxies/);
-  assert.match(terraform, /is_oauth_client\s+=\s+true/);
-  assert.match(terraform, /client_type\s+=\s+"confidential"/);
-  assert.match(terraform, /n8n_idcs_allowed_grants\s+=\s+length\(local\.n8n_idcs_redirect_uris\) > 0 \? \["client_credentials", "authorization_code"\] : \["client_credentials"\]/);
-  assert.match(terraform, /allowed_grants\s+=\s+local\.n8n_idcs_allowed_grants/);
-  assert.match(terraform, /redirect_uris\s+=\s+local\.n8n_idcs_redirect_uris/);
-  assert.match(terraform, /n8n_idcs_client\.json/);
-  assert.match(terraform, /N8N_IDCS_CLIENT_SECRET = oci_identity_domains_app\.n8n_launch_client\[0\]\.client_secret/);
-  assert.match(terraform, /n8n_idcs_launch_client_id/);
-  assert.match(terraform, /depends_on = \[terraform_data\.n8n_idcs_launch_client_metadata\]/);
   assert.match(terraform, /oci artifacts container repository create/);
   assert.match(terraform, /langgraph_hosted_agent\.json/);
   assert.match(terraform, /langgraph_hosted_application\.json/);
   assert.match(terraform, /langgraph_hosted_deployment\.json/);
   assert.match(terraform, /langgraph_ocir_repository\.json/);
-  assert.match(terraform, /n8n_hosted_workflow\.json/);
-  assert.match(terraform, /n8n_hosted_application\.json/);
-  assert.match(terraform, /n8n_hosted_deployment\.json/);
-  assert.match(terraform, /n8n_ocir_repository\.json/);
   assert.match(terraform, /langfuse_hosted_observability\.json/);
   assert.match(terraform, /langfuse_hosted_application\.json/);
   assert.match(terraform, /langfuse_hosted_deployment\.json/);
@@ -153,14 +135,11 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /llamaindex_hosted_deployment\.json/);
   assert.match(terraform, /llamaindex_ocir_repository\.json/);
   assert.match(terraform, /langgraph-hosted-agent-mcp/);
-  assert.match(terraform, /n8n-hosted-workflow-automation/);
   assert.match(terraform, /langfuse-hosted-observability/);
   assert.match(terraform, /openclaw-hosted-agent-gateway/);
   assert.match(terraform, /agentic-control-tower/);
   assert.match(terraform, /variable "container_cli"/);
   assert.match(terraform, /variable "ocir_region_key"/);
-  assert.match(terraform, /variable "n8n_basic_auth_password"/);
-  assert.match(terraform, /variable "n8n_image_repository_uri"/);
   assert.match(terraform, /variable "langfuse_image_repository_uri"/);
   assert.match(terraform, /variable "langfuse_database_url"/);
   assert.match(terraform, /variable "langfuse_clickhouse_url"/);
@@ -170,9 +149,6 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /variable "llamaindex_image_repository_uri"/);
   assert.match(terraform, /variable "llamaindex_app_source_dir"/);
   assert.match(terraform, /variable "openclaw_gateway_token"/);
-  assert.match(terraform, /variable "n8n_idcs_launch_client_enabled"/);
-  assert.match(terraform, /variable "n8n_idcs_scope"/);
-  assert.match(terraform, /Leave empty to build and push the n8n wrapper image to OCIR/);
   assert.match(terraform, /sensitive\s+=\s+true/);
   assert.match(terraform, /container_cli/);
   assert.match(terraform, /podman/);
@@ -191,12 +167,6 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /active-artifact-container-uri/);
   assert.match(terraform, /ocir_repository\.json/);
   assert.match(terraform, /hosted_agent\.json/);
-  assert.match(terraform, /N8N_BASIC_AUTH_ACTIVE/);
-  assert.match(terraform, /"N8N_BASIC_AUTH_ACTIVE", "type": "PLAINTEXT", "value": "false"/);
-  assert.match(terraform, /N8N_BASIC_AUTH_USER/);
-  assert.match(terraform, /N8N_BASIC_AUTH_PASSWORD/);
-  assert.match(terraform, /N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS/);
-  assert.match(terraform, /20260519-upgrade-n8n-stable/);
   assert.match(terraform, /DATABASE_URL/);
   assert.match(terraform, /CLICKHOUSE_URL/);
   assert.match(terraform, /LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED/);
@@ -217,14 +187,6 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(dockerfile, /EXPOSE 8080/);
   assert.match(langgraphDockerfile, /requirements\.txt/);
   assert.match(langgraphDockerfile, /EXPOSE 8080/);
-  assert.match(n8nDockerfile, /FROM docker\.n8n\.io\/n8nio\/n8n:stable/);
-  assert.doesNotMatch(n8nDockerfile, /npx/);
-  assert.doesNotMatch(n8nDockerfile, /npm install -g n8n/);
-  assert.match(n8nDockerfile, /N8N_USER_FOLDER=\/tmp\/\.n8n/);
-  assert.match(n8nDockerfile, /N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false/);
-  assert.match(n8nDockerfile, /ENTRYPOINT \["tini", "--"\]/);
-  assert.match(n8nDockerfile, /CMD \["n8n", "start"\]/);
-  assert.match(n8nDockerfile, /EXPOSE 5678/);
   assert.match(langfuseDockerfile, /FROM docker\.io\/langfuse\/langfuse:3/);
   assert.match(langfuseDockerfile, /HOSTNAME=0\.0\.0\.0/);
   assert.match(langfuseDockerfile, /PORT=3000/);
@@ -253,6 +215,7 @@ test("resource manager stack deploys portal to OCI Container Instances", () => {
     "infra/resource-manager/enterprise-ai-demo-stack/locals.tf",
     "infra/resource-manager/enterprise-ai-demo-stack/network.tf",
     "infra/resource-manager/enterprise-ai-demo-stack/container_instance.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/iam.tf",
     "infra/resource-manager/enterprise-ai-demo-stack/outputs.tf",
     "infra/resource-manager/enterprise-ai-demo-stack/schema.yaml",
     "infra/resource-manager/enterprise-ai-demo-stack/README.md"
@@ -273,8 +236,16 @@ test("resource manager stack deploys portal to OCI Container Instances", () => {
   assert.match(terraform, /subnet_id\s+=\s+local\.subnet_id/);
   assert.match(terraform, /is_public_ip_assigned\s+=\s+true/);
   assert.match(terraform, /image_url\s+=\s+var\.portal_image_uri/);
+  assert.match(terraform, /image_pull_secrets/);
+  assert.match(terraform, /ocir_pull_secret_id/);
+  assert.match(terraform, /secret_type\s+=\s+"VAULT"/);
   assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+var\.portal_password/);
   assert.match(terraform, /PROVISION_INFRA\s+=\s+var\.provision_demo_infra \? "true" : "false"/);
+  assert.match(terraform, /resource "oci_identity_dynamic_group" "resource_manager_demo"/);
+  assert.match(terraform, /resource "oci_identity_policy" "resource_manager_demo"/);
+  assert.match(terraform, /variable "tenancy_id"/);
+  assert.match(terraform, /read repos/);
+  assert.match(terraform, /private OCIR/);
   assert.match(terraform, /output "portal_url"/);
   assert.match(terraform, /schemaVersion:/);
   assert.match(terraform, /portal_image_uri/);
@@ -304,23 +275,17 @@ test("startup script provisions selected demo modules and exports generated runt
   assert.match(script, /OCI_GENAI_CODE_INTERPRETER_CONTAINER/);
 });
 
-test("startup script persists and reuses local n8n basic auth password", () => {
+test("startup script has no n8n credential plumbing", () => {
   const script = read("bash.sh");
   const gitignore = read(".gitignore");
 
-  assert.match(script, /N8N_PASSWORD_FILE="\$\{N8N_PASSWORD_FILE:-\.n8n-hosted-password\}"/);
-  assert.match(script, /ensure_n8n_basic_auth_password\(\)/);
-  assert.match(script, /TF_VAR_n8n_basic_auth_password/);
-  assert.match(script, /OCI_HOSTED_N8N_BASIC_AUTH_PASSWORD/);
-  assert.match(script, /chmod 600 "\$N8N_PASSWORD_FILE"/);
-  assert.match(script, /-var="n8n_basic_auth_password=\$\{TF_VAR_n8n_basic_auth_password\}"/);
-  assert.match(script, /-var="n8n_image_repository_uri=\$\{OCI_HOSTED_N8N_IMAGE_REPOSITORY_URI:-\}"/);
+  assert.doesNotMatch(script, /n8n/i);
+  assert.doesNotMatch(gitignore, /^\.n8n-hosted-password$/m);
   assert.match(script, /-var="langfuse_image_repository_uri=\$\{OCI_HOSTED_LANGFUSE_IMAGE_REPOSITORY_URI:-\}"/);
   assert.match(script, /-var="langfuse_database_url=\$\{LANGFUSE_DATABASE_URL:-\}"/);
   assert.match(script, /-var="langfuse_clickhouse_url=\$\{LANGFUSE_CLICKHOUSE_URL:-\}"/);
   assert.match(script, /-var="langfuse_redis_connection_string=\$\{LANGFUSE_REDIS_CONNECTION_STRING:-\}"/);
   assert.match(script, /-var="langfuse_s3_event_upload_bucket=\$\{LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-\}"/);
-  assert.match(gitignore, /^\.n8n-hosted-password$/m);
 });
 
 test("startup script can destroy all Terraform modules in cleanup order", () => {
@@ -354,10 +319,9 @@ test("server logs feature run lifecycle to console", () => {
   assert.match(server, /function writeDemoLog/);
   assert.match(server, /logs\/demos/);
   assert.match(server, /writeDemoLog\(featureId/);
-  assert.match(server, /writeDemoLog\("n8n-hosted-workflow-automation"/);
   assert.match(server, /logFile/);
   assert.match(server, /"authorization"/);
-  assert.match(server, /n8nForwardedCookieHeader/);
+  assert.doesNotMatch(server, /n8n/i);
   assert.match(server, /portalSessionCookie/);
 });
 
@@ -374,22 +338,16 @@ test("infrastructure tab renders all generated OCI runtime components", () => {
   assert.match(server, /generated\.hosted_agent_deployment_artifact/);
   assert.match(server, /generated\.langgraph_hosted_agent_ocir_repository_id/);
   assert.match(server, /generated\.langgraph_hosted_agent_deployment_artifact/);
-  assert.match(server, /generated\.n8n_hosted_workflow_url/);
   assert.match(server, /generated\.langfuse_hosted_observability_url/);
   assert.match(server, /generated\.openclaw_hosted_gateway_url/);
-  assert.match(server, /n8n_hosted_application\.json/);
-  assert.match(server, /n8n_hosted_deployment\.json/);
   assert.match(server, /langfuse_hosted_application\.json/);
   assert.match(server, /langfuse_hosted_deployment\.json/);
   assert.match(server, /openclaw_hosted_application\.json/);
   assert.match(server, /openclaw_hosted_deployment\.json/);
-  assert.match(server, /OCI n8n hosted application refresh/);
-  assert.match(server, /OCI n8n hosted deployment refresh/);
   assert.match(server, /OCI Langfuse hosted application refresh/);
   assert.match(server, /OCI Langfuse hosted deployment refresh/);
   assert.match(server, /OCI OpenClaw hosted application refresh/);
   assert.match(server, /OCI OpenClaw hosted deployment refresh/);
-  assert.match(server, /n8nHostedUrl/);
   assert.match(server, /langfuseHostedUrl/);
   assert.match(server, /openclawHostedUrl/);
   assert.match(server, /hostedApplicationInvokeUrl/);
@@ -446,7 +404,6 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /Architecture flow/);
   assert.match(main, /Step-by-step OCI flow/);
   assert.match(main, /View raw run details/);
-  assert.match(main, /n8n-hosted-workflow-automation/);
   assert.match(main, /langfuse-hosted-observability/);
   assert.match(main, /openclaw-hosted-agent-gateway/);
   assert.match(main, /const hostedUiLaunchDemoIds = \[/);
@@ -464,7 +421,7 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /window\.open\(config\.launchUrl/);
   assert.match(main, /\/api\/openclaw\/launch\//);
   assert.match(main, /\/auth\/sign-in/);
-  assert.match(server, /async function proxyN8nLaunch/);
+  assert.doesNotMatch(server, /proxyN8nLaunch/);
   assert.match(server, /async function proxyLangfuseLaunch/);
   assert.match(server, /isLangfusePassthroughPath/);
   assert.match(server, /\/api\/auth\//);
@@ -476,8 +433,6 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(server, /rewriteLangfuseLaunchJson/);
   assert.match(server, /http:\/\/0\.0\.0\.0:3000/);
   assert.match(server, /async function getIdcsAccessToken/);
-  assert.match(server, /readN8nIdcsLaunchConfig/);
-  assert.match(server, /n8n_idcs_client\.json/);
   assert.match(server, /IDCS_CLIENT_SECRET/);
   assert.match(server, /IDCS_TOKEN_URL/);
   assert.match(server, /IDCS rejected the client credentials/);

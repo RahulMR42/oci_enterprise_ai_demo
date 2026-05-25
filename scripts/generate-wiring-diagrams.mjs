@@ -90,11 +90,6 @@ const featureOverrides = {
     data: "Agent cards, task handoff, hosted endpoints",
     response: "Coordinated incident outcome"
   },
-  "n8n-hosted-workflow-automation": {
-    core: "OCI Hosted Application running n8n",
-    data: "OCIR n8n image, hosted URL, runtime auth settings",
-    response: "Hosted n8n UI in a browser tab"
-  },
   "openclaw-hosted-agent-gateway": {
     core: "OCI Hosted Application running OpenClaw",
     data: "OCIR OpenClaw image, hosted URL, gateway token",

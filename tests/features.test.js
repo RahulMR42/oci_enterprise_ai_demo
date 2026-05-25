@@ -12,6 +12,7 @@ test("demo features provide card and flip-side content", () => {
   assert.equal(aiFeatures.length, 24);
 
   const featureIds = aiFeatures.map((feature) => feature.id);
+  assert.equal(featureIds.includes("n8n-hosted-workflow-automation"), false);
   assert.deepEqual(featureIds, [
     "responses-api",
     "conversation-store",
@@ -92,6 +93,7 @@ test("portal exposes mermaid-style flow diagrams for feature cards", () => {
   assert.match(main, /data-show-flow/);
   assert.match(main, /flow-dialog/);
   assert.match(main, /openFlowDiagram/);
+  assert.doesNotMatch(main, /n8n-hosted-workflow-automation/);
 });
 
 test("Langfuse demo describes managed OCI dependencies", () => {

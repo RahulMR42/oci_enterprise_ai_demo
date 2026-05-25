@@ -27,3 +27,13 @@ output "enabled_demo_modules" {
   description = "Demo modules passed to the portal runtime."
   value       = var.enabled_demo_modules
 }
+
+output "demo_dynamic_group_name" {
+  description = "Dynamic group created for Resource Manager demo resources when enable_demo_policies is true."
+  value       = var.enable_demo_policies ? oci_identity_dynamic_group.resource_manager_demo[0].name : ""
+}
+
+output "demo_policy_name" {
+  description = "IAM policy created for Resource Manager demo resources when enable_demo_policies is true."
+  value       = var.enable_demo_policies ? oci_identity_policy.resource_manager_demo[0].name : ""
+}

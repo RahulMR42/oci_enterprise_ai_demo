@@ -6,7 +6,7 @@
 
 **Architecture:** Follow the portal's existing card/demo pattern: metadata in `src/data/aiFeatures.js`, route mapping in `server.mjs`, runnable Python in `backend/demos/agentic_control_tower.py`, trace snippets in `src/main.js`, generated wiring SVG, and focused tests. The demo reads non-secret IDCS posture from environment variables injected by `server.mjs`; secrets are represented only as boolean flags and source labels.
 
-**Tech Stack:** Node.js test runner, vanilla portal UI, Python 3, `llama-index-core`, OCI OpenAI-compatible Responses API helper in `backend/demos/common_oci.py`, Terraform-generated metadata from `infra/hosted-agentic-applications/.terraform/generated/n8n_idcs_client.json`.
+**Tech Stack:** Node.js test runner, vanilla portal UI, Python 3, `llama-index-core`, OCI OpenAI-compatible Responses API helper in `backend/demos/common_oci.py`, environment-provided hosted application IDCS settings.
 
 ---
 
@@ -93,7 +93,7 @@ test("IDCS demo credential posture is redacted for Python demos", () => {
   const posture = idcsDemoCredentialPosture({
     domainUrl: "https://idcs.example.com",
     tokenUrl: "https://idcs.example.com/oauth2/v1/token",
-    clientId: "enterprise-ai-demo-n8n-launch-ab12cd",
+    clientId: "enterprise-ai-demo-launch-ab12cd",
     clientSecret: "super-secret",
     audience: "https://genaisolutions.com/",
     scope: "read",

@@ -59,7 +59,6 @@ Hosted application cards use local launch proxies:
 
 | Path | Target |
 | --- | --- |
-| `/api/n8n/launch/` | Hosted n8n UI |
 | `/api/langfuse/launch/` | Hosted Langfuse UI |
 | `/api/openclaw/launch/` | Hosted OpenClaw gateway demo UI |
 
@@ -85,7 +84,6 @@ Generated runtime metadata is exported before the Node server starts:
 | `OCI_GENAI_CODE_INTERPRETER_CONTAINER` | `infra/code-interpreter/.terraform/generated/container.json` |
 | Hosted agent metadata | `infra/hosted-agentic-applications/.terraform/generated/hosted_agent.json` |
 | LangGraph hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/langgraph_hosted_agent.json` |
-| n8n hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/n8n_hosted_workflow.json` |
 | Langfuse hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/langfuse_hosted_observability.json` |
 | OpenClaw hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/openclaw_hosted_gateway.json` |
 

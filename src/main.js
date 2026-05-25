@@ -25,9 +25,6 @@ const infraState = {
   apiKeyAvailable: false,
   vectorStoreId: "",
   codeInterpreterContainerId: "",
-  n8nHostedUrl: "",
-  n8nHostedDeploymentId: "",
-  n8nHostedDeploymentStatus: "",
   langfuseHostedUrl: "",
   langfuseHostedDeploymentId: "",
   langfuseHostedDeploymentStatus: "",
@@ -45,7 +42,6 @@ const maxInitialRunCount = 35;
 const defaultDemoRating = 2;
 const maxDemoRating = 3;
 const hostedUiLaunchDemoIds = [
-  "n8n-hosted-workflow-automation",
   "langfuse-hosted-observability",
   "openclaw-hosted-agent-gateway"
 ];
@@ -617,20 +613,6 @@ const demoBriefs = {
       "Useful for cross-agent triage, workflow lookup, and coordinated customer response."
     ]
   },
-  "n8n-hosted-workflow-automation": {
-    services: [
-      "OCI Generative AI Hosted Application for a real n8n container.",
-      "OCI Hosted Deployment backed by a private OCIR n8n image."
-    ],
-    security: [
-      "Hosted application inbound auth uses the configured IDCS domain, audience, and scope.",
-      "n8n basic auth is injected at runtime and is not rendered in the portal."
-    ],
-    result: [
-      "Opens a live n8n workflow automation UI from the portal.",
-      "Useful for demonstrating hosted workflow tools alongside agentic applications."
-    ]
-  },
   "langfuse-hosted-observability": {
     services: [
       "OCI Generative AI Hosted Application for a real Langfuse web container.",
@@ -857,12 +839,6 @@ const flowDiagrams = {
     mermaid:
       "flowchart LR\n  A[Agent card discovery] --> B[A2A task]\n  B --> C[Incident agent]\n  C --> D[LangGraph agent]\n  D --> E[Coordinated answer]"
   },
-  "n8n-hosted-workflow-automation": {
-    title: "n8n Hosted Workflow Flow",
-    nodes: ["n8n image", "OCI hosted app", "Hosted deployment URL", "n8n workflow UI"],
-    mermaid:
-      "flowchart LR\n  A[n8n image] --> B[OCI hosted app]\n  B --> C[Hosted deployment URL]\n  C --> D[n8n workflow UI]"
-  },
   "langfuse-hosted-observability": {
     title: "Langfuse Hosted Observability Flow",
     nodes: ["Langfuse image", "External stores", "OCI hosted app", "Hosted deployment URL", "Langfuse UI"],
@@ -976,8 +952,6 @@ state = {"messages": prompt, "mcp_tools": discovered_tools}`,
 task = send_a2a_task(agent_card, prompt)`,
     `response = collect_agent_result(task)`
   ],
-  "n8n-hosted-workflow-automation": `deployment = read_n8n_hosted_workflow_metadata()
-window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "langfuse-hosted-observability": `deployment = read_langfuse_hosted_observability_metadata()
 window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "openclaw-hosted-agent-gateway": `deployment = read_openclaw_hosted_gateway_metadata()
@@ -2043,26 +2017,6 @@ const demoTechnicalFlows = {
     },
     defaultTechnicalFlow[4]
   ],
-  "n8n-hosted-workflow-automation": [
-    defaultTechnicalFlow[0],
-    {
-      ...defaultTechnicalFlow[1],
-      title: "Hosted App Auth",
-      subtitle: "IDCS inbound auth",
-      feature: "OCI Hosted Application protects the n8n deployment with the configured IDCS boundary.",
-      auth: "IDCS client secret and n8n password are not exposed in the browser.",
-      interaction: "Terraform surfaces only the hosted URL and deployment metadata."
-    },
-    {
-      ...defaultTechnicalFlow[2],
-      title: "n8n Runtime",
-      subtitle: "Workflow UI",
-      feature: "OCI Hosted Deployment runs the real n8n container from private OCIR.",
-      auth: "n8n basic auth is injected as hosted application environment variables.",
-      interaction: "The portal opens the hosted n8n URL in a new tab for workflow inspection."
-    },
-    defaultTechnicalFlow[4]
-  ],
   "langfuse-hosted-observability": [
     defaultTechnicalFlow[0],
     {
@@ -2492,8 +2446,6 @@ function applyProvisionedValues(result) {
   const suffixComponent = componentByName("Resource Suffix");
   const vectorStoreComponent = componentByName("File Search Vector Store");
   const codeContainerComponent = componentByName("Code Interpreter Container");
-  const n8nUrlComponent = componentByName("n8n Hosted URL");
-  const n8nDeploymentComponent = componentByName("n8n OCI Hosted Deployment");
   const langfuseUrlComponent = componentByName("Langfuse Hosted URL");
   const langfuseDeploymentComponent = componentByName("Langfuse OCI Hosted Deployment");
   const openclawUrlComponent = componentByName("OpenClaw Hosted URL");
@@ -2507,9 +2459,6 @@ function applyProvisionedValues(result) {
   infraState.apiKeyAvailable = Boolean(values.apiKeyAvailable);
   infraState.vectorStoreId = values.vectorStoreId || vectorStoreComponent?.value || infraState.vectorStoreId;
   infraState.codeInterpreterContainerId = values.codeInterpreterContainerId || codeContainerComponent?.value || infraState.codeInterpreterContainerId;
-  infraState.n8nHostedUrl = values.n8nHostedUrl || n8nUrlComponent?.value || infraState.n8nHostedUrl;
-  infraState.n8nHostedDeploymentId = values.n8nHostedDeploymentId || n8nDeploymentComponent?.value || infraState.n8nHostedDeploymentId;
-  infraState.n8nHostedDeploymentStatus = values.n8nHostedDeploymentStatus || n8nDeploymentComponent?.status || infraState.n8nHostedDeploymentStatus;
   infraState.langfuseHostedUrl = values.langfuseHostedUrl || langfuseUrlComponent?.value || infraState.langfuseHostedUrl;
   infraState.langfuseHostedDeploymentId = values.langfuseHostedDeploymentId || langfuseDeploymentComponent?.value || infraState.langfuseHostedDeploymentId;
   infraState.langfuseHostedDeploymentStatus =
