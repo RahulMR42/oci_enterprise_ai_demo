@@ -317,6 +317,16 @@ const demoDefaults = {
     toolResourceVisible: false,
     toolResourceId: ""
   },
+  "agentic-control-tower": {
+    title: "Agentic Control Tower Workbench",
+    prompt: "Coordinate checkout delay triage with evidence review, approval gating, audit recording, and an executive next action.",
+    button: "Run Control Tower Demo",
+    output: "Run a real LlamaIndex workflow, review deterministic tool evidence, and synthesize the governed result with OCI Responses API when configured.",
+    sessionVisible: false,
+    sessionId: "",
+    toolResourceVisible: false,
+    toolResourceId: ""
+  },
   "agentic-rag-planner": {
     title: "Agentic RAG Planner Workbench",
     prompt: "Plan a grounded answer for delayed checkout confirmations using approved support and policy knowledge.",
@@ -413,6 +423,7 @@ const demoScriptNames = {
   "hosted-agentic-applications": "hosted_agentic_applications.py",
   "langgraph-hosted-agent-mcp": "langgraph_hosted_agent_mcp.py",
   "a2a-agent-collaboration": "a2a_agent_collaboration.py",
+  "agentic-control-tower": "agentic_control_tower.py",
   "agentic-rag-planner": "agentic_rag_planner.py",
   "human-approval-agent": "human_approval_agent.py",
   "governance-center": "governance_center.py",
@@ -648,6 +659,20 @@ const demoBriefs = {
       "Useful for demonstrating self-hosted agent gateways alongside OCI hosted deployments."
     ]
   },
+  "agentic-control-tower": {
+    services: [
+      "Real LlamaIndex workflow for multi-step agent orchestration.",
+      "OCI Responses API for final synthesis when live configuration is present."
+    ],
+    security: [
+      "IDCS credential posture is loaded server-side from Terraform-generated metadata.",
+      "Client secret and API key values are redacted before browser output."
+    ],
+    result: [
+      "Shows planning, tool execution, evidence review, approval, memory, and audit in one agent run.",
+      "Useful for enterprise control tower and incident command workflows."
+    ]
+  },
   "agentic-rag-planner": {
     services: [
       "OCI Responses API for planning retrieval and final answer policy.",
@@ -850,6 +875,12 @@ const flowDiagrams = {
     mermaid:
       "flowchart LR\n  A[OpenClaw image] --> B[OCI hosted app]\n  B --> C[Hosted deployment URL]\n  C --> D[OpenClaw Control UI]"
   },
+  "agentic-control-tower": {
+    title: "Agentic Control Tower Flow",
+    nodes: ["Operator prompt", "LlamaIndex workflow", "Enterprise tools", "Evidence review", "IDCS posture", "OCI synthesis"],
+    mermaid:
+      "flowchart LR\n  A[Operator prompt] --> B[LlamaIndex workflow]\n  B --> C[Enterprise tool execution]\n  C --> D[Evidence and approval review]\n  D --> E[IDCS posture check]\n  E --> F[OCI Responses synthesis]"
+  },
   "agentic-rag-planner": {
     title: "Agentic RAG Planner Flow",
     nodes: ["User question", "Planning agent", "Retrieval queries", "Evidence check", "Grounded answer plan"],
@@ -951,6 +982,14 @@ window.open(deployment.url, "_blank", "noopener,noreferrer")`,
 window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "openclaw-hosted-agent-gateway": `deployment = read_openclaw_hosted_gateway_metadata()
 window.open(deployment.url, "_blank", "noopener,noreferrer")`,
+  "agentic-control-tower": [
+    `workflow = ControlTowerWorkflow(timeout=10)
+result = await workflow.run(prompt=prompt)`,
+    `response = client.responses.create(
+    model=model,
+    input=build_control_tower_prompt(result),
+)`
+  ],
   "agentic-rag-planner": [
     `plan = build_retrieval_plan(prompt)
 queries = plan["retrievalQueries"]`,
@@ -1973,6 +2012,34 @@ const demoTechnicalFlows = {
       feature: "OCI Responses API summarizes the agent-to-agent collaboration plan.",
       auth: "The final model call uses the shared OCI Responses project/API key.",
       interaction: "The response merges both agent artifacts into a customer-safe next action."
+    },
+    defaultTechnicalFlow[4]
+  ],
+  "agentic-control-tower": [
+    defaultTechnicalFlow[0],
+    {
+      ...defaultTechnicalFlow[1],
+      title: "LlamaIndex",
+      subtitle: "Workflow planner",
+      feature: "The Python demo uses LlamaIndex workflow steps to plan, execute tools, review evidence, and prepare memory.",
+      auth: "The workflow receives only redacted IDCS posture and non-secret runtime values.",
+      interaction: "The workflow produces a governed incident plan before model synthesis."
+    },
+    {
+      ...defaultTechnicalFlow[2],
+      title: "Tool Review",
+      subtitle: "Evidence and approval",
+      feature: "Local enterprise tools return incident, policy, metric, approval, and audit artifacts.",
+      auth: "Tools are deterministic and constrained to the demo process.",
+      interaction: "Evidence sufficiency and approval requirements are checked before final response."
+    },
+    {
+      ...defaultTechnicalFlow[3],
+      title: "OCI Synthesis",
+      subtitle: "Responses API",
+      feature: "OCI Responses API summarizes the workflow when live configuration is present.",
+      auth: "The shared project/API key remains server-side.",
+      interaction: "The final output combines plan, evidence, approval state, and IDCS posture."
     },
     defaultTechnicalFlow[4]
   ],

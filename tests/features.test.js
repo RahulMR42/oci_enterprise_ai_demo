@@ -48,7 +48,11 @@ test("demo features provide card and flip-side content", () => {
     assert.ok(feature.status);
     assert.ok(feature.demoHref);
     assert.ok(feature.docsHref);
-    assert.ok(feature.docsHref.startsWith("https://docs.oracle.com/") || feature.docsHref.startsWith("https://docs.openclaw.ai/"));
+    assert.ok(
+      feature.docsHref.startsWith("https://docs.oracle.com/") ||
+        feature.docsHref.startsWith("https://docs.openclaw.ai/") ||
+        feature.docsHref.startsWith("https://docs.llamaindex.ai/")
+    );
     assert.ok(feature.terraformPath);
     assert.ok(feature.sdkModule);
     assert.ok(feature.sampleUseCase);

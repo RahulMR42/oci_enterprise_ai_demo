@@ -285,6 +285,25 @@ export const aiFeatures = [
     capabilities: ["OpenClaw Control UI", "Hosted gateway URL", "Constrained agent runtime"]
   },
   {
+    id: "agentic-control-tower",
+    title: "Agentic Control Tower",
+    serviceArea: "OCI Generative AI Agents",
+    summary: "Run a LlamaIndex control workflow that plans tools, reviews evidence, gates approval, and reports IDCS posture.",
+    details:
+      "Runs a real LlamaIndex workflow with deterministic enterprise tools, evidence review, approval gating, memory note generation, and OCI Responses API synthesis. The result includes server-side IDCS credential posture from the Terraform-generated hosted app launch client without exposing secrets.",
+    provisioningDetails:
+      "Uses the shared OCI Generative AI project/API key and reuses the Terraform-generated IDCS launch client metadata from the hosted-agentic-applications module. No new Terraform resource is required for the first local workflow version.",
+    status: "Live OSS Agent",
+    accent: "green",
+    terraformPath: "infra/hosted-agentic-applications",
+    sdkModule: "backend/demos/agentic_control_tower.py",
+    sampleUseCase: "Coordinate incident triage across planning, tools, evidence review, approval, audit, and final response.",
+    demoHref: "#demo-agentic-control-tower",
+    docsHref: "https://docs.llamaindex.ai/en/stable/module_guides/workflow/",
+    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
+    capabilities: ["LlamaIndex workflow", "Tool critique loop", "IDCS credential posture"]
+  },
+  {
     id: "agentic-rag-planner",
     title: "Agentic RAG Planner",
     serviceArea: "OCI Generative AI Agents",
