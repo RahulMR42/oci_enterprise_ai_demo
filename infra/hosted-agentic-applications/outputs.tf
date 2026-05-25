@@ -108,6 +108,26 @@ output "openclaw_hosted_deployment_display_name" {
   value       = local.openclaw_deployment_display_name
 }
 
+output "llamaindex_control_tower_generated_file" {
+  description = "Generated LlamaIndex control tower hosted application/deployment metadata."
+  value       = "${path.module}/.terraform/generated/llamaindex_control_tower.json"
+}
+
+output "llamaindex_container_repository_name" {
+  description = "OCIR repository name used by the LlamaIndex control tower image."
+  value       = local.llamaindex_repository_name
+}
+
+output "llamaindex_hosted_application_display_name" {
+  description = "LlamaIndex OCI Generative AI hosted application display name."
+  value       = local.llamaindex_application_display_name
+}
+
+output "llamaindex_hosted_deployment_display_name" {
+  description = "LlamaIndex OCI Generative AI hosted deployment display name."
+  value       = local.llamaindex_deployment_display_name
+}
+
 output "langfuse_postgres_private_endpoint" {
   description = "Private PostgreSQL endpoint used by the Langfuse hosted deployment."
   value       = "${data.oci_psql_db_system_connection_detail.langfuse.primary_db_endpoint[0].ip_address}:${data.oci_psql_db_system_connection_detail.langfuse.primary_db_endpoint[0].port}"

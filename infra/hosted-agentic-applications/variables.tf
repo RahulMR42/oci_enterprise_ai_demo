@@ -69,6 +69,18 @@ variable "openclaw_image_repository_uri" {
   default     = ""
 }
 
+variable "llamaindex_repository_name" {
+  description = "OCIR repository name for the hosted LlamaIndex control tower image."
+  type        = string
+  default     = "enterprise-ai-demo/hosted-llamaindex-control-tower"
+}
+
+variable "llamaindex_image_repository_uri" {
+  description = "Optional prebuilt container repository URI for the LlamaIndex control tower image. Leave empty to build and push the wrapper image to OCIR."
+  type        = string
+  default     = ""
+}
+
 variable "image_tag" {
   description = "Container image tag pushed to OCIR and used by hosted deployment."
   type        = string
@@ -147,6 +159,18 @@ variable "openclaw_hosted_deployment_display_name" {
   default     = "enterprise-ai-demo-openclaw-deployment"
 }
 
+variable "llamaindex_hosted_application_display_name" {
+  description = "Display name for the LlamaIndex OCI Generative AI hosted application."
+  type        = string
+  default     = "enterprise-ai-demo-llamaindex-control-tower"
+}
+
+variable "llamaindex_hosted_deployment_display_name" {
+  description = "Display name for the LlamaIndex OCI Generative AI hosted deployment."
+  type        = string
+  default     = "enterprise-ai-demo-llamaindex-control-tower-deployment"
+}
+
 variable "app_source_dir" {
   description = "Local container source directory for the hosted agent application."
   type        = string
@@ -175,6 +199,12 @@ variable "openclaw_app_source_dir" {
   description = "Local container source directory for the OpenClaw hosted agent gateway application."
   type        = string
   default     = "../../apps/hosted-openclaw"
+}
+
+variable "llamaindex_app_source_dir" {
+  description = "Local container source directory for the LlamaIndex control tower hosted application."
+  type        = string
+  default     = "../../apps/hosted-llamaindex-control-tower"
 }
 
 variable "push_image" {

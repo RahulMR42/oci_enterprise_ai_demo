@@ -87,6 +87,7 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
     read("infra/hosted-agentic-applications/langfuse_dependencies.tf"),
     read("infra/hosted-agentic-applications/langfuse_hosted_application.tf"),
     read("infra/hosted-agentic-applications/openclaw_hosted_application.tf"),
+    read("infra/hosted-agentic-applications/llamaindex_control_tower_hosted_application.tf"),
     read("infra/hosted-agentic-applications/locals.tf"),
     read("infra/hosted-agentic-applications/variables.tf"),
     read("infra/hosted-agentic-applications/outputs.tf")
@@ -96,13 +97,16 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   const n8nDockerfile = read("apps/hosted-n8n/Dockerfile");
   const langfuseDockerfile = read("apps/hosted-langfuse/Dockerfile");
   const openclawDockerfile = read("apps/hosted-openclaw/Dockerfile");
+  const llamaIndexDockerfile = read("apps/hosted-llamaindex-control-tower/Dockerfile");
   const langgraphApp = read("apps/hosted-langgraph-agent/app.py");
+  const llamaIndexApp = read("apps/hosted-llamaindex-control-tower/app.py");
 
   assert.match(terraform, /resource "terraform_data" "hosted_agentic_application"/);
   assert.match(terraform, /resource "terraform_data" "langgraph_hosted_agentic_application"/);
   assert.match(terraform, /resource "terraform_data" "n8n_hosted_workflow_automation"/);
   assert.match(terraform, /resource "terraform_data" "langfuse_hosted_observability"/);
   assert.match(terraform, /resource "terraform_data" "openclaw_hosted_agent_gateway"/);
+  assert.match(terraform, /resource "terraform_data" "llamaindex_control_tower"/);
   assert.match(terraform, /resource "oci_core_vcn" "langfuse"/);
   assert.match(terraform, /resource "oci_core_subnet" "langfuse_private"/);
   assert.match(terraform, /resource "oci_core_nat_gateway" "langfuse"/);
@@ -144,10 +148,15 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /openclaw_hosted_application\.json/);
   assert.match(terraform, /openclaw_hosted_deployment\.json/);
   assert.match(terraform, /openclaw_ocir_repository\.json/);
+  assert.match(terraform, /llamaindex_control_tower\.json/);
+  assert.match(terraform, /llamaindex_hosted_application\.json/);
+  assert.match(terraform, /llamaindex_hosted_deployment\.json/);
+  assert.match(terraform, /llamaindex_ocir_repository\.json/);
   assert.match(terraform, /langgraph-hosted-agent-mcp/);
   assert.match(terraform, /n8n-hosted-workflow-automation/);
   assert.match(terraform, /langfuse-hosted-observability/);
   assert.match(terraform, /openclaw-hosted-agent-gateway/);
+  assert.match(terraform, /agentic-control-tower/);
   assert.match(terraform, /variable "container_cli"/);
   assert.match(terraform, /variable "ocir_region_key"/);
   assert.match(terraform, /variable "n8n_basic_auth_password"/);
@@ -158,6 +167,8 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /variable "langfuse_redis_connection_string"/);
   assert.match(terraform, /variable "langfuse_s3_event_upload_bucket"/);
   assert.match(terraform, /variable "openclaw_image_repository_uri"/);
+  assert.match(terraform, /variable "llamaindex_image_repository_uri"/);
+  assert.match(terraform, /variable "llamaindex_app_source_dir"/);
   assert.match(terraform, /variable "openclaw_gateway_token"/);
   assert.match(terraform, /variable "n8n_idcs_launch_client_enabled"/);
   assert.match(terraform, /variable "n8n_idcs_scope"/);
@@ -221,12 +232,16 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(openclawDockerfile, /FROM ghcr\.io\/openclaw\/openclaw:latest/);
   assert.match(openclawDockerfile, /OPENCLAW_GATEWAY_BIND=lan/);
   assert.match(openclawDockerfile, /EXPOSE 18789/);
+  assert.match(llamaIndexDockerfile, /requirements\.txt/);
+  assert.match(llamaIndexDockerfile, /EXPOSE 8080/);
   assert.match(read("apps/hosted-agent/app.py"), /\/\.well-known\/agent-card\.json/);
   assert.match(read("apps/hosted-agent/app.py"), /\/a2a\/tasks/);
   assert.match(langgraphApp, /\/\.well-known\/agent-card\.json/);
   assert.match(langgraphApp, /\/a2a\/tasks/);
   assert.match(langgraphApp, /from langgraph\.graph import END, StateGraph/);
   assert.match(langgraphApp, /\/agent\/langgraph-mcp\/respond/);
+  assert.match(llamaIndexApp, /from llama_index\.core\.workflow import Event, StartEvent, StopEvent, Workflow, step/);
+  assert.match(llamaIndexApp, /\/agent\/control-tower\/respond/);
 });
 
 test("startup script provisions selected demo modules and exports generated runtime ids", () => {

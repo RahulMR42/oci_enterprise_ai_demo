@@ -258,7 +258,8 @@ apply_demo_module() {
         -var="langfuse_init_user_email=${LANGFUSE_INIT_USER_EMAIL:-}" \
         -var="langfuse_init_user_password=${LANGFUSE_INIT_USER_PASSWORD:-}" \
         -var="openclaw_image_repository_uri=${OCI_HOSTED_OPENCLAW_IMAGE_REPOSITORY_URI:-}" \
-        -var="openclaw_gateway_token=${OPENCLAW_GATEWAY_TOKEN:-}"
+        -var="openclaw_gateway_token=${OPENCLAW_GATEWAY_TOKEN:-}" \
+        -var="llamaindex_image_repository_uri=${OCI_HOSTED_LLAMAINDEX_IMAGE_REPOSITORY_URI:-}"
       ;;
     *)
       terraform_init "$module_path"
@@ -342,7 +343,8 @@ destroy_demo_module() {
         -var="langfuse_init_user_email=${LANGFUSE_INIT_USER_EMAIL:-}" \
         -var="langfuse_init_user_password=${LANGFUSE_INIT_USER_PASSWORD:-}" \
         -var="openclaw_image_repository_uri=${OCI_HOSTED_OPENCLAW_IMAGE_REPOSITORY_URI:-}" \
-        -var="openclaw_gateway_token=${OPENCLAW_GATEWAY_TOKEN:-}"
+        -var="openclaw_gateway_token=${OPENCLAW_GATEWAY_TOKEN:-}" \
+        -var="llamaindex_image_repository_uri=${OCI_HOSTED_LLAMAINDEX_IMAGE_REPOSITORY_URI:-}"
       ;;
     *)
       terraform_init "$module_path"
