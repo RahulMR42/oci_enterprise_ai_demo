@@ -63,7 +63,8 @@ test("resource manager stack deploys portal to OCI Container Instances", () => {
   assert.match(terraform, /count\s+=\s+local\.create_network \? 1 : 0/);
   assert.match(terraform, /subnet_id\s+=\s+local\.subnet_id/);
   assert.match(terraform, /is_public_ip_assigned\s+=\s+true/);
-  assert.match(terraform, /image_url\s+=\s+var\.portal_image_uri/);
+  assert.match(terraform, /image_url\s+=\s+local\.portal_image_uri/);
+  assert.match(terraform, /read repos/);
   assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+var\.portal_password/);
   assert.match(terraform, /PROVISION_INFRA\s+=\s+var\.provision_demo_infra \? "true" : "false"/);
   assert.match(terraform, /output "portal_url"/);
@@ -205,7 +206,7 @@ terraform {
 
 - [ ] **Step 2: Add variables**
 
-Create `infra/resource-manager/enterprise-ai-demo-stack/variables.tf` with inputs for `compartment_id`, `region`, `portal_image_uri`, `portal_password`, `existing_subnet_id`, `create_public_network`, `ssh_public_key`, container shape/OCPU/memory, resource suffix, provision toggles, and network CIDRs. Include validations for non-empty OCIDs and image URI.
+Create `infra/resource-manager/enterprise-ai-demo-stack/variables.tf` with inputs for `compartment_id`, `tenancy_id`, `region`, optional `portal_image_uri`, OCIR derivation inputs, `portal_password`, `existing_subnet_id`, `create_public_network`, container shape/OCPU/memory, resource suffix, provision toggles, IAM policy toggles, and network CIDRs. Include validations for non-empty OCIDs and explicit image URI.
 
 - [ ] **Step 3: Add locals**
 
@@ -273,7 +274,7 @@ resource "oci_container_instances_container_instance" "portal" {
 
   containers {
     display_name          = "enterprise-ai-demo-portal"
-    image_url             = var.portal_image_uri
+    image_url             = local.portal_image_uri
     environment_variables = local.portal_environment
 
     resource_config {
@@ -335,14 +336,14 @@ Build and push the portal image before stack creation:
 ```bash
 export OCIR_REGION_KEY=ord
 export OCIR_NAMESPACE=<namespace>
-export IMAGE_URI="$OCIR_REGION_KEY.ocir.io/$OCIR_NAMESPACE/enterprise-ai-demo/portal:latest"
+export IMAGE_URI="$OCIR_REGION_KEY.ocir.io/$OCIR_NAMESPACE/enterprise-ai-demo/portal-rm:latest"
 podman build --platform linux/amd64 -t "$IMAGE_URI" ../../..
 podman push "$IMAGE_URI"
 ```
 
 ## Deploy
 
-Create a Resource Manager stack from this folder, set `portal_image_uri`, `compartment_id`, and `portal_password`, then run Apply.
+Create a Resource Manager stack from this folder, set `compartment_id`, `tenancy_id`, and `portal_password`, then run Apply. Either set `portal_image_uri` explicitly or leave it empty and use the OCIR derivation inputs. Keep the OCIR repository private and rely on the stack-managed dynamic group plus `read repos` policy, not pull credentials.
 
 ## State
 

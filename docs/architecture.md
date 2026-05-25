@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The portal is a local-first demo shell for OCI Enterprise AI use cases. It keeps UI cards, demo execution, Terraform provisioning, generated runtime IDs, and logs in one repo so every card can show both the business workflow and the OCI resources behind it.
+The portal is a demo shell for OCI Enterprise AI use cases. Local development uses `bash.sh`, while OCI one-click deployment uses the Resource Manager stack under `infra/resource-manager/enterprise-ai-demo-stack`. Both paths keep UI cards, demo execution, Terraform provisioning, generated runtime IDs, and logs in one repo so every card can show both the business workflow and the OCI resources behind it.
 
 ## System View
 
@@ -65,6 +65,8 @@ Hosted application cards use local launch proxies:
 The proxies keep the portal session local, rewrite root-relative UI assets where needed, and surface hosted application launch failures as structured portal errors.
 
 ## Provisioning Flow
+
+Resource Manager is the primary OCI deployment flow. It owns Terraform state, deploys the portal container to OCI Container Instances, derives or accepts the private OCIR image URI, creates optional public networking, and can create same-compartment IAM policies for private OCIR repository reads and demo services.
 
 `bash.sh` is the startup orchestrator. When `PROVISION_INFRA=true`, it applies Terraform in this order:
 

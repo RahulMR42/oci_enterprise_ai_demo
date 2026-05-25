@@ -1,8 +1,21 @@
 # Enterprise AI Demo Resource Manager Stack
 
+[![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https://github.com/RahulMR42/oci_enterprise_ai_demo/releases/latest/download/enterprise-ai-demo-rm-stack.zip&zipUrlVariables=%7B%22region%22%3A%22us-chicago-1%22%2C%22ocir_region_key%22%3A%22ord%22%2C%22portal_repository_name%22%3A%22enterprise-ai-demo%2Fportal-rm%22%2C%22portal_image_tag%22%3A%22latest%22%2C%22provision_demo_infra%22%3Afalse%2C%22enabled_demo_modules%22%3A%5B%22responses-api%22%5D%2C%22require_demo_infra%22%3Afalse%2C%22enable_demo_policies%22%3Atrue%7D)
+
 Resource Manager is the primary one-click Terraform deployment path for the Enterprise AI Demo Portal. Resource Manager owns Terraform state for this stack.
 
-This stack deploys a prebuilt private portal image to OCI Container Instances. It can create a small public demo network, or it can use an existing subnet supplied by the stack user. It can also create same-compartment IAM policies for the demo services that the portal provisions progressively.
+This stack deploys a prebuilt private portal image to OCI Container Instances. It can create a small public demo network, or it can use an existing subnet supplied by the stack user. It also creates same-compartment IAM policies for private OCIR reads and for the demo services that the portal provisions progressively.
+
+Resource Manager owns state for this path. Do not add a local backend or Object Storage backend to this stack package.
+
+## Access Model
+
+Private OCIR access is policy-based:
+
+- The OCIR repository stays private.
+- The stack creates a dynamic group for resources in the selected compartment when `enable_demo_policies=true`.
+- The stack policy grants that dynamic group `read repos` in the same compartment.
+- The container instance does not receive OCIR usernames, auth tokens, Docker config JSON, or pull-secret variables.
 
 ## Image
 
@@ -17,7 +30,7 @@ podman build --platform linux/amd64 -t "$IMAGE_URI" ../../..
 podman push "$IMAGE_URI"
 ```
 
-Keep the OCIR repository private. Use the resulting `IMAGE_URI` as `portal_image_uri` in Resource Manager.
+Keep the OCIR repository private. Use the resulting `IMAGE_URI` as `portal_image_uri` in Resource Manager only when you want to override the derived image URI.
 
 Alternatively, leave `portal_image_uri` empty and let Terraform derive the image URI from `ocir_region_key`, `ocir_namespace`, `portal_repository_name`, and `portal_image_tag`. The default derived URI shape is:
 
@@ -25,21 +38,23 @@ Alternatively, leave `portal_image_uri` empty and let Terraform derive the image
 ord.ocir.io/<namespace>/enterprise-ai-demo/portal-rm:latest
 ```
 
-Do not put OCIR auth tokens in stack variables or Terraform state. Keep private image access policy-based through the stack-managed dynamic group and `read repos` policy.
+Do not put OCIR auth tokens in stack variables or Terraform state. Private image access is handled through the stack-managed dynamic group and `read repos` policy.
 
 ## Deploy
 
-Create a Resource Manager stack from this folder:
+Use the button above after the release asset `enterprise-ai-demo-rm-stack.zip` is published. The button opens OCI Resource Manager's Create Stack page with the stack zip selected and safe defaults prefilled. Review the variables, keep Run apply selected for one-click creation, and provide the required target values.
 
-```text
-infra/resource-manager/enterprise-ai-demo-stack
-```
-
-Set these required inputs:
+Required values:
 
 - `compartment_id`
 - `tenancy_id`
 - `portal_password`
+
+For local CLI deployment or pre-release testing, create a Resource Manager stack from this folder:
+
+```text
+infra/resource-manager/enterprise-ai-demo-stack
+```
 
 Set either `portal_image_uri` directly, or keep it empty and set `portal_repository_name`/`portal_image_tag` for the derived private OCIR URI. The `portal_image_uri` stack output shows the exact image URI used by the container instance.
 
@@ -51,6 +66,16 @@ After apply, open the `portal_url` output and sign in with:
 username: oci
 password: <portal_password>
 ```
+
+Key outputs:
+
+| Output | Meaning |
+| --- | --- |
+| `portal_url` | Browser URL for the deployed portal. |
+| `portal_image_uri` | Exact private OCIR image URI used by the container instance. |
+| `container_instance_id` | OCI Container Instance OCID. |
+| `demo_dynamic_group_name` | Dynamic group name created when demo policies are enabled. |
+| `demo_policy_name` | IAM policy name created when demo policies are enabled. |
 
 ## Demo Infrastructure
 
@@ -73,5 +98,28 @@ Object Storage backend is optional for non-Resource-Manager local or OCI DevOps 
 ## Security Notes
 
 - Restrict `allowed_ingress_cidr` for non-demo deployments.
-- Do not place OCI user API keys, private keys, IDCS client secrets, or OCIR auth tokens in Terraform variables.
+- Do not place OCI user API keys, private keys, IDCS client secrets, OCIR auth tokens, or Docker registry credentials in Terraform variables.
 - Use a prebuilt private OCIR image. Resource Manager should not build Docker images during apply.
+
+## Release Package
+
+The Deploy to Oracle Cloud button needs a zip whose root contains the Terraform files in this directory. Do not link the button to a full repository branch archive unless Resource Manager is configured with the correct working directory.
+
+Create the release asset from this directory:
+
+```bash
+cd infra/resource-manager/enterprise-ai-demo-stack
+zip -qr /tmp/enterprise-ai-demo-rm-stack.zip .
+```
+
+Upload `/tmp/enterprise-ai-demo-rm-stack.zip` to the GitHub release as:
+
+```text
+enterprise-ai-demo-rm-stack.zip
+```
+
+The button currently points to:
+
+```text
+https://github.com/RahulMR42/oci_enterprise_ai_demo/releases/latest/download/enterprise-ai-demo-rm-stack.zip
+```

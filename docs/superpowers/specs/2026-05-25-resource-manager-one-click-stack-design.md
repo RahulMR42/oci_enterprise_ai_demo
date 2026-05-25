@@ -28,7 +28,7 @@ The stack will deploy the portal as an OCI Container Instance using a prebuilt O
 
 ## Image Strategy
 
-Resource Manager should not build Docker images during apply. The stack will require a portal image URI as input, with helper documentation for building and pushing the image to OCIR before creating the stack.
+Resource Manager should not build Docker images during apply. The stack deploys a prebuilt private OCIR image. It can accept an explicit `portal_image_uri`, or derive the image URI from `ocir_region_key`, `ocir_namespace`, `portal_repository_name`, and `portal_image_tag`.
 
 The implementation will add a root-level portal `Dockerfile` that packages:
 
@@ -48,7 +48,7 @@ The Resource Manager stack will create:
 - Optional VCN, internet gateway, route table, security list, and public subnet when an existing subnet is not supplied.
 - OCI Container Instance for the portal.
 - Portal container environment variables for region, profile-independent OCI auth mode, compartment, selected demo provisioning flags, and portal password.
-- Optional Object Storage bucket for demo artifacts or future runtime metadata if required by selected demos.
+- Optional stack-managed dynamic group and IAM policy for private OCIR repository reads, Vault secret bundle reads, Object Storage, Generative AI, Autonomous Database, and Database Tools in the selected compartment.
 - Outputs for the portal public IP, URL, compartment, subnet, image URI, and enabled demo set.
 
 The stack will accept an existing subnet OCID to support enterprise networks. When that value is set, the stack will not create a VCN.
@@ -83,7 +83,7 @@ Sensitive values such as the portal password will be marked sensitive in Terrafo
 
 The portal container should not depend on a local OCI CLI profile. The Resource Manager path will prefer instance principal or resource principal style runtime access where supported by the called OCI SDK/CLI paths.
 
-Where existing demo code currently assumes local config files, the first stack version will expose that limitation clearly and keep live demo provisioning optional. The design avoids embedding user API keys, private keys, or local OCI config content in Terraform state.
+Private OCIR access is policy-based. The stack must not accept OCIR usernames, auth tokens, Docker config JSON, or pull-secret variables. Where existing demo code currently assumes local config files, the first stack version will expose that limitation clearly and keep live demo provisioning optional. The design avoids embedding user API keys, private keys, OCIR credentials, IDCS client secrets, or local OCI config content in Terraform state.
 
 ## Optional OCI DevOps Path
 
@@ -117,11 +117,11 @@ This is not part of the Resource Manager primary path because Resource Manager a
 The stack will fail early when required values are missing:
 
 - `compartment_id`
-- `portal_image_uri`
+- `tenancy_id`
 - Either `existing_subnet_id` or permission to create networking
 - `portal_password` unless explicitly allowing generated runtime password behavior
 
-Terraform validations will catch malformed OCIDs and empty image references where possible.
+`portal_image_uri` is optional when the OCIR derivation inputs identify an existing private image. Terraform validations will catch malformed OCIDs and malformed explicit image references where possible.
 
 Runtime outputs will include enough information to diagnose deployment:
 
@@ -144,7 +144,6 @@ Verification will include:
 This design does not:
 
 - Make Resource Manager build Docker images.
-- Store user API keys, OCI private keys, or IDCS client secrets in Terraform state.
+- Store user API keys, OCI private keys, OCIR pull credentials, Docker registry credentials, or IDCS client secrets in Terraform state.
 - Convert every existing demo module to fully managed production deployment in the first pass.
 - Replace the local development flow in `bash.sh`.
-

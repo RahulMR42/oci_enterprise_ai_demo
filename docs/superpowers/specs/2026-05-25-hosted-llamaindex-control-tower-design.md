@@ -9,7 +9,7 @@ Turn the Agentic Control Tower from a local demo script into an actual OCI Gener
 - Create a real hosted LlamaIndex backend app, not only a local Python demo.
 - Use the existing `infra/hosted-agentic-applications` Terraform module pattern.
 - Use OCI Hosted Application inbound IDCS auth with the same domain/audience/scope model as the existing hosted apps.
-- Reuse the Terraform-created IDCS launch client credential path already consumed by `server.mjs`.
+- Reuse the environment-provided IDCS launch credential path already consumed by `server.mjs`.
 - Keep all IDCS client secrets and OCI credentials server-side.
 - Keep the existing local `backend/demos/agentic_control_tower.py` as a fallback/diagnostic path unless the hosted metadata is active.
 
@@ -98,5 +98,5 @@ After implementation:
 
 - A full custom browser UI for the hosted LlamaIndex app.
 - External database or vector-store dependencies inside the hosted app.
-- New IDCS app/client creation beyond the existing launch client path.
+- New IDCS app/client creation beyond the configured launch client path.
 - Removing the local fallback demo.

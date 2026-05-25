@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a runnable **Agentic Control Tower** demo card backed by real LlamaIndex workflow code, OCI Responses API synthesis, and server-side IDCS credential posture reporting from the existing Terraform-created hosted app launch client.
+**Goal:** Add a runnable **Agentic Control Tower** demo card backed by real LlamaIndex workflow code, OCI Responses API synthesis, and server-side IDCS credential posture reporting from environment-provided hosted application IDCS settings.
 
 **Architecture:** Follow the portal's existing card/demo pattern: metadata in `src/data/aiFeatures.js`, route mapping in `server.mjs`, runnable Python in `backend/demos/agentic_control_tower.py`, trace snippets in `src/main.js`, generated wiring SVG, and focused tests. The demo reads non-secret IDCS posture from environment variables injected by `server.mjs`; secrets are represented only as boolean flags and source labels.
 
@@ -59,7 +59,7 @@ test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   assert.equal(feature.sdkModule, "backend/demos/agentic_control_tower.py");
   assert.match(feature.summary, /LlamaIndex/);
   assert.match(feature.details, /IDCS credential posture/);
-  assert.match(feature.provisioningDetails, /Terraform-generated IDCS launch client/);
+  assert.match(feature.provisioningDetails, /environment-provided IDCS/);
   assert.deepEqual(feature.capabilities, ["LlamaIndex workflow", "Tool critique loop", "IDCS credential posture"]);
 });
 ```
@@ -647,9 +647,9 @@ In `src/data/aiFeatures.js`, insert after `openclaw-hosted-agent-gateway`:
   serviceArea: "OCI Generative AI Agents",
   summary: "Run a LlamaIndex control workflow that plans tools, reviews evidence, gates approval, and reports IDCS posture.",
   details:
-    "Runs a real LlamaIndex workflow with deterministic enterprise tools, evidence review, approval gating, memory note generation, and OCI Responses API synthesis. The result includes server-side IDCS credential posture from the Terraform-generated hosted app launch client without exposing secrets.",
+    "Runs a real LlamaIndex workflow with deterministic enterprise tools, evidence review, approval gating, memory note generation, and OCI Responses API synthesis. The result includes server-side IDCS credential posture from environment-provided hosted app settings without exposing secrets.",
   provisioningDetails:
-    "Uses the shared OCI Generative AI project/API key and reuses the Terraform-generated IDCS launch client metadata from the hosted-agentic-applications module. No new Terraform resource is required for the first local workflow version.",
+    "Uses the shared OCI Generative AI project/API key and reuses environment-provided IDCS launch configuration. No new Terraform resource is required for the first local workflow version.",
   status: "Live OSS Agent",
   accent: "green",
   terraformPath: "infra/hosted-agentic-applications",
@@ -673,7 +673,7 @@ In `src/main.js`, add `"agentic-control-tower"` to the same objects that contain
     "OCI Responses API for final synthesis when live configuration is present."
   ],
   security: [
-    "IDCS credential posture is loaded server-side from Terraform-generated metadata.",
+    "IDCS credential posture is loaded server-side from environment variables.",
     "Client secret and API key values are redacted before browser output."
   ],
   result: [

@@ -9,7 +9,7 @@ Add one new runnable demo card, **Agentic Control Tower**, that demonstrates a c
 - Use real open-source tooling, starting with LlamaIndex.
 - Avoid conflicts with the existing demo package set.
 - Add this as a new demo card in the current portal, not as a separate app shell.
-- Reuse the IDCS app created by the existing Terraform hosted application module for hosted app IDCS credentials.
+- Reuse environment-provided hosted application IDCS credentials.
 - Keep credentials server-side and avoid exposing IDCS client secrets in browser code.
 
 ## Architecture
@@ -28,18 +28,14 @@ The existing OCI Responses API configuration remains the model backend for final
 
 ## IDCS Credential Reuse
 
-The demo will not create a new IDCS app or ask for separate credentials. It will reuse the Terraform-generated hosted UI launch client metadata already produced by:
-
-environment-provided hosted application IDCS settings
-
-That file is already read by `server.mjs` through `idcsConfig()`, which can also fall back to environment variables such as `OCI_HOSTED_APP_IDCS_CLIENT_ID` and `OCI_HOSTED_APP_IDCS_CLIENT_SECRET`.
+The demo will not create a new IDCS app or ask for separate credentials. `server.mjs` reads hosted application IDCS configuration from environment variables such as `OCI_HOSTED_APP_IDCS_CLIENT_ID` and `OCI_HOSTED_APP_IDCS_CLIENT_SECRET`.
 
 For the first version, the Agentic Control Tower run will include a server-side IDCS credential posture check in its output:
 
-- whether Terraform-generated IDCS launch metadata is present,
+- whether environment-provided IDCS launch metadata is present,
 - which domain/audience/scope are configured,
 - whether the confidential client is available,
-- and whether the credential path is sourced from Terraform metadata or environment fallback.
+- and whether the credential path is sourced from the environment.
 
 Secrets will be redacted. The browser will only receive status and non-sensitive metadata. The demo will not exchange or print the IDCS client secret from Python.
 

@@ -47,7 +47,11 @@ The portal login username is `oci`. The password is generated in `.oci-portal-pa
 
 ## One-Click OCI Deployment
 
-Resource Manager is the primary one-click deployment path for the portal. See `infra/resource-manager/enterprise-ai-demo-stack/README.md` to build the portal image, create the stack, and deploy it to OCI Container Instances.
+[![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https://github.com/RahulMR42/oci_enterprise_ai_demo/releases/latest/download/enterprise-ai-demo-rm-stack.zip&zipUrlVariables=%7B%22region%22%3A%22us-chicago-1%22%2C%22ocir_region_key%22%3A%22ord%22%2C%22portal_repository_name%22%3A%22enterprise-ai-demo%2Fportal-rm%22%2C%22portal_image_tag%22%3A%22latest%22%2C%22provision_demo_infra%22%3Afalse%2C%22enabled_demo_modules%22%3A%5B%22responses-api%22%5D%2C%22require_demo_infra%22%3Afalse%2C%22enable_demo_policies%22%3Atrue%7D)
+
+Resource Manager is the primary one-click deployment path for the portal. The stack deploys a private OCIR image to OCI Container Instances, derives the image URI from OCIR inputs when `portal_image_uri` is left empty, and uses stack-managed IAM policies for private repository reads instead of OCIR pull credentials.
+
+See `infra/resource-manager/enterprise-ai-demo-stack/README.md` for the build, stack creation, apply, output, and cleanup flow.
 
 ## Provision Infrastructure
 
@@ -106,6 +110,8 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u no_proxy -u NO_
 npm run build
 npm test
 terraform -chdir=infra/hosted-agentic-applications fmt -check
+terraform -chdir=infra/resource-manager/enterprise-ai-demo-stack fmt -check
+terraform -chdir=infra/resource-manager/enterprise-ai-demo-stack validate
 ```
 
 Do not commit local runtime state, generated Terraform directories, tfvars, API keys, portal passwords, logs, Python bytecode, or `backend/data/` demo stores. These are ignored for new files, but already tracked local state should be reviewed before staging.
