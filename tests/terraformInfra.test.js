@@ -244,6 +244,44 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(llamaIndexApp, /\/agent\/control-tower\/respond/);
 });
 
+test("resource manager stack deploys portal to OCI Container Instances", () => {
+  const dockerfile = read("Dockerfile");
+  const dockerignore = read(".dockerignore");
+  const stackFiles = [
+    "infra/resource-manager/enterprise-ai-demo-stack/versions.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/variables.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/locals.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/network.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/container_instance.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/outputs.tf",
+    "infra/resource-manager/enterprise-ai-demo-stack/schema.yaml",
+    "infra/resource-manager/enterprise-ai-demo-stack/README.md"
+  ].map(read);
+  const terraform = stackFiles.join("\n");
+
+  assert.match(dockerfile, /FROM node:22-alpine/);
+  assert.match(dockerfile, /apk add --no-cache python3 py3-pip/);
+  assert.match(dockerfile, /ENV HOST=0\.0\.0\.0/);
+  assert.match(dockerfile, /CMD \["npm", "start"\]/);
+  assert.match(dockerignore, /\.terraform/);
+  assert.match(dockerignore, /\.oci-portal-password/);
+
+  assert.match(terraform, /resource "oci_container_instances_container_instance" "portal"/);
+  assert.match(terraform, /data "oci_identity_availability_domains" "portal"/);
+  assert.match(terraform, /resource "oci_core_vcn" "portal"/);
+  assert.match(terraform, /count\s+=\s+local\.create_network \? 1 : 0/);
+  assert.match(terraform, /subnet_id\s+=\s+local\.subnet_id/);
+  assert.match(terraform, /is_public_ip_assigned\s+=\s+true/);
+  assert.match(terraform, /image_url\s+=\s+var\.portal_image_uri/);
+  assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+var\.portal_password/);
+  assert.match(terraform, /PROVISION_INFRA\s+=\s+var\.provision_demo_infra \? "true" : "false"/);
+  assert.match(terraform, /output "portal_url"/);
+  assert.match(terraform, /schemaVersion:/);
+  assert.match(terraform, /portal_image_uri/);
+  assert.match(terraform, /Resource Manager owns Terraform state/);
+  assert.match(terraform, /Object Storage backend is optional/);
+});
+
 test("startup script provisions selected demo modules and exports generated runtime ids", () => {
   const script = read("bash.sh");
 
