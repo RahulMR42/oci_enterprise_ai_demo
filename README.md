@@ -46,6 +46,10 @@ Open `http://localhost:5173`.
 
 The portal login username is `oci`. The password is generated in `.oci-portal-password` unless `OCI_PORTAL_PASSWORD` or `OCI_PORTAL_PASSWORD_FILE` is set.
 
+## One-Click OCI Deployment
+
+Resource Manager is the primary one-click deployment path for the portal. See `infra/resource-manager/enterprise-ai-demo-stack/README.md` to build the portal image, create the stack, and deploy it to OCI Container Instances.
+
 ## Provision Infrastructure
 
 Provision the shared project, shared IAM, vector store, code container, NL2SQL resources, and hosted applications before startup:
