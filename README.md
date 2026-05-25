@@ -51,7 +51,7 @@ The portal login username is `oci`. The password is generated in `.oci-portal-pa
 
 Resource Manager is the primary one-click deployment path for the portal. The stack deploys a private OCIR image to OCI Container Instances, derives the image URI from OCIR inputs when `portal_image_uri` is left empty, and uses stack-managed IAM policies for private repository reads instead of OCIR pull credentials.
 
-See `infra/resource-manager/enterprise-ai-demo-stack/README.md` for the build, stack creation, apply, output, and cleanup flow.
+See `infra/resource-manager/enterprise-ai-demo-stack/README.md` for the build, stack creation, apply, output, cleanup flow, and release asset packaging. The Deploy to Oracle Cloud button reads `enterprise-ai-demo-rm-stack.zip` from the latest GitHub release.
 
 ## Provision Infrastructure
 

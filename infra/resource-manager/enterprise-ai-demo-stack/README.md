@@ -105,17 +105,23 @@ Object Storage backend is optional for non-Resource-Manager local or OCI DevOps 
 
 The Deploy to Oracle Cloud button needs a zip whose root contains the Terraform files in this directory. Do not link the button to a full repository branch archive unless Resource Manager is configured with the correct working directory.
 
-Create the release asset from this directory:
+GitHub Actions publishes the release asset automatically when a release is published. The workflow is:
+
+```text
+.github/workflows/publish-resource-manager-stack.yml
+```
+
+It attaches this asset name to the release:
+
+```text
+enterprise-ai-demo-rm-stack.zip
+```
+
+For local verification, create the same package from this directory:
 
 ```bash
 cd infra/resource-manager/enterprise-ai-demo-stack
 zip -qr /tmp/enterprise-ai-demo-rm-stack.zip .
-```
-
-Upload `/tmp/enterprise-ai-demo-rm-stack.zip` to the GitHub release as:
-
-```text
-enterprise-ai-demo-rm-stack.zip
 ```
 
 The button currently points to:
