@@ -32,6 +32,13 @@ const demos = [
     trace: "Discovered A2A agent cards"
   },
   {
+    script: "backend/demos/agentic_control_tower.py",
+    feature: "Agentic Control Tower",
+    mode: "agentic-control-tower",
+    prompt: "Coordinate checkout delay triage with evidence, approval, and audit.",
+    trace: "Loaded LlamaIndex agentic control tower workflow"
+  },
+  {
     script: "backend/demos/agentic_rag_planner.py",
     feature: "Agentic RAG Planner",
     mode: "agentic-rag-planner",

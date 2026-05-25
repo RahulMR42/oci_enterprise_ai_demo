@@ -14,6 +14,7 @@ import {
   parseTerraformStateResources,
   demoProcessEnv,
   isAuthorizedRequest,
+  idcsDemoCredentialPosture,
   sharedResponsesDemoComponents,
   summarizeInfrastructureState,
   normalizeProvisionConfig,
@@ -94,6 +95,30 @@ test("demo process env strips broken proxy variables for OCI Python clients", ()
   assert.equal(env.NO_PROXY, undefined);
   assert.equal(env.PATH, "/usr/bin");
   assert.equal(env.OCI_GENAI_REGION, "us-chicago-1");
+});
+
+test("IDCS demo credential posture is redacted for Python demos", () => {
+  const posture = idcsDemoCredentialPosture({
+    domainUrl: "https://idcs.example.com",
+    tokenUrl: "https://idcs.example.com/oauth2/v1/token",
+    clientId: "enterprise-ai-demo-n8n-launch-ab12cd",
+    clientSecret: "super-secret",
+    audience: "https://genaisolutions.com/",
+    scope: "read",
+    source: "terraform-generated"
+  });
+
+  assert.deepEqual(posture, {
+    configured: true,
+    source: "terraform-generated",
+    domainUrl: "https://idcs.example.com",
+    tokenUrlConfigured: true,
+    clientIdConfigured: true,
+    clientSecretConfigured: true,
+    audience: "https://genaisolutions.com/",
+    scope: "read"
+  });
+  assert.equal(JSON.stringify(posture).includes("super-secret"), false);
 });
 
 test("n8n launch proxy rewrites root-relative UI assets through the proxy path", () => {

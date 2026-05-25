@@ -9,7 +9,7 @@ function escapeXml(value) {
 }
 
 test("demo features provide card and flip-side content", () => {
-  assert.equal(aiFeatures.length, 23);
+  assert.equal(aiFeatures.length, 24);
 
   const featureIds = aiFeatures.map((feature) => feature.id);
   assert.deepEqual(featureIds, [
@@ -28,6 +28,7 @@ test("demo features provide card and flip-side content", () => {
     "a2a-agent-collaboration",
     "langfuse-hosted-observability",
     "openclaw-hosted-agent-gateway",
+    "agentic-control-tower",
     "agentic-rag-planner",
     "human-approval-agent",
     "governance-center",
@@ -56,6 +57,18 @@ test("demo features provide card and flip-side content", () => {
     assert.ok(feature.capabilities.length >= 3);
     assert.deepEqual(feature.actions, ["Provision Infra", "Run Demo", "Delete Infra"]);
   }
+});
+
+test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
+  const feature = aiFeatures.find((item) => item.id === "agentic-control-tower");
+
+  assert.ok(feature);
+  assert.equal(feature.title, "Agentic Control Tower");
+  assert.equal(feature.sdkModule, "backend/demos/agentic_control_tower.py");
+  assert.match(feature.summary, /LlamaIndex/);
+  assert.match(feature.details, /IDCS credential posture/);
+  assert.match(feature.provisioningDetails, /Terraform-generated IDCS launch client/);
+  assert.deepEqual(feature.capabilities, ["LlamaIndex workflow", "Tool critique loop", "IDCS credential posture"]);
 });
 
 test("portal exposes mermaid-style flow diagrams for feature cards", () => {
