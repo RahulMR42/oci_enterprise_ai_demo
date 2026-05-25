@@ -3,6 +3,8 @@ data "oci_identity_availability_domains" "portal" {
 }
 
 resource "oci_container_instances_container_instance" "portal" {
+  depends_on = [oci_identity_policy.resource_manager_demo]
+
   availability_domain = data.oci_identity_availability_domains.portal.availability_domains[0].name
   compartment_id      = var.compartment_id
   display_name        = "${local.display_prefix}-portal"
