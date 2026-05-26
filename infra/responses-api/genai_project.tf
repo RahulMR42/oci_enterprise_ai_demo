@@ -1,4 +1,6 @@
 resource "terraform_data" "generative_ai_project" {
+  triggers_replace = [timestamp()]
+
   input = {
     compartment_id       = var.compartment_id
     profile              = var.profile

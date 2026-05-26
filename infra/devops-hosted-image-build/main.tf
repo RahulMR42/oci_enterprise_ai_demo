@@ -27,6 +27,39 @@ resource "oci_ons_notification_topic" "this" {
   description    = "Notifications for Enterprise AI demo hosted image build pipeline."
 }
 
+resource "oci_logging_log_group" "devops" {
+  count = var.enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  display_name   = "enterprise-ai-demo-devops-${var.resource_suffix}"
+  description    = "Service logs for Enterprise AI demo DevOps build runs."
+
+  freeform_tags = {
+    enterprise-ai-demo = "true"
+    managed-by         = "resource-manager"
+  }
+}
+
+resource "oci_logging_log" "devops" {
+  count = var.enabled ? 1 : 0
+
+  display_name = "enterprise-ai-demo-devops-${var.resource_suffix}"
+  log_group_id = oci_logging_log_group.devops[0].id
+  log_type     = "SERVICE"
+  is_enabled   = true
+
+  configuration {
+    compartment_id = var.compartment_id
+
+    source {
+      category    = "all"
+      resource    = oci_devops_project.this[0].id
+      service     = "devops"
+      source_type = "OCISERVICE"
+    }
+  }
+}
+
 resource "oci_devops_connection" "github" {
   count = var.enabled && var.create_github_connection ? 1 : 0
 
@@ -207,5 +240,8 @@ resource "oci_devops_build_run" "this" {
     }
   }
 
-  depends_on = [oci_devops_build_pipeline_stage.build]
+  depends_on = [
+    oci_devops_build_pipeline_stage.build,
+    oci_logging_log.devops
+  ]
 }

@@ -348,6 +348,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build"/);
   assert.match(terraform, /resource "oci_devops_build_run" "this"/);
   assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
+  assert.match(terraform, /resource "oci_logging_log_group" "devops"/);
+  assert.match(terraform, /resource "oci_logging_log" "devops"/);
+  assert.match(terraform, /category\s+=\s+"all"/);
   assert.match(terraform, /OCIR_USERNAME/);
   assert.match(terraform, /OCIR_AUTH_TOKEN/);
   assert.match(terraform, /podman login/);

@@ -1,4 +1,6 @@
 resource "terraform_data" "generative_ai_api_key" {
+  triggers_replace = [timestamp()]
+
   input = {
     api_key_display_name = "${var.api_key_display_name}-${local.resource_suffix}"
     api_key_expiry       = var.api_key_expiry
