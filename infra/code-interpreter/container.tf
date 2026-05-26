@@ -10,11 +10,22 @@ resource "terraform_data" "code_interpreter_container" {
   }
 
   provisioner "local-exec" {
+    environment = {
+      OCI_GENAI_API_KEY    = var.oci_genai_api_key
+      OCI_GENAI_PROJECT_ID = var.oci_genai_project_id
+    }
+
     command = <<-EOT
       set -euo pipefail
       mkdir -p '${path.module}/.terraform/generated'
-      api_key="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()); keys=data.get("data", data).get("keys", []); print((keys[0] if keys else {}).get("key", ""))' '${self.input.shared_api_key_file}')"
-      project_id="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()).get("data", {}); print(data.get("id", ""))' '${self.input.shared_project_file}')"
+      api_key="$${OCI_GENAI_API_KEY:-}"
+      if [ -z "$api_key" ]; then
+        api_key="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()); keys=data.get("data", data).get("keys", []); print((keys[0] if keys else {}).get("key", ""))' '${self.input.shared_api_key_file}')"
+      fi
+      project_id="$${OCI_GENAI_PROJECT_ID:-}"
+      if [ -z "$project_id" ]; then
+        project_id="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()).get("data", {}); print(data.get("id", ""))' '${self.input.shared_project_file}')"
+      fi
       if [ -z "$api_key" ]; then
         echo "Missing shared OCI Generative AI API key. Apply infra/responses-api first." >&2
         exit 1
@@ -69,8 +80,14 @@ PY
         echo "Generated Code Interpreter container metadata has no id; skipping remote delete."
         exit 0
       fi
-      api_key="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()); keys=data.get("data", data).get("keys", []); print((keys[0] if keys else {}).get("key", ""))' '${self.input.shared_api_key_file}')"
-      project_id="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()).get("data", {}); print(data.get("id", ""))' '${self.input.shared_project_file}')"
+      api_key="$${OCI_GENAI_API_KEY:-}"
+      if [ -z "$api_key" ]; then
+        api_key="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()); keys=data.get("data", data).get("keys", []); print((keys[0] if keys else {}).get("key", ""))' '${self.input.shared_api_key_file}')"
+      fi
+      project_id="$${OCI_GENAI_PROJECT_ID:-}"
+      if [ -z "$project_id" ]; then
+        project_id="$(python3 -c 'import json, pathlib, sys; data=json.loads(pathlib.Path(sys.argv[1]).read_text()).get("data", {}); print(data.get("id", ""))' '${self.input.shared_project_file}')"
+      fi
       if [ -z "$api_key" ] || [ -z "$project_id" ]; then
         echo "Missing shared OCI Generative AI project/API key; skipping remote container delete." >&2
         exit 0

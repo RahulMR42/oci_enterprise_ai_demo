@@ -26,7 +26,19 @@ variable "source_repo_url" {
 }
 
 variable "source_branch" {
-  description = "Git branch used by the managed build stage when manually triggered from Terraform."
+  description = "Upstream Git branch Resource Manager clones before seeding the OCI DevOps code repository."
+  type        = string
+  default     = "main"
+}
+
+variable "source_revision" {
+  description = "Optional source revision marker used to force a new repository seed and build run when the upstream branch changes."
+  type        = string
+  default     = ""
+}
+
+variable "devops_repository_branch" {
+  description = "Branch name used inside the OCI DevOps hosted code repository and build source."
   type        = string
   default     = "main"
 }
@@ -92,6 +104,18 @@ variable "image_tag" {
   default     = "latest"
 }
 
+variable "portal_container_repository_id" {
+  description = "Optional portal OCIR repository OCID. Used to order the DevOps build after Terraform creates the portal repository."
+  type        = string
+  default     = ""
+}
+
+variable "shared_policy_id" {
+  description = "Optional shared IAM policy OCID. Used to order the DevOps build after policy creation."
+  type        = string
+  default     = ""
+}
+
 variable "ocir_username" {
   description = "OCIR username used by the DevOps build to push images."
   type        = string
@@ -102,6 +126,135 @@ variable "ocir_auth_token" {
   description = "OCIR auth token used by the DevOps build to push images."
   type        = string
   sensitive   = true
+  default     = ""
+}
+
+variable "idcs_domain_url" {
+  description = "Existing identity domain URL used for hosted application inbound OAuth authentication."
+  type        = string
+  default     = ""
+}
+
+variable "idcs_audience" {
+  description = "Existing identity domain OAuth audience for hosted application inbound authentication."
+  type        = string
+  default     = ""
+}
+
+variable "idcs_scope" {
+  description = "Existing identity domain OAuth scope for hosted application inbound authentication."
+  type        = string
+  default     = ""
+}
+
+variable "n8n_basic_auth_user" {
+  description = "Username for the hosted n8n basic authentication boundary."
+  type        = string
+  default     = "admin"
+}
+
+variable "n8n_basic_auth_password" {
+  description = "Password for the hosted n8n basic authentication boundary."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "openclaw_gateway_token" {
+  description = "Shared gateway token for the OpenClaw Control UI."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_database_url" {
+  description = "DATABASE_URL used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_clickhouse_url" {
+  description = "ClickHouse HTTP URL used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_clickhouse_migration_url" {
+  description = "ClickHouse migration URL used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_clickhouse_user" {
+  description = "ClickHouse user used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_clickhouse_password" {
+  description = "ClickHouse password used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_redis_connection_string" {
+  description = "Redis connection string used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_s3_event_upload_bucket" {
+  description = "Event upload bucket used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_s3_media_upload_bucket" {
+  description = "Media upload bucket used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_s3_upload_region" {
+  description = "Object Storage upload region used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_s3_upload_endpoint" {
+  description = "Object Storage upload endpoint used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_nextauth_secret" {
+  description = "NEXTAUTH_SECRET used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_salt" {
+  description = "SALT used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_encryption_key" {
+  description = "ENCRYPTION_KEY used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_networking_config_json" {
+  description = "Hosted application private networking configuration used by Langfuse."
+  type        = string
   default     = ""
 }
 

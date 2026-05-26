@@ -76,6 +76,14 @@ Common variables:
 
 When running behind a corporate proxy, keep proxy variables out of the portal process unless they are known to resolve from the current network. The server strips proxy variables from Python demo child processes so live OCI Responses calls do not fail because of stale shell proxy settings.
 
+### Resource Manager deployment
+
+Use `infra/resource-manager-demo` for the Resource Manager working directory when deploying the full demo from OCI. That stack covers the Terraform demo modules, shared IAM policy, OCIR repositories, OCI DevOps build pipeline, hosted deployments, Langfuse dependencies, and the Enterprise AI portal OCI Container Instance.
+
+The Resource Manager flow uses OCI DevOps to clone the selected GitHub branch, seed the OCI DevOps repository, build the hosted images and portal image, deliver image artifacts to OCIR, and run the hosted application deployment stage with resource principal auth. It does not require local OCI CLI credentials inside Resource Manager.
+
+After apply, use the stack outputs `portal_url`, `portal_login_user`, `portal_login_password`, `devops_hosted_image_build_run_id`, `devops_hosted_deployment_exports`, and `devops_hosted_image_repository_uris` to validate the portal and hosted demos.
+
 ## Logs
 
 Startup logs are written to `logs/enterprise-ai-demo-YYYYMMDD-HHMMSS.log` by default. Disable file capture with:

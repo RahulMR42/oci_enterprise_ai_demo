@@ -12,6 +12,11 @@ resource "terraform_data" "file_search_vector_store" {
   }
 
   provisioner "local-exec" {
+    environment = {
+      OCI_GENAI_API_KEY    = var.oci_genai_api_key
+      OCI_GENAI_PROJECT_ID = var.oci_genai_project_id
+    }
+
     command = <<-EOT
       set -euo pipefail
       mkdir -p '${path.module}/.terraform/generated'
@@ -24,11 +29,12 @@ resource "terraform_data" "file_search_vector_store" {
       fi
       vector_store_json="$("$python_bin" - <<PY
 import json
+import os
 from pathlib import Path
 from openai import OpenAI
 
-api_key = json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
-project_id = json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
 if not api_key:
     raise SystemExit("Missing shared OCI Generative AI API key. Apply infra/responses-api first.")
 if not project_id:
@@ -83,11 +89,12 @@ PY
       fi
       "$python_bin" - <<PY
 import json
+import os
 from pathlib import Path
 from openai import OpenAI
 
-api_key = json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
-project_id = json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
 if not api_key or not project_id:
     print("Missing shared OCI Generative AI project/API key; skipping vector store remote delete.")
     raise SystemExit(0)
@@ -122,6 +129,11 @@ resource "terraform_data" "file_search_seed_documents" {
   }
 
   provisioner "local-exec" {
+    environment = {
+      OCI_GENAI_API_KEY    = var.oci_genai_api_key
+      OCI_GENAI_PROJECT_ID = var.oci_genai_project_id
+    }
+
     command = <<-EOT
       set -euo pipefail
       mkdir -p '${path.module}/.terraform/generated'
@@ -134,6 +146,7 @@ resource "terraform_data" "file_search_seed_documents" {
       fi
       "$python_bin" - <<PY
 import json
+import os
 import time
 from pathlib import Path
 from openai import OpenAI
@@ -149,8 +162,8 @@ if not vector_store_id:
 if not seed_manifest:
     raise SystemExit("No bundled seed PDFs found under assets/pdfs.")
 
-api_key = json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
-project_id = json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
 if not api_key:
     raise SystemExit("Missing shared OCI Generative AI API key. Apply infra/responses-api first.")
 if not project_id:
@@ -241,14 +254,15 @@ PY
       fi
       "$python_bin" - <<PY
 import json
+import os
 from pathlib import Path
 from openai import OpenAI
 
 generated_path = Path("${self.input.generated_file}")
 payload = json.loads(generated_path.read_text())
 vector_store_id = payload.get("vector_store_id", "")
-api_key = json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
-project_id = json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
 if not api_key or not project_id:
     print("Missing shared OCI Generative AI project/API key; skipping seed document remote delete.")
     generated_path.unlink(missing_ok=True)

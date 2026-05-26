@@ -2,6 +2,28 @@ data "oci_objectstorage_namespace" "this" {
   count = var.enabled ? 1 : 0
 }
 
+locals {
+  build_openclaw_gateway_token = var.openclaw_gateway_token != "" ? var.openclaw_gateway_token : sha256("${var.resource_suffix}-openclaw-gateway-token")
+  build_langfuse_database_url  = var.langfuse_database_url != "" ? var.langfuse_database_url : "postgresql://unused:unused@127.0.0.1:5432/unused"
+  build_langfuse_clickhouse_url = (
+    var.langfuse_clickhouse_url != "" ? var.langfuse_clickhouse_url : "http://127.0.0.1:8123"
+  )
+  build_langfuse_clickhouse_migration_url = (
+    var.langfuse_clickhouse_migration_url != "" ? var.langfuse_clickhouse_migration_url : "clickhouse://127.0.0.1:9000"
+  )
+  build_langfuse_clickhouse_user         = var.langfuse_clickhouse_user != "" ? var.langfuse_clickhouse_user : "clickhouse"
+  build_langfuse_clickhouse_password     = var.langfuse_clickhouse_password != "" ? var.langfuse_clickhouse_password : sha256("${var.resource_suffix}-langfuse-clickhouse")
+  build_langfuse_redis_connection_string = var.langfuse_redis_connection_string != "" ? var.langfuse_redis_connection_string : "redis://127.0.0.1:6379"
+  build_langfuse_s3_event_upload_bucket  = var.langfuse_s3_event_upload_bucket != "" ? var.langfuse_s3_event_upload_bucket : "unused-${var.resource_suffix}"
+  build_langfuse_s3_media_upload_bucket  = var.langfuse_s3_media_upload_bucket != "" ? var.langfuse_s3_media_upload_bucket : "unused-${var.resource_suffix}"
+  build_langfuse_s3_upload_region        = var.langfuse_s3_upload_region != "" ? var.langfuse_s3_upload_region : var.region
+  build_langfuse_s3_upload_endpoint      = var.langfuse_s3_upload_endpoint != "" ? var.langfuse_s3_upload_endpoint : "https://objectstorage.${var.region}.oraclecloud.com"
+  build_langfuse_nextauth_secret         = var.langfuse_nextauth_secret != "" ? var.langfuse_nextauth_secret : sha256("${var.resource_suffix}-langfuse-nextauth")
+  build_langfuse_salt                    = var.langfuse_salt != "" ? var.langfuse_salt : sha256("${var.resource_suffix}-langfuse-salt")
+  build_langfuse_encryption_key          = var.langfuse_encryption_key != "" ? var.langfuse_encryption_key : sha256("${var.resource_suffix}-langfuse-encryption")
+  build_langfuse_networking_config_json  = var.langfuse_networking_config_json != "" ? var.langfuse_networking_config_json : "{}"
+}
+
 resource "oci_devops_project" "this" {
   count = var.enabled ? 1 : 0
 
@@ -73,11 +95,11 @@ resource "oci_devops_connection" "github" {
 resource "oci_devops_repository" "source" {
   count = var.enabled && var.create_devops_repository ? 1 : 0
 
-  project_id       = oci_devops_project.this[0].id
-  name             = "enterprise-ai-demo-source-${var.resource_suffix}"
-  repository_type  = "HOSTED"
-  default_branch   = var.source_branch
-  description      = "Resource Manager-seeded source repository for Enterprise AI demo hosted image builds."
+  project_id      = oci_devops_project.this[0].id
+  name            = "enterprise-ai-demo-source-${var.resource_suffix}"
+  repository_type = "HOSTED"
+  default_branch  = var.devops_repository_branch
+  description     = "Resource Manager-seeded source repository for Enterprise AI demo hosted image builds."
 }
 
 resource "terraform_data" "seed_devops_repository" {
@@ -86,12 +108,16 @@ resource "terraform_data" "seed_devops_repository" {
   triggers_replace = [
     var.source_repo_url,
     var.source_branch,
+    var.source_revision,
+    var.devops_repository_branch,
     oci_devops_repository.source[0].id
   ]
 
   input = {
     devops_repository_http_url = oci_devops_repository.source[0].http_url
+    devops_repository_branch   = var.devops_repository_branch
     source_branch              = var.source_branch
+    source_revision            = var.source_revision
     source_repo_url            = var.source_repo_url
     username                   = var.devops_repository_git_username
   }
@@ -123,7 +149,7 @@ password = quote("$${DEVOPS_GIT_PASSWORD}", safe="")
 print(urlunsplit((url.scheme, f"{username}:{password}@{url.netloc}", url.path, url.query, url.fragment)))
 PY
       )"
-      git push "$target_url" "HEAD:refs/heads/${self.input.source_branch}" --force
+      git push "$target_url" "HEAD:refs/heads/${self.input.devops_repository_branch}" --force
     EOT
   }
 }
@@ -133,18 +159,23 @@ resource "oci_devops_build_pipeline" "this" {
 
   project_id   = oci_devops_project.this[0].id
   display_name = "enterprise-ai-demo-hosted-images-${var.resource_suffix}"
-  description  = "Builds and pushes Enterprise AI demo hosted application images to OCIR."
+  description  = "Builds and pushes Enterprise AI demo application images to OCIR."
 
   build_pipeline_parameters {
     items {
       name          = "RESOURCE_SUFFIX"
       default_value = var.resource_suffix
-      description   = "Resource suffix used by the hosted image repository names."
+      description   = "Resource suffix used by the image repository names."
     }
     items {
       name          = "OCI_REGION"
       default_value = var.region
       description   = "OCI region used by OCI CLI calls in the build."
+    }
+    items {
+      name          = "COMPARTMENT_ID"
+      default_value = var.compartment_id
+      description   = "Compartment OCID for hosted app deployment."
     }
     items {
       name          = "OCIR_REGION_KEY"
@@ -161,6 +192,41 @@ resource "oci_devops_build_pipeline" "this" {
       default_value = var.image_tag
       description   = "Image tag to build and push."
     }
+    items {
+      name          = "SOURCE_REVISION"
+      default_value = var.source_revision
+      description   = "Source revision marker used to correlate Resource Manager applies and DevOps build runs."
+    }
+    items {
+      name          = "PORTAL_CONTAINER_REPOSITORY_ID"
+      default_value = var.portal_container_repository_id
+      description   = "Portal OCIR repository dependency marker."
+    }
+    items {
+      name          = "SHARED_POLICY_ID"
+      default_value = var.shared_policy_id
+      description   = "Shared IAM policy dependency marker."
+    }
+    items {
+      name          = "IDCS_DOMAIN_URL"
+      default_value = var.idcs_domain_url
+      description   = "Identity domain URL used by hosted app inbound auth."
+    }
+    items {
+      name          = "IDCS_AUDIENCE"
+      default_value = var.idcs_audience
+      description   = "Identity domain OAuth audience used by hosted app inbound auth."
+    }
+    items {
+      name          = "IDCS_SCOPE"
+      default_value = var.idcs_scope
+      description   = "Identity domain OAuth scope used by hosted app inbound auth."
+    }
+    items {
+      name          = "LANGFUSE_CLICKHOUSE_USER"
+      default_value = var.langfuse_clickhouse_user
+      description   = "ClickHouse user used by hosted Langfuse."
+    }
   }
 }
 
@@ -170,8 +236,8 @@ resource "oci_devops_build_pipeline_stage" "build" {
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
   display_name                       = "build-hosted-images"
-  description                        = "Managed build stage for all hosted demo images."
-  build_spec_file                    = "infra/devops-hosted-image-build/build_spec.yaml"
+  description                        = "Builds demo container images without pushing them."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_images.yaml"
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
   is_pass_all_parameters_enabled     = true
@@ -196,11 +262,91 @@ resource "oci_devops_build_pipeline_stage" "build" {
       connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
       repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
       repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
-      branch          = var.source_branch
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
     }
   }
 
   depends_on = [terraform_data.seed_devops_repository]
+}
+
+resource "oci_devops_deploy_artifact" "image" {
+  for_each = var.enabled ? local.image_artifacts : {}
+
+  project_id                 = oci_devops_project.this[0].id
+  display_name               = "enterprise-ai-demo-${each.value.display_name}-${var.resource_suffix}"
+  deploy_artifact_type       = "DOCKER_IMAGE"
+  argument_substitution_mode = "NONE"
+  description                = "OCIR image artifact for Enterprise AI demo ${each.value.display_name}."
+
+  deploy_artifact_source {
+    deploy_artifact_source_type = "OCIR"
+    image_uri                   = "${var.ocir_region_key}.ocir.io/${data.oci_objectstorage_namespace.this[0].namespace}/${local.repositories[each.key]}:${var.image_tag}"
+  }
+}
+
+resource "oci_devops_build_pipeline_stage" "deliver_image" {
+  for_each = var.enabled ? local.image_artifacts : {}
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "DELIVER_ARTIFACT"
+  display_name                       = "deliver-${each.value.display_name}-image"
+  description                        = "Delivers the ${each.value.display_name} image artifact to OCIR."
+  stage_execution_timeout_in_seconds = 3600
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline_stage.build[0].id
+    }
+  }
+
+  deliver_artifact_collection {
+    items {
+      artifact_id   = oci_devops_deploy_artifact.image[each.key].id
+      artifact_name = each.value.artifact_name
+    }
+  }
+}
+
+resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "deploy-hosted-applications"
+  description                        = "Creates OCI Generative AI hosted applications and deployments from delivered OCIR images."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 7200
+
+  build_pipeline_stage_predecessor_collection {
+    dynamic "items" {
+      for_each = oci_devops_build_pipeline_stage.deliver_image
+      content {
+        id = items.value.id
+      }
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 1
+    memory_in_gbs     = 8
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [oci_devops_build_pipeline_stage.deliver_image]
 }
 
 resource "oci_devops_build_run" "this" {
@@ -208,6 +354,10 @@ resource "oci_devops_build_run" "this" {
 
   build_pipeline_id = oci_devops_build_pipeline.this[0].id
   display_name      = "enterprise-ai-demo-hosted-images-${var.resource_suffix}"
+
+  timeouts {
+    create = "90m"
+  }
 
   build_run_arguments {
     items {
@@ -217,6 +367,10 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "OCI_REGION"
       value = var.region
+    }
+    items {
+      name  = "COMPARTMENT_ID"
+      value = var.compartment_id
     }
     items {
       name  = "OCIR_REGION_KEY"
@@ -231,17 +385,100 @@ resource "oci_devops_build_run" "this" {
       value = var.image_tag
     }
     items {
-      name  = "OCIR_USERNAME"
-      value = var.ocir_username
+      name  = "SOURCE_REVISION"
+      value = var.source_revision
     }
     items {
-      name  = "OCIR_AUTH_TOKEN"
-      value = var.ocir_auth_token
+      name  = "PORTAL_CONTAINER_REPOSITORY_ID"
+      value = var.portal_container_repository_id
+    }
+    items {
+      name  = "SHARED_POLICY_ID"
+      value = var.shared_policy_id
+    }
+    items {
+      name  = "IDCS_DOMAIN_URL"
+      value = var.idcs_domain_url
+    }
+    items {
+      name  = "IDCS_AUDIENCE"
+      value = var.idcs_audience
+    }
+    items {
+      name  = "IDCS_SCOPE"
+      value = var.idcs_scope
+    }
+    items {
+      name  = "OPENCLAW_GATEWAY_TOKEN"
+      value = local.build_openclaw_gateway_token
+    }
+    items {
+      name  = "LANGFUSE_DATABASE_URL"
+      value = local.build_langfuse_database_url
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_URL"
+      value = local.build_langfuse_clickhouse_url
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_MIGRATION_URL"
+      value = local.build_langfuse_clickhouse_migration_url
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_USER"
+      value = local.build_langfuse_clickhouse_user
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_PASSWORD"
+      value = local.build_langfuse_clickhouse_password
+    }
+    items {
+      name  = "LANGFUSE_REDIS_CONNECTION_STRING"
+      value = local.build_langfuse_redis_connection_string
+    }
+    items {
+      name  = "LANGFUSE_S3_EVENT_UPLOAD_BUCKET"
+      value = local.build_langfuse_s3_event_upload_bucket
+    }
+    items {
+      name  = "LANGFUSE_S3_MEDIA_UPLOAD_BUCKET"
+      value = local.build_langfuse_s3_media_upload_bucket
+    }
+    items {
+      name  = "LANGFUSE_S3_UPLOAD_REGION"
+      value = local.build_langfuse_s3_upload_region
+    }
+    items {
+      name  = "LANGFUSE_S3_UPLOAD_ENDPOINT"
+      value = local.build_langfuse_s3_upload_endpoint
+    }
+    items {
+      name  = "LANGFUSE_NEXTAUTH_SECRET"
+      value = local.build_langfuse_nextauth_secret
+    }
+    items {
+      name  = "LANGFUSE_SALT"
+      value = local.build_langfuse_salt
+    }
+    items {
+      name  = "LANGFUSE_ENCRYPTION_KEY"
+      value = local.build_langfuse_encryption_key
+    }
+    items {
+      name  = "LANGFUSE_NETWORKING_CONFIG_JSON"
+      value = local.build_langfuse_networking_config_json
     }
   }
 
   depends_on = [
-    oci_devops_build_pipeline_stage.build,
-    oci_logging_log.devops
+    oci_devops_build_pipeline_stage.deploy_hosted,
+    oci_logging_log.devops,
+    terraform_data.seed_devops_repository
   ]
+
+  lifecycle {
+    replace_triggered_by = [
+      terraform_data.seed_devops_repository
+    ]
+  }
 }

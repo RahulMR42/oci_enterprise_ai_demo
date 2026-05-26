@@ -27,3 +27,16 @@ variable "shared_generated_dir" {
   type        = string
   default     = "../responses-api/.terraform/generated"
 }
+
+variable "oci_genai_project_id" {
+  description = "Optional OCI Generative AI project OCID. When set, local-exec uses it instead of shared_generated_dir/project.json."
+  type        = string
+  default     = ""
+}
+
+variable "oci_genai_api_key" {
+  description = "Optional OCI Generative AI Responses API key. When set, local-exec uses it instead of shared_generated_dir/api_key.json."
+  type        = string
+  sensitive   = true
+  default     = ""
+}

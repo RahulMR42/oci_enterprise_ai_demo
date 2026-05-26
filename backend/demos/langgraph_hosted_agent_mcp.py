@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +33,14 @@ MCP_TOOLS = [
 
 
 def _read_langgraph_agent():
+    hosted_deployment_id = os.getenv("OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID", "")
+    hosted_url = os.getenv("OCI_HOSTED_LANGGRAPH_URL", "")
+    if hosted_deployment_id or hosted_url:
+        return {
+            "hostedDeploymentId": hosted_deployment_id,
+            "endpoint": hosted_url,
+            "hostedDeploymentLifecycleState": "ACTIVE" if hosted_deployment_id or hosted_url else "",
+        }
     if not LANGGRAPH_AGENT_PATH.exists():
         return {}
     try:

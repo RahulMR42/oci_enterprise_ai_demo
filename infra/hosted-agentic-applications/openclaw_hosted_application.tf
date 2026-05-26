@@ -1,4 +1,6 @@
 resource "terraform_data" "openclaw_hosted_agent_gateway" {
+  count = var.hosted_cli_deployments_enabled ? 1 : 0
+
   input = {
     provisioning_revision           = "20260522-openclaw-hosted-gateway-demo-ui"
     compartment_id                  = var.compartment_id
@@ -9,7 +11,7 @@ resource "terraform_data" "openclaw_hosted_agent_gateway" {
     repository_name                 = local.openclaw_repository_name
     openclaw_image_repository_uri   = var.openclaw_image_repository_uri
     image_tag                       = "latest"
-    hosted_image_build_run_id        = var.hosted_image_build_run_id
+    hosted_image_build_run_id       = var.hosted_image_build_run_id
     push_image                      = var.push_image
     app_source_dir                  = abspath("${path.module}/${var.openclaw_app_source_dir}")
     generated_dir                   = "${path.module}/.terraform/generated"

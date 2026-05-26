@@ -1,4 +1,6 @@
 resource "terraform_data" "llamaindex_control_tower" {
+  count = var.hosted_cli_deployments_enabled ? 1 : 0
+
   triggers_replace = [
     "20260525-add-llamaindex-control-tower",
     var.resource_suffix,
@@ -17,7 +19,7 @@ resource "terraform_data" "llamaindex_control_tower" {
     generated_dir                   = local.generated_dir
     hosted_application_display_name = local.llamaindex_application_display_name
     hosted_deployment_display_name  = local.llamaindex_deployment_display_name
-    hosted_image_build_run_id        = var.hosted_image_build_run_id
+    hosted_image_build_run_id       = var.hosted_image_build_run_id
     image_repository_uri            = var.llamaindex_image_repository_uri
     image_tag                       = var.image_tag
     container_cli                   = var.container_cli

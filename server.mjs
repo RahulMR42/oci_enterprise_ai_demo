@@ -1656,6 +1656,30 @@ function demoRuntimeComponents() {
   const langfuseHostedUrl = langfuseObservability.url || langfuseObservability.endpoint || hostedApplicationInvokeUrl(langfuseObservability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const openclawHostedUrl = openclawGateway.url || openclawGateway.endpoint || hostedApplicationInvokeUrl(openclawGateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const llamaIndexHostedUrl = llamaIndexControlTower.url || llamaIndexControlTower.endpoint || hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+  const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || "";
+  const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || "";
+  const langGraphDeploymentIdEnv = process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || "";
+  const langGraphHostedUrlEnv = process.env.OCI_HOSTED_LANGGRAPH_URL || "";
+  const n8nHostedUrlEnv = process.env.OCI_HOSTED_N8N_URL || "";
+  const langfuseHostedUrlEnv = process.env.OCI_HOSTED_LANGFUSE_URL || "";
+  const openclawHostedUrlEnv = process.env.OCI_HOSTED_OPENCLAW_URL || "";
+  const llamaIndexHostedUrlEnv = process.env.OCI_HOSTED_LLAMAINDEX_URL || "";
+  const n8nDeploymentIdEnv = process.env.OCI_HOSTED_N8N_DEPLOYMENT_ID || "";
+  const langfuseDeploymentIdEnv = process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || "";
+  const openclawDeploymentIdEnv = process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || "";
+  const llamaIndexDeploymentIdEnv = process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || "";
+  const finalHostedAgentDeploymentId = hostedAgent.hostedDeploymentId || hostedAgentDeploymentIdEnv;
+  const finalHostedAgentUrl = hostedAgent.endpoint || hostedAgentUrlEnv;
+  const finalLangGraphDeploymentId = langGraphAgent.hostedDeploymentId || langGraphDeploymentIdEnv;
+  const finalLangGraphHostedUrl = langGraphAgent.endpoint || langGraphHostedUrlEnv;
+  const finalN8nDeploymentId = n8nWorkflow.hostedDeploymentId || n8nDeploymentIdEnv;
+  const finalLangfuseDeploymentId = langfuseObservability.hostedDeploymentId || langfuseDeploymentIdEnv;
+  const finalOpenclawDeploymentId = openclawGateway.hostedDeploymentId || openclawDeploymentIdEnv;
+  const finalLlamaIndexDeploymentId = llamaIndexControlTower.hostedDeploymentId || llamaIndexDeploymentIdEnv;
+  const finalN8nHostedUrl = n8nHostedUrl || n8nHostedUrlEnv;
+  const finalLangfuseHostedUrl = langfuseHostedUrl || langfuseHostedUrlEnv;
+  const finalOpenclawHostedUrl = openclawHostedUrl || openclawHostedUrlEnv;
+  const finalLlamaIndexHostedUrl = llamaIndexHostedUrl || llamaIndexHostedUrlEnv;
 
   return [
     ...fileSearchRuntimeComponents({ vectorStore, vectorStoreFiles }),
@@ -1716,14 +1740,14 @@ function demoRuntimeComponents() {
     component(
       "generated.llamaindex_control_tower_hosted_deployment",
       "LlamaIndex Control Tower Hosted Deployment",
-      llamaIndexControlTower.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(llamaIndexDeployment), "created") : "not-created",
-      llamaIndexControlTower.hostedDeploymentId || "Run provisioning to create LlamaIndex hosted deployment"
+      finalLlamaIndexDeploymentId ? statusFromLifecycle(lifecycleValue(llamaIndexDeployment), "created") : "not-created",
+      finalLlamaIndexDeploymentId || "Run provisioning to create LlamaIndex hosted deployment"
     ),
     component(
       "generated.llamaindex_control_tower_hosted_url",
       "LlamaIndex Control Tower Hosted URL",
-      llamaIndexHostedUrl ? "created" : "not-created",
-      llamaIndexHostedUrl || "Run provisioning to expose LlamaIndex hosted URL"
+      finalLlamaIndexHostedUrl ? "created" : "not-created",
+      finalLlamaIndexHostedUrl || "Run provisioning to expose LlamaIndex hosted URL"
     ),
     component(
       "generated.llamaindex_control_tower_image",
@@ -1746,8 +1770,14 @@ function demoRuntimeComponents() {
     component(
       "generated.hosted_agent_deployment",
       "OCI Hosted Deployment",
-      hostedAgent.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(hostedDeployment), "created") : "not-created",
-      hostedAgent.hostedDeploymentId || "Run provisioning to create hosted deployment"
+      finalHostedAgentDeploymentId ? statusFromLifecycle(lifecycleValue(hostedDeployment), "created") : "not-created",
+      finalHostedAgentDeploymentId || "Run provisioning to create hosted deployment"
+    ),
+    component(
+      "generated.hosted_agent_url",
+      "OCI Hosted Agent URL",
+      finalHostedAgentUrl ? "created" : "not-created",
+      finalHostedAgentUrl || "Run provisioning to expose hosted agent URL"
     ),
     component(
       "generated.hosted_agent_deployment_artifact",
@@ -1782,8 +1812,14 @@ function demoRuntimeComponents() {
     component(
       "generated.langgraph_hosted_agent_deployment",
       "LangGraph OCI Hosted Deployment",
-      langGraphAgent.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(langGraphDeployment), "created") : "not-created",
-      langGraphAgent.hostedDeploymentId || "Run provisioning to create LangGraph hosted deployment"
+      finalLangGraphDeploymentId ? statusFromLifecycle(lifecycleValue(langGraphDeployment), "created") : "not-created",
+      finalLangGraphDeploymentId || "Run provisioning to create LangGraph hosted deployment"
+    ),
+    component(
+      "generated.langgraph_hosted_agent_url",
+      "LangGraph Hosted Agent URL",
+      finalLangGraphHostedUrl ? "created" : "not-created",
+      finalLangGraphHostedUrl || "Run provisioning to expose LangGraph hosted URL"
     ),
     component(
       "generated.langgraph_hosted_agent_deployment_artifact",
@@ -1820,8 +1856,8 @@ function demoRuntimeComponents() {
     component(
       "generated.n8n_hosted_workflow_deployment",
       "n8n OCI Hosted Deployment",
-      n8nWorkflow.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(n8nDeployment), "created") : "not-created",
-      n8nWorkflow.hostedDeploymentId || "Run provisioning to create n8n hosted deployment"
+      finalN8nDeploymentId ? statusFromLifecycle(lifecycleValue(n8nDeployment), "created") : "not-created",
+      finalN8nDeploymentId || "Run provisioning to create n8n hosted deployment"
     ),
     component(
       "generated.n8n_hosted_workflow_deployment_artifact",
@@ -1832,8 +1868,8 @@ function demoRuntimeComponents() {
     component(
       "generated.n8n_hosted_workflow_url",
       "n8n Hosted URL",
-      n8nHostedUrl ? "created" : "not-created",
-      n8nHostedUrl || "Run provisioning to create n8n hosted URL"
+      finalN8nHostedUrl ? "created" : "not-created",
+      finalN8nHostedUrl || "Run provisioning to create n8n hosted URL"
     ),
     component(
       "generated.langfuse_hosted_observability_ocir_repository",
@@ -1862,8 +1898,8 @@ function demoRuntimeComponents() {
     component(
       "generated.langfuse_hosted_observability_deployment",
       "Langfuse OCI Hosted Deployment",
-      langfuseObservability.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(langfuseDeployment), "created") : "not-created",
-      langfuseObservability.hostedDeploymentId || "Run provisioning to create Langfuse hosted deployment"
+      finalLangfuseDeploymentId ? statusFromLifecycle(lifecycleValue(langfuseDeployment), "created") : "not-created",
+      finalLangfuseDeploymentId || "Run provisioning to create Langfuse hosted deployment"
     ),
     component(
       "generated.langfuse_hosted_observability_deployment_artifact",
@@ -1874,8 +1910,8 @@ function demoRuntimeComponents() {
     component(
       "generated.langfuse_hosted_observability_url",
       "Langfuse Hosted URL",
-      langfuseHostedUrl ? "created" : "not-created",
-      langfuseHostedUrl || "Run provisioning to create Langfuse hosted URL"
+      finalLangfuseHostedUrl ? "created" : "not-created",
+      finalLangfuseHostedUrl || "Run provisioning to create Langfuse hosted URL"
     ),
     component(
       "generated.openclaw_hosted_gateway_ocir_repository",
@@ -1904,8 +1940,8 @@ function demoRuntimeComponents() {
     component(
       "generated.openclaw_hosted_gateway_deployment",
       "OpenClaw OCI Hosted Deployment",
-      openclawGateway.hostedDeploymentId ? statusFromLifecycle(lifecycleValue(openclawDeployment), "created") : "not-created",
-      openclawGateway.hostedDeploymentId || "Run provisioning to create OpenClaw hosted deployment"
+      finalOpenclawDeploymentId ? statusFromLifecycle(lifecycleValue(openclawDeployment), "created") : "not-created",
+      finalOpenclawDeploymentId || "Run provisioning to create OpenClaw hosted deployment"
     ),
     component(
       "generated.openclaw_hosted_gateway_deployment_artifact",
@@ -1916,8 +1952,8 @@ function demoRuntimeComponents() {
     component(
       "generated.openclaw_hosted_gateway_url",
       "OpenClaw Hosted URL",
-      openclawHostedUrl ? "created" : "not-created",
-      openclawHostedUrl || "Run provisioning to create OpenClaw hosted URL"
+      finalOpenclawHostedUrl ? "created" : "not-created",
+      finalOpenclawHostedUrl || "Run provisioning to create OpenClaw hosted URL"
     )
   ];
 }

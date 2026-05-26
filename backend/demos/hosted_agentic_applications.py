@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +21,14 @@ HOSTED_AGENT_PATH = Path(__file__).resolve().parents[2] / "infra" / "hosted-agen
 
 
 def _read_hosted_agent():
+    hosted_deployment_id = os.getenv("OCI_HOSTED_AGENT_DEPLOYMENT_ID", "")
+    hosted_url = os.getenv("OCI_HOSTED_AGENT_URL", "")
+    if hosted_deployment_id or hosted_url:
+        return {
+            "hostedDeploymentId": hosted_deployment_id,
+            "endpoint": hosted_url,
+            "hostedDeploymentLifecycleState": "ACTIVE" if hosted_deployment_id or hosted_url else "",
+        }
     if not HOSTED_AGENT_PATH.exists():
         return {}
     try:

@@ -80,7 +80,19 @@ variable "devops_source_repo_url" {
 }
 
 variable "devops_source_branch" {
-  description = "Git branch used by the DevOps build stage."
+  description = "Upstream Git branch Resource Manager clones before seeding the OCI DevOps code repository."
+  type        = string
+  default     = "main"
+}
+
+variable "devops_source_revision" {
+  description = "Optional source revision marker used to force a new Resource Manager-seeded DevOps build run when branch contents change."
+  type        = string
+  default     = ""
+}
+
+variable "devops_repository_branch" {
+  description = "Branch name used inside the OCI DevOps hosted code repository and build source."
   type        = string
   default     = "main"
 }
@@ -157,6 +169,92 @@ variable "hosted_app_ocir_region_key" {
   description = "OCIR region key used to derive repository URIs."
   type        = string
   default     = "ord"
+}
+
+variable "portal_container_enabled" {
+  description = "When true, create a public OCI Container Instance for the demo portal from the RM-owned OCIR image."
+  type        = bool
+  default     = true
+}
+
+variable "portal_container_image_uri" {
+  description = "Optional full OCIR image URI for the demo portal container. Leave empty to use the stack namespace, hosted_app_ocir_region_key, portal_container_repository_name, and portal_container_image_tag."
+  type        = string
+  default     = ""
+}
+
+variable "portal_container_repository_name" {
+  description = "OCIR repository name that stores the demo portal image."
+  type        = string
+  default     = "enterprise-ai-demo/portal-rm"
+}
+
+variable "portal_container_repository_id" {
+  description = "Optional existing OCIR repository OCID for the demo portal image. Leave empty to let this stack create the repository."
+  type        = string
+  default     = ""
+}
+
+variable "portal_container_image_tag" {
+  description = "Image tag for the demo portal container."
+  type        = string
+  default     = "latest"
+}
+
+variable "portal_container_port" {
+  description = "Public TCP port exposed by the demo portal container."
+  type        = number
+  default     = 5173
+}
+
+variable "portal_container_shape" {
+  description = "OCI Container Instance shape for the demo portal."
+  type        = string
+  default     = "CI.Standard.E4.Flex"
+}
+
+variable "portal_container_ocpus" {
+  description = "OCPUs assigned to the demo portal container instance."
+  type        = number
+  default     = 1
+}
+
+variable "portal_container_memory_gbs" {
+  description = "Memory assigned to the demo portal container."
+  type        = number
+  default     = 4
+}
+
+variable "portal_vcn_cidr" {
+  description = "CIDR block for the demo portal VCN."
+  type        = string
+  default     = "10.42.0.0/16"
+}
+
+variable "portal_subnet_cidr" {
+  description = "Public subnet CIDR block for the demo portal container instance."
+  type        = string
+  default     = "10.42.1.0/24"
+}
+
+variable "portal_auth_password" {
+  description = "Optional fixed portal login password. Leave empty to let Terraform generate one and expose it as a sensitive output."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "oci_genai_project_id" {
+  description = "Existing OCI Generative AI project OCID injected into the demo portal as OCI_GENAI_PROJECT_ID."
+  type        = string
+  default     = ""
+}
+
+variable "oci_genai_api_key" {
+  description = "Existing OCI Generative AI Responses API key injected into the demo portal as OCI_GENAI_API_KEY."
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 variable "idcs_domain_url" {
