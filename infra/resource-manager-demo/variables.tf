@@ -232,6 +232,19 @@ variable "portal_auth_password" {
   default     = ""
 }
 
+variable "oci_genai_project_id" {
+  description = "Existing OCI Generative AI project OCID injected into the demo portal as OCI_GENAI_PROJECT_ID."
+  type        = string
+  default     = ""
+}
+
+variable "oci_genai_api_key" {
+  description = "Existing OCI Generative AI Responses API key injected into the demo portal as OCI_GENAI_API_KEY."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "idcs_domain_url" {
   description = "Existing identity domain URL used for hosted application inbound OAuth authentication."
   type        = string

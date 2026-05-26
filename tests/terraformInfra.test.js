@@ -374,6 +374,11 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /is_public_ip_assigned\s+=\s+true/);
   assert.match(terraform, /image_url\s+=\s+local\.portal_container_image_uri/);
   assert.match(terraform, /HOST\s+=\s+"0\.0\.0\.0"/);
+  assert.match(terraform, /variable "oci_genai_project_id"/);
+  assert.match(terraform, /variable "oci_genai_api_key"/);
+  assert.match(terraform, /OCI_GENAI_PROJECT_ID\s+=\s+var\.oci_genai_project_id/);
+  assert.match(terraform, /OCI_GENAI_API_KEY\s+=\s+var\.oci_genai_api_key/);
+  assert.match(terraform, /OCI_GENAI_REGION\s+=\s+var\.region/);
   assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+local\.portal_auth_password/);
   assert.doesNotMatch(terraform, /image_pull_secrets/);
   assert.match(terraform, /read repos in compartment id/);

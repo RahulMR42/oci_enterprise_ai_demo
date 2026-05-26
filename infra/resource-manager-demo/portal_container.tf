@@ -136,9 +136,12 @@ resource "oci_container_instances_container_instance" "portal" {
     image_url    = local.portal_container_image_uri
 
     environment_variables = {
-      HOST                = "0.0.0.0"
-      PORT                = tostring(var.portal_container_port)
-      OCI_PORTAL_PASSWORD = local.portal_auth_password
+      HOST                 = "0.0.0.0"
+      OCI_GENAI_API_KEY    = var.oci_genai_api_key
+      OCI_GENAI_PROJECT_ID = var.oci_genai_project_id
+      OCI_GENAI_REGION     = var.region
+      PORT                 = tostring(var.portal_container_port)
+      OCI_PORTAL_PASSWORD  = local.portal_auth_password
     }
 
     health_checks {
