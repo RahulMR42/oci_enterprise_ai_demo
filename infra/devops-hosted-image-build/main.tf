@@ -73,11 +73,11 @@ resource "oci_devops_connection" "github" {
 resource "oci_devops_repository" "source" {
   count = var.enabled && var.create_devops_repository ? 1 : 0
 
-  project_id       = oci_devops_project.this[0].id
-  name             = "enterprise-ai-demo-source-${var.resource_suffix}"
-  repository_type  = "HOSTED"
-  default_branch   = var.devops_repository_branch
-  description      = "Resource Manager-seeded source repository for Enterprise AI demo hosted image builds."
+  project_id      = oci_devops_project.this[0].id
+  name            = "enterprise-ai-demo-source-${var.resource_suffix}"
+  repository_type = "HOSTED"
+  default_branch  = var.devops_repository_branch
+  description     = "Resource Manager-seeded source repository for Enterprise AI demo hosted image builds."
 }
 
 resource "terraform_data" "seed_devops_repository" {
@@ -86,6 +86,7 @@ resource "terraform_data" "seed_devops_repository" {
   triggers_replace = [
     var.source_repo_url,
     var.source_branch,
+    var.source_revision,
     var.devops_repository_branch,
     oci_devops_repository.source[0].id
   ]
@@ -94,6 +95,7 @@ resource "terraform_data" "seed_devops_repository" {
     devops_repository_http_url = oci_devops_repository.source[0].http_url
     devops_repository_branch   = var.devops_repository_branch
     source_branch              = var.source_branch
+    source_revision            = var.source_revision
     source_repo_url            = var.source_repo_url
     username                   = var.devops_repository_git_username
   }
@@ -149,6 +151,11 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "OCI region used by OCI CLI calls in the build."
     }
     items {
+      name          = "COMPARTMENT_ID"
+      default_value = var.compartment_id
+      description   = "Compartment OCID for hosted app deployment."
+    }
+    items {
       name          = "OCIR_REGION_KEY"
       default_value = var.ocir_region_key
       description   = "OCIR region key used for image repository URIs."
@@ -162,6 +169,26 @@ resource "oci_devops_build_pipeline" "this" {
       name          = "IMAGE_TAG"
       default_value = var.image_tag
       description   = "Image tag to build and push."
+    }
+    items {
+      name          = "SOURCE_REVISION"
+      default_value = var.source_revision
+      description   = "Source revision marker used to correlate Resource Manager applies and DevOps build runs."
+    }
+    items {
+      name          = "IDCS_DOMAIN_URL"
+      default_value = var.idcs_domain_url
+      description   = "Identity domain URL used by hosted app inbound auth."
+    }
+    items {
+      name          = "IDCS_AUDIENCE"
+      default_value = var.idcs_audience
+      description   = "Identity domain OAuth audience used by hosted app inbound auth."
+    }
+    items {
+      name          = "IDCS_SCOPE"
+      default_value = var.idcs_scope
+      description   = "Identity domain OAuth scope used by hosted app inbound auth."
     }
   }
 }
@@ -221,6 +248,10 @@ resource "oci_devops_build_run" "this" {
       value = var.region
     }
     items {
+      name  = "COMPARTMENT_ID"
+      value = var.compartment_id
+    }
+    items {
       name  = "OCIR_REGION_KEY"
       value = var.ocir_region_key
     }
@@ -233,6 +264,10 @@ resource "oci_devops_build_run" "this" {
       value = var.image_tag
     }
     items {
+      name  = "SOURCE_REVISION"
+      value = var.source_revision
+    }
+    items {
       name  = "OCIR_USERNAME"
       value = var.ocir_username
     }
@@ -240,10 +275,41 @@ resource "oci_devops_build_run" "this" {
       name  = "OCIR_AUTH_TOKEN"
       value = var.ocir_auth_token
     }
+    items {
+      name  = "IDCS_DOMAIN_URL"
+      value = var.idcs_domain_url
+    }
+    items {
+      name  = "IDCS_AUDIENCE"
+      value = var.idcs_audience
+    }
+    items {
+      name  = "IDCS_SCOPE"
+      value = var.idcs_scope
+    }
+    items {
+      name  = "N8N_BASIC_AUTH_USER"
+      value = var.n8n_basic_auth_user
+    }
+    items {
+      name  = "N8N_BASIC_AUTH_PASSWORD"
+      value = var.n8n_basic_auth_password
+    }
+    items {
+      name  = "OPENCLAW_GATEWAY_TOKEN"
+      value = var.openclaw_gateway_token
+    }
   }
 
   depends_on = [
     oci_devops_build_pipeline_stage.build,
-    oci_logging_log.devops
+    oci_logging_log.devops,
+    terraform_data.seed_devops_repository
   ]
+
+  lifecycle {
+    replace_triggered_by = [
+      terraform_data.seed_devops_repository
+    ]
+  }
 }

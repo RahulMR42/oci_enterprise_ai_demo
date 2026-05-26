@@ -69,6 +69,7 @@ module "devops_hosted_image_build" {
   resource_suffix                = var.resource_suffix
   source_repo_url                = var.devops_source_repo_url
   source_branch                  = var.devops_source_branch
+  source_revision                = var.devops_source_revision
   devops_repository_branch       = var.devops_repository_branch
   source_connection_type         = var.devops_source_connection_type
   source_connection_id           = var.devops_source_connection_id
@@ -81,6 +82,12 @@ module "devops_hosted_image_build" {
   ocir_region_key                = var.hosted_app_ocir_region_key
   ocir_username                  = var.devops_ocir_username
   ocir_auth_token                = var.devops_ocir_auth_token
+  idcs_domain_url                = var.idcs_domain_url
+  idcs_audience                  = var.idcs_audience
+  idcs_scope                     = var.idcs_scope
+  n8n_basic_auth_user            = var.n8n_basic_auth_user
+  n8n_basic_auth_password        = var.n8n_basic_auth_password
+  openclaw_gateway_token         = var.openclaw_gateway_token
   run_build                      = var.devops_hosted_image_run_build
 }
 

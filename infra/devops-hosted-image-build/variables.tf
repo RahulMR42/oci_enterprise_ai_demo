@@ -31,6 +31,12 @@ variable "source_branch" {
   default     = "main"
 }
 
+variable "source_revision" {
+  description = "Optional source revision marker used to force a new repository seed and build run when the upstream branch changes."
+  type        = string
+  default     = ""
+}
+
 variable "devops_repository_branch" {
   description = "Branch name used inside the OCI DevOps hosted code repository and build source."
   type        = string
@@ -106,6 +112,44 @@ variable "ocir_username" {
 
 variable "ocir_auth_token" {
   description = "OCIR auth token used by the DevOps build to push images."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "idcs_domain_url" {
+  description = "Existing identity domain URL used for hosted application inbound OAuth authentication."
+  type        = string
+  default     = ""
+}
+
+variable "idcs_audience" {
+  description = "Existing identity domain OAuth audience for hosted application inbound authentication."
+  type        = string
+  default     = ""
+}
+
+variable "idcs_scope" {
+  description = "Existing identity domain OAuth scope for hosted application inbound authentication."
+  type        = string
+  default     = ""
+}
+
+variable "n8n_basic_auth_user" {
+  description = "Username for the hosted n8n basic authentication boundary."
+  type        = string
+  default     = "admin"
+}
+
+variable "n8n_basic_auth_password" {
+  description = "Password for the hosted n8n basic authentication boundary."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "openclaw_gateway_token" {
+  description = "Shared gateway token for the OpenClaw Control UI."
   type        = string
   sensitive   = true
   default     = ""

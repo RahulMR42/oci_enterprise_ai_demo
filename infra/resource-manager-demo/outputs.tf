@@ -58,6 +58,11 @@ output "devops_hosted_image_repository_uris" {
   value       = module.devops_hosted_image_build.image_repository_uris
 }
 
+output "devops_hosted_deployment_exports" {
+  description = "Hosted app/deployment metadata exported by the DevOps build run."
+  value       = module.devops_hosted_image_build.hosted_deployment_exports
+}
+
 output "portal_container_instance_id" {
   description = "OCI Container Instance OCID for the demo portal."
   value       = var.portal_container_enabled ? oci_container_instances_container_instance.portal[0].id : ""

@@ -158,6 +158,18 @@ resource "oci_container_instances_container_instance" "portal" {
       OCI_GENAI_PROJECT_ID                 = var.oci_genai_project_id
       OCI_GENAI_REGION                     = var.region
       OCI_GENAI_VECTOR_STORE_ID            = local.portal_vector_store_id
+      OCI_HOSTED_AGENT_DEPLOYMENT_ID       = local.hosted_deployment_exports.HOSTED_AGENT_DEPLOYMENT_ID
+      OCI_HOSTED_AGENT_URL                 = local.hosted_deployment_exports.HOSTED_AGENT_URL
+      OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID    = local.hosted_deployment_exports.LANGFUSE_DEPLOYMENT_ID
+      OCI_HOSTED_LANGFUSE_URL              = local.hosted_deployment_exports.LANGFUSE_URL
+      OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID   = local.hosted_deployment_exports.LANGGRAPH_DEPLOYMENT_ID
+      OCI_HOSTED_LANGGRAPH_URL             = local.hosted_deployment_exports.LANGGRAPH_URL
+      OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID  = local.hosted_deployment_exports.LLAMAINDEX_DEPLOYMENT_ID
+      OCI_HOSTED_LLAMAINDEX_URL            = local.hosted_deployment_exports.LLAMAINDEX_URL
+      OCI_HOSTED_N8N_DEPLOYMENT_ID         = local.hosted_deployment_exports.N8N_DEPLOYMENT_ID
+      OCI_HOSTED_N8N_URL                   = local.hosted_deployment_exports.N8N_URL
+      OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID    = local.hosted_deployment_exports.OPENCLAW_DEPLOYMENT_ID
+      OCI_HOSTED_OPENCLAW_URL              = local.hosted_deployment_exports.OPENCLAW_URL
       PORT                                 = tostring(var.portal_container_port)
       OCI_PORTAL_PASSWORD                  = local.portal_auth_password
     }
@@ -184,7 +196,8 @@ resource "oci_container_instances_container_instance" "portal" {
   depends_on = [
     module.shared_demo_security,
     module.file_search_vector_store_rag,
-    module.code_interpreter
+    module.code_interpreter,
+    module.devops_hosted_image_build
   ]
 }
 
@@ -218,4 +231,18 @@ locals {
     ? try(jsondecode(data.local_file.code_interpreter_container[0].content).id, "")
     : ""
   )
+  hosted_deployment_exports = merge({
+    HOSTED_AGENT_DEPLOYMENT_ID = ""
+    HOSTED_AGENT_URL           = ""
+    LANGFUSE_DEPLOYMENT_ID     = ""
+    LANGFUSE_URL               = ""
+    LANGGRAPH_DEPLOYMENT_ID    = ""
+    LANGGRAPH_URL              = ""
+    LLAMAINDEX_DEPLOYMENT_ID   = ""
+    LLAMAINDEX_URL             = ""
+    N8N_DEPLOYMENT_ID          = ""
+    N8N_URL                    = ""
+    OPENCLAW_DEPLOYMENT_ID     = ""
+    OPENCLAW_URL               = ""
+  }, module.devops_hosted_image_build.hosted_deployment_exports)
 }

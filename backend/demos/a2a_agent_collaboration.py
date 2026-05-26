@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,15 +33,18 @@ def _read_json(path):
 
 def _agent_card(name, description, runtime, path, skills):
     metadata = _read_json(path)
+    env_prefix = "OCI_HOSTED_LANGGRAPH" if "LangGraph" in name else "OCI_HOSTED_AGENT"
+    hosted_deployment_id = metadata.get("hostedDeploymentId", "") or os.getenv(f"{env_prefix}_DEPLOYMENT_ID", "")
+    hosted_url = metadata.get("endpoint") or os.getenv(f"{env_prefix}_URL", "")
     return {
         "name": name,
         "description": description,
-        "url": metadata.get("endpoint") or "/a2a/tasks",
+        "url": hosted_url or "/a2a/tasks",
         "version": "1.0.0",
         "runtime": runtime,
         "hostedApplicationId": metadata.get("hostedApplicationId", ""),
-        "hostedDeploymentId": metadata.get("hostedDeploymentId", ""),
-        "lifecycleState": metadata.get("hostedDeploymentLifecycleState", ""),
+        "hostedDeploymentId": hosted_deployment_id,
+        "lifecycleState": metadata.get("hostedDeploymentLifecycleState", "") or ("ACTIVE" if hosted_deployment_id else ""),
         "capabilities": {"streaming": False, "pushNotifications": False},
         "skills": skills,
     }

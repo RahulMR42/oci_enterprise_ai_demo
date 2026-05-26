@@ -85,6 +85,12 @@ variable "devops_source_branch" {
   default     = "main"
 }
 
+variable "devops_source_revision" {
+  description = "Optional source revision marker used to force a new Resource Manager-seeded DevOps build run when branch contents change."
+  type        = string
+  default     = ""
+}
+
 variable "devops_repository_branch" {
   description = "Branch name used inside the OCI DevOps hosted code repository and build source."
   type        = string
