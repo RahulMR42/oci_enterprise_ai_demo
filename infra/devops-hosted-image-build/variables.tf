@@ -155,6 +155,97 @@ variable "openclaw_gateway_token" {
   default     = ""
 }
 
+variable "langfuse_database_url" {
+  description = "DATABASE_URL used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_clickhouse_url" {
+  description = "ClickHouse HTTP URL used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_clickhouse_migration_url" {
+  description = "ClickHouse migration URL used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_clickhouse_user" {
+  description = "ClickHouse user used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_clickhouse_password" {
+  description = "ClickHouse password used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_redis_connection_string" {
+  description = "Redis connection string used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_s3_event_upload_bucket" {
+  description = "Event upload bucket used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_s3_media_upload_bucket" {
+  description = "Media upload bucket used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_s3_upload_region" {
+  description = "Object Storage upload region used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_s3_upload_endpoint" {
+  description = "Object Storage upload endpoint used by the hosted Langfuse deployment."
+  type        = string
+  default     = ""
+}
+
+variable "langfuse_nextauth_secret" {
+  description = "NEXTAUTH_SECRET used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_salt" {
+  description = "SALT used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_encryption_key" {
+  description = "ENCRYPTION_KEY used by the hosted Langfuse deployment."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "langfuse_networking_config_json" {
+  description = "Hosted application private networking configuration used by Langfuse."
+  type        = string
+  default     = ""
+}
+
 variable "run_build" {
   description = "When true, Resource Manager starts a DevOps build run during apply."
   type        = bool

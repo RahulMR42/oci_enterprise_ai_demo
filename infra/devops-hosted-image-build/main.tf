@@ -190,6 +190,11 @@ resource "oci_devops_build_pipeline" "this" {
       default_value = var.idcs_scope
       description   = "Identity domain OAuth scope used by hosted app inbound auth."
     }
+    items {
+      name          = "LANGFUSE_CLICKHOUSE_USER"
+      default_value = var.langfuse_clickhouse_user
+      description   = "ClickHouse user used by hosted Langfuse."
+    }
   }
 }
 
@@ -298,6 +303,62 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "OPENCLAW_GATEWAY_TOKEN"
       value = var.openclaw_gateway_token
+    }
+    items {
+      name  = "LANGFUSE_DATABASE_URL"
+      value = var.langfuse_database_url
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_URL"
+      value = var.langfuse_clickhouse_url
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_MIGRATION_URL"
+      value = var.langfuse_clickhouse_migration_url
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_USER"
+      value = var.langfuse_clickhouse_user
+    }
+    items {
+      name  = "LANGFUSE_CLICKHOUSE_PASSWORD"
+      value = var.langfuse_clickhouse_password
+    }
+    items {
+      name  = "LANGFUSE_REDIS_CONNECTION_STRING"
+      value = var.langfuse_redis_connection_string
+    }
+    items {
+      name  = "LANGFUSE_S3_EVENT_UPLOAD_BUCKET"
+      value = var.langfuse_s3_event_upload_bucket
+    }
+    items {
+      name  = "LANGFUSE_S3_MEDIA_UPLOAD_BUCKET"
+      value = var.langfuse_s3_media_upload_bucket
+    }
+    items {
+      name  = "LANGFUSE_S3_UPLOAD_REGION"
+      value = var.langfuse_s3_upload_region
+    }
+    items {
+      name  = "LANGFUSE_S3_UPLOAD_ENDPOINT"
+      value = var.langfuse_s3_upload_endpoint
+    }
+    items {
+      name  = "LANGFUSE_NEXTAUTH_SECRET"
+      value = var.langfuse_nextauth_secret
+    }
+    items {
+      name  = "LANGFUSE_SALT"
+      value = var.langfuse_salt
+    }
+    items {
+      name  = "LANGFUSE_ENCRYPTION_KEY"
+      value = var.langfuse_encryption_key
+    }
+    items {
+      name  = "LANGFUSE_NETWORKING_CONFIG_JSON"
+      value = var.langfuse_networking_config_json
     }
   }
 

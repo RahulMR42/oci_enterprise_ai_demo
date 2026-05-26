@@ -18,7 +18,7 @@ resource "terraform_data" "hosted_agentic_application" {
     generated_dir                   = local.generated_dir
     hosted_application_display_name = local.hosted_application_display_name
     hosted_deployment_display_name  = local.hosted_deployment_display_name
-    hosted_image_build_run_id        = var.hosted_image_build_run_id
+    hosted_image_build_run_id       = var.hosted_image_build_run_id
     image_tag                       = var.image_tag
     container_cli                   = var.container_cli
     idcs_domain_url                 = var.idcs_domain_url

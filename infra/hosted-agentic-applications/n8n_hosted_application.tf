@@ -21,7 +21,7 @@ resource "terraform_data" "n8n_hosted_workflow_automation" {
     generated_dir                   = local.generated_dir
     hosted_application_display_name = local.n8n_application_display_name
     hosted_deployment_display_name  = local.n8n_deployment_display_name
-    hosted_image_build_run_id        = var.hosted_image_build_run_id
+    hosted_image_build_run_id       = var.hosted_image_build_run_id
     image_tag                       = var.image_tag
     container_cli                   = var.container_cli
     idcs_domain_url                 = local.n8n_idcs_domain_url

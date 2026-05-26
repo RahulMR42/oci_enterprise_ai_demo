@@ -147,3 +147,75 @@ output "langfuse_object_storage_bucket" {
   description = "OCI Object Storage bucket used by the Langfuse hosted deployment."
   value       = oci_objectstorage_bucket.langfuse.name
 }
+
+output "langfuse_database_url" {
+  description = "DATABASE_URL used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_database_url
+  sensitive   = true
+}
+
+output "langfuse_clickhouse_migration_url" {
+  description = "ClickHouse migration endpoint used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_clickhouse_migration_url
+  sensitive   = true
+}
+
+output "langfuse_clickhouse_user" {
+  description = "ClickHouse user used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_clickhouse_user
+}
+
+output "langfuse_clickhouse_password" {
+  description = "ClickHouse password used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_clickhouse_password
+  sensitive   = true
+}
+
+output "langfuse_redis_connection_string" {
+  description = "Redis connection string used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_redis_connection_string
+  sensitive   = true
+}
+
+output "langfuse_s3_event_upload_bucket" {
+  description = "Event upload bucket used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_s3_event_upload_bucket
+}
+
+output "langfuse_s3_media_upload_bucket" {
+  description = "Media upload bucket used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_s3_media_upload_bucket
+}
+
+output "langfuse_s3_upload_region" {
+  description = "Object Storage upload region used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_s3_upload_region
+}
+
+output "langfuse_s3_upload_endpoint" {
+  description = "Object Storage upload endpoint used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_s3_upload_endpoint
+}
+
+output "langfuse_nextauth_secret" {
+  description = "NEXTAUTH_SECRET used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_nextauth_secret
+  sensitive   = true
+}
+
+output "langfuse_salt" {
+  description = "SALT used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_salt
+  sensitive   = true
+}
+
+output "langfuse_encryption_key" {
+  description = "ENCRYPTION_KEY used by the Langfuse hosted deployment."
+  value       = local.langfuse_effective_encryption_key
+  sensitive   = true
+}
+
+output "langfuse_networking_config_json" {
+  description = "Hosted application private networking configuration used by Langfuse."
+  value       = local.langfuse_hosted_networking_config_json
+}

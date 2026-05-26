@@ -101,12 +101,17 @@ PY
         local image_uri="$4"
         local demo="$5"
         local env_json="${6:-[]}"
+        local networking_json="${7:-}"
         local app_file="/tmp/${key}_hosted_application.json"
         local dep_file="/tmp/${key}_hosted_deployment.json"
 
         env_args=()
         if [ -n "$env_json" ] && [ "$env_json" != "[]" ]; then
           env_args=(--environment-variables "$env_json")
+        fi
+        networking_args=()
+        if [ -n "$networking_json" ]; then
+          networking_args=(--networking-config "$networking_json")
         fi
 
         oci generative-ai hosted-application create \
@@ -116,6 +121,7 @@ PY
           --scaling-config '{"scalingType":"AUTOMATIC","minReplica":1,"maxReplica":1,"targetRpsThreshold":10}' \
           "${env_args[@]}" \
           --inbound-auth-config "$inbound_auth_config" \
+          "${networking_args[@]}" \
           --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"${demo}\",\"managed-by\":\"resource-manager-devops\"}" \
           --auth resource_principal \
           --region "$OCI_REGION" \
@@ -199,11 +205,38 @@ print(json.dumps([
 ]))
 PY
       )"
+      langfuse_env="$(python3 - <<PY
+import json, os
+values = {
+  "NEXTAUTH_URL": "http://0.0.0.0:3000",
+  "NEXTAUTH_SECRET": os.getenv("LANGFUSE_NEXTAUTH_SECRET", ""),
+  "SALT": os.getenv("LANGFUSE_SALT", ""),
+  "ENCRYPTION_KEY": os.getenv("LANGFUSE_ENCRYPTION_KEY", ""),
+  "DATABASE_URL": os.getenv("LANGFUSE_DATABASE_URL", ""),
+  "CLICKHOUSE_URL": os.getenv("LANGFUSE_CLICKHOUSE_URL", ""),
+  "CLICKHOUSE_USER": os.getenv("LANGFUSE_CLICKHOUSE_USER", ""),
+  "CLICKHOUSE_PASSWORD": os.getenv("LANGFUSE_CLICKHOUSE_PASSWORD", ""),
+  "CLICKHOUSE_CLUSTER_ENABLED": "false",
+  "LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED": "true",
+  "REDIS_CONNECTION_STRING": os.getenv("LANGFUSE_REDIS_CONNECTION_STRING", ""),
+  "LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE": "true",
+  "LANGFUSE_OCI_AUTH_TYPE": "resource_principal",
+  "LANGFUSE_S3_EVENT_UPLOAD_BUCKET": os.getenv("LANGFUSE_S3_EVENT_UPLOAD_BUCKET", ""),
+  "LANGFUSE_S3_EVENT_UPLOAD_REGION": os.getenv("LANGFUSE_S3_UPLOAD_REGION", "auto"),
+  "LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT": os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT", ""),
+  "LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE": "true",
+  "LANGFUSE_S3_MEDIA_UPLOAD_BUCKET": os.getenv("LANGFUSE_S3_MEDIA_UPLOAD_BUCKET", ""),
+  "LANGFUSE_S3_MEDIA_UPLOAD_REGION": os.getenv("LANGFUSE_S3_UPLOAD_REGION", "auto"),
+  "LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT": os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT", ""),
+}
+print(json.dumps([{"name": name, "type": "PLAINTEXT", "value": value} for name, value in values.items()]))
+PY
+      )"
 
       create_hosted HOSTED_AGENT "enterprise-ai-demo-hosted-agent-${RESOURCE_SUFFIX}" "enterprise-ai-demo-hosted-agent-deployment-${RESOURCE_SUFFIX}" "$HOSTED_AGENT_IMAGE_URI" "hosted-agentic-applications"
       create_hosted LANGGRAPH "enterprise-ai-demo-langgraph-agent-${RESOURCE_SUFFIX}" "enterprise-ai-demo-langgraph-agent-deployment-${RESOURCE_SUFFIX}" "$LANGGRAPH_IMAGE_URI" "langgraph-hosted-agent-mcp"
       create_hosted N8N "enterprise-ai-demo-n8n-${RESOURCE_SUFFIX}" "enterprise-ai-demo-n8n-deployment-${RESOURCE_SUFFIX}" "$N8N_IMAGE_URI" "n8n-hosted-workflow-automation" "$n8n_env"
-      create_hosted LANGFUSE "enterprise-ai-demo-langfuse-${RESOURCE_SUFFIX}" "enterprise-ai-demo-langfuse-deployment-${RESOURCE_SUFFIX}" "$LANGFUSE_IMAGE_URI" "langfuse-hosted-observability"
+      create_hosted LANGFUSE "enterprise-ai-demo-langfuse-${RESOURCE_SUFFIX}" "enterprise-ai-demo-langfuse-deployment-${RESOURCE_SUFFIX}" "$LANGFUSE_IMAGE_URI" "langfuse-hosted-observability" "$langfuse_env" "${LANGFUSE_NETWORKING_CONFIG_JSON:-}"
       create_hosted OPENCLAW "enterprise-ai-demo-openclaw-${RESOURCE_SUFFIX}" "enterprise-ai-demo-openclaw-deployment-${RESOURCE_SUFFIX}" "$OPENCLAW_IMAGE_URI" "openclaw-hosted-agent-gateway" "$openclaw_env"
       create_hosted LLAMAINDEX "enterprise-ai-demo-llamaindex-control-tower-${RESOURCE_SUFFIX}" "enterprise-ai-demo-llamaindex-control-tower-deployment-${RESOURCE_SUFFIX}" "$LLAMAINDEX_IMAGE_URI" "agentic-control-tower"
 

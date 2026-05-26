@@ -88,7 +88,24 @@ module "devops_hosted_image_build" {
   n8n_basic_auth_user            = var.n8n_basic_auth_user
   n8n_basic_auth_password        = var.n8n_basic_auth_password
   openclaw_gateway_token         = var.openclaw_gateway_token
-  run_build                      = var.devops_hosted_image_run_build
+  langfuse_database_url          = try(module.hosted_agentic_applications[0].langfuse_database_url, "")
+  langfuse_clickhouse_url        = try(module.hosted_agentic_applications[0].langfuse_clickhouse_url, "")
+  langfuse_clickhouse_migration_url = try(
+    module.hosted_agentic_applications[0].langfuse_clickhouse_migration_url,
+    ""
+  )
+  langfuse_clickhouse_user         = try(module.hosted_agentic_applications[0].langfuse_clickhouse_user, "")
+  langfuse_clickhouse_password     = try(module.hosted_agentic_applications[0].langfuse_clickhouse_password, "")
+  langfuse_redis_connection_string = try(module.hosted_agentic_applications[0].langfuse_redis_connection_string, "")
+  langfuse_s3_event_upload_bucket  = try(module.hosted_agentic_applications[0].langfuse_s3_event_upload_bucket, "")
+  langfuse_s3_media_upload_bucket  = try(module.hosted_agentic_applications[0].langfuse_s3_media_upload_bucket, "")
+  langfuse_s3_upload_region        = try(module.hosted_agentic_applications[0].langfuse_s3_upload_region, "")
+  langfuse_s3_upload_endpoint      = try(module.hosted_agentic_applications[0].langfuse_s3_upload_endpoint, "")
+  langfuse_nextauth_secret         = try(module.hosted_agentic_applications[0].langfuse_nextauth_secret, "")
+  langfuse_salt                    = try(module.hosted_agentic_applications[0].langfuse_salt, "")
+  langfuse_encryption_key          = try(module.hosted_agentic_applications[0].langfuse_encryption_key, "")
+  langfuse_networking_config_json  = try(module.hosted_agentic_applications[0].langfuse_networking_config_json, "")
+  run_build                        = var.devops_hosted_image_run_build
 }
 
 module "hosted_agentic_applications" {
@@ -112,6 +129,6 @@ module "hosted_agentic_applications" {
   openclaw_image_repository_uri   = var.openclaw_image_repository_uri
   llamaindex_image_repository_uri = var.llamaindex_image_repository_uri
   openclaw_gateway_token          = var.openclaw_gateway_token
-  hosted_image_build_run_id       = module.devops_hosted_image_build.build_run_id
+  hosted_image_build_run_id       = ""
   hosted_cli_deployments_enabled  = false
 }
