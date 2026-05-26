@@ -24,9 +24,9 @@ steps:
     command: |
       set -euo pipefail
 
-      unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY
+      unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY PIP_PROXY PIP_INDEX_URL PIP_EXTRA_INDEX_URL
       if ! oci generative-ai hosted-application create -h >/dev/null 2>&1; then
-        python3 -m pip install --user --upgrade oci-cli
+        python3 -m pip install --user --upgrade --proxy "" --index-url https://pypi.org/simple oci-cli
       fi
       export PATH="$HOME/.local/bin:$PATH"
       oci --version
