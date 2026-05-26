@@ -358,7 +358,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /podman push/);
   assert.match(terraform, /module "hosted_agentic_applications"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/hosted-agentic-applications"/);
-  assert.match(terraform, /resource_suffix\s+=\s+module\.responses_api\.resource_suffix/);
+  assert.match(terraform, /resource_suffix\s+=\s+var\.resource_suffix/);
   assert.match(terraform, /push_image\s+=\s+var\.hosted_app_push_image/);
   assert.equal((hostedAppTerraform.match(/hosted_image_build_run_id\s+=\s+var\.hosted_image_build_run_id/g) || []).length, 6);
   assert.doesNotMatch(hostedAppTerraform, /push_image\s+=\s+true/);

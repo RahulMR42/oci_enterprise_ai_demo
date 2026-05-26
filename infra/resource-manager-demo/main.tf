@@ -1,4 +1,5 @@
 module "responses_api" {
+  count  = var.responses_api_local_exec_enabled ? 1 : 0
   source = "../responses-api"
 
   compartment_id       = var.compartment_id
@@ -18,21 +19,23 @@ module "shared_demo_security" {
 }
 
 module "file_search_vector_store_rag" {
+  count  = var.file_search_local_exec_enabled ? 1 : 0
   source = "../file-search-vector-store-rag"
 
   compartment_id  = var.compartment_id
   region          = var.region
   profile         = var.profile
-  resource_suffix = module.responses_api.resource_suffix
+  resource_suffix = var.resource_suffix
 
   depends_on = [module.responses_api]
 }
 
 module "code_interpreter" {
+  count  = var.code_interpreter_local_exec_enabled ? 1 : 0
   source = "../code-interpreter"
 
   region          = var.region
-  resource_suffix = module.responses_api.resource_suffix
+  resource_suffix = var.resource_suffix
 
   depends_on = [module.responses_api]
 }
@@ -42,7 +45,7 @@ module "nl2sql_sql_search" {
 
   compartment_id  = var.compartment_id
   region          = var.region
-  resource_suffix = module.responses_api.resource_suffix
+  resource_suffix = var.resource_suffix
 }
 
 module "devops_hosted_image_build" {
@@ -51,7 +54,7 @@ module "devops_hosted_image_build" {
   enabled                        = var.devops_hosted_image_build_enabled
   compartment_id                 = var.compartment_id
   region                         = var.region
-  resource_suffix                = module.responses_api.resource_suffix
+  resource_suffix                = var.resource_suffix
   source_repo_url                = var.devops_source_repo_url
   source_branch                  = var.devops_source_branch
   source_connection_type         = var.devops_source_connection_type
@@ -69,12 +72,13 @@ module "devops_hosted_image_build" {
 }
 
 module "hosted_agentic_applications" {
+  count  = var.hosted_applications_local_exec_enabled ? 1 : 0
   source = "../hosted-agentic-applications"
 
   compartment_id                  = var.compartment_id
   region                          = var.region
   profile                         = var.profile
-  resource_suffix                 = module.responses_api.resource_suffix
+  resource_suffix                 = var.resource_suffix
   container_cli                   = var.hosted_app_container_cli
   ocir_region_key                 = var.hosted_app_ocir_region_key
   push_image                      = var.hosted_app_push_image
@@ -89,5 +93,4 @@ module "hosted_agentic_applications" {
   llamaindex_image_repository_uri = var.llamaindex_image_repository_uri
   openclaw_gateway_token          = var.openclaw_gateway_token
   hosted_image_build_run_id       = module.devops_hosted_image_build.build_run_id
-
 }

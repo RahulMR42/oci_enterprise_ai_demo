@@ -25,6 +25,30 @@ variable "resource_suffix" {
   type        = string
 }
 
+variable "hosted_applications_local_exec_enabled" {
+  description = "Enable hosted application local-exec deployment. Keep false in OCI Resource Manager because its worker does not expose OCI CLI Resource Principal auth."
+  type        = bool
+  default     = false
+}
+
+variable "responses_api_local_exec_enabled" {
+  description = "Enable Responses API local-exec project/API-key provisioning. Keep false in OCI Resource Manager because its worker does not expose OCI CLI Resource Principal auth."
+  type        = bool
+  default     = false
+}
+
+variable "file_search_local_exec_enabled" {
+  description = "Enable File Search local-exec vector store provisioning. Keep false in OCI Resource Manager because it depends on generated Responses API credentials."
+  type        = bool
+  default     = false
+}
+
+variable "code_interpreter_local_exec_enabled" {
+  description = "Enable Code Interpreter local-exec container provisioning. Keep false in OCI Resource Manager because it depends on generated Responses API credentials."
+  type        = bool
+  default     = false
+}
+
 variable "project_display_name" {
   description = "Display name prefix for the shared OCI Generative AI project."
   type        = string
