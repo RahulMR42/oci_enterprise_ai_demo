@@ -11,11 +11,19 @@ resource "terraform_data" "generative_ai_api_key" {
   provisioner "local-exec" {
     command = <<-EOT
       mkdir -p '${path.module}/.terraform/generated'
+
+      oci_auth_args="--auth resource_principal"
+      if [ -n '${self.input.profile}' ]; then
+        oci_auth_args="--profile '${self.input.profile}'"
+      else
+        python3 -m pip install --user --quiet --upgrade oci-cli
+        export PATH="$HOME/.local/bin:$PATH"
+      fi
       api_key_json="$(oci generative-ai api-key create \
         --compartment-id '${self.input.compartment_id}' \
         --display-name '${self.input.api_key_display_name}' \
         --key-details '[{"keyName":"${self.input.api_key_display_name}","timeExpiry":"${self.input.api_key_expiry}"}]' \
-        --profile '${self.input.profile}' \
+        $oci_auth_args \
         --region '${self.input.region}' \
         --output json)"
       printf '%s\n' "$api_key_json" > '${path.module}/.terraform/generated/api_key.json'

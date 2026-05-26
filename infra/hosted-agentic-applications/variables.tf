@@ -213,6 +213,12 @@ variable "push_image" {
   default     = true
 }
 
+variable "hosted_image_build_run_id" {
+  description = "Optional OCI DevOps build run OCID that must complete before hosted deployments reference image tags."
+  type        = string
+  default     = ""
+}
+
 variable "idcs_domain_url" {
   description = "Existing identity domain URL used for hosted application inbound OAuth authentication."
   type        = string

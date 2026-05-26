@@ -9,7 +9,8 @@ resource "terraform_data" "openclaw_hosted_agent_gateway" {
     repository_name                 = local.openclaw_repository_name
     openclaw_image_repository_uri   = var.openclaw_image_repository_uri
     image_tag                       = "latest"
-    push_image                      = true
+    hosted_image_build_run_id        = var.hosted_image_build_run_id
+    push_image                      = var.push_image
     app_source_dir                  = abspath("${path.module}/${var.openclaw_app_source_dir}")
     generated_dir                   = "${path.module}/.terraform/generated"
     hosted_application_display_name = local.openclaw_application_display_name
@@ -31,6 +32,7 @@ resource "terraform_data" "openclaw_hosted_agent_gateway" {
     var.idcs_domain_url,
     var.idcs_audience,
     var.idcs_scope,
+    var.hosted_image_build_run_id,
   ]
 
   provisioner "local-exec" {

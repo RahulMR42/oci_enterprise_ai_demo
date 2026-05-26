@@ -1,4 +1,5 @@
 import { aiFeatures } from "./data/aiFeatures.js";
+import { appVersion } from "./version.js";
 import { cardColorTunes, defaultCardAppearance, getCardAppearanceVars } from "./lib/cardAppearance.js";
 import { filterFeatures } from "./lib/filterFeatures.js";
 
@@ -1075,6 +1076,7 @@ function renderPortal() {
           <div class="brand-mark">
             <span class="brand-icon" aria-hidden="true">AI</span>
             <span>OCI Enterprise AI Portal</span>
+            <span class="app-version">v${appVersion}</span>
           </div>
           <div class="nav-actions">
             <a class="nav-link" href="#catalog">Catalog</a>
@@ -1521,6 +1523,7 @@ function openDemoDialog(featureId) {
     wiringLink.removeAttribute("aria-label");
   }
   document.getElementById("responses-prompt").value = defaults.prompt;
+  document.getElementById("responses-model").value = defaults.model || "openai.gpt-oss-120b";
   document.getElementById("responses-run-button").textContent = defaults.button || "Run demo";
   const ratingShell = document.getElementById("demo-rating-shell");
   ratingShell.dataset.ratingShell = featureId;

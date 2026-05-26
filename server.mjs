@@ -4,6 +4,7 @@ import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, statS
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
+import { appVersion } from "./src/version.js";
 
 const port = Number.parseInt(process.env.PORT ?? "5173", 10);
 const host = process.env.HOST ?? "127.0.0.1";
@@ -337,6 +338,13 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
       .forgot-password button:focus-visible {
         background: #f8fafc;
       }
+      .version {
+        margin: 18px 0 0;
+        color: #64748b;
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
@@ -360,6 +368,7 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
       <form class="forgot-password" method="post" action="/forgot-password">
         <button type="submit">Forgot password</button>
       </form>
+      <p class="version">Version ${appVersion}</p>
     </main>
   </body>
 </html>`;

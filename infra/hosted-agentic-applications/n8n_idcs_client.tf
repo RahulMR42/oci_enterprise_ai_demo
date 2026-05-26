@@ -27,6 +27,22 @@ resource "oci_identity_domains_app" "n8n_launch_client" {
   allowed_scopes {
     fqs = local.n8n_idcs_scope_fqs
   }
+
+  provisioner "local-exec" {
+    when = destroy
+
+    command = <<-EOT
+      set -euo pipefail
+      # IDCS rejects deleting active apps. Terraform owns the delete, but the
+      # provider does not deactivate before issuing DeleteApp.
+      oci identity-domains app patch \
+        --endpoint '${self.idcs_endpoint}' \
+        --app-id '${self.id}' \
+        --schemas '["urn:ietf:params:scim:api:messages:2.0:PatchOp"]' \
+        --operations '[{"op":"replace","path":"active","value":false}]' \
+        --output json >/dev/null
+    EOT
+  }
 }
 
 resource "terraform_data" "n8n_idcs_launch_client_metadata" {

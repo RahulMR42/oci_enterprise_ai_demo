@@ -88,6 +88,7 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
     read("infra/hosted-agentic-applications/langfuse_hosted_application.tf"),
     read("infra/hosted-agentic-applications/openclaw_hosted_application.tf"),
     read("infra/hosted-agentic-applications/llamaindex_control_tower_hosted_application.tf"),
+    read("infra/hosted-agentic-applications/ocir_repositories.tf"),
     read("infra/hosted-agentic-applications/locals.tf"),
     read("infra/hosted-agentic-applications/variables.tf"),
     read("infra/hosted-agentic-applications/outputs.tf")
@@ -107,6 +108,13 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /resource "terraform_data" "langfuse_hosted_observability"/);
   assert.match(terraform, /resource "terraform_data" "openclaw_hosted_agent_gateway"/);
   assert.match(terraform, /resource "terraform_data" "llamaindex_control_tower"/);
+  assert.match(terraform, /resource "oci_artifacts_container_repository" "hosted_agent"/);
+  assert.match(terraform, /resource "oci_artifacts_container_repository" "langgraph"/);
+  assert.match(terraform, /resource "oci_artifacts_container_repository" "n8n"/);
+  assert.match(terraform, /resource "oci_artifacts_container_repository" "langfuse"/);
+  assert.match(terraform, /resource "oci_artifacts_container_repository" "openclaw"/);
+  assert.match(terraform, /resource "oci_artifacts_container_repository" "llamaindex"/);
+  assert.match(terraform, /repository_managed_by_terraform/);
   assert.match(terraform, /resource "oci_core_vcn" "langfuse"/);
   assert.match(terraform, /resource "oci_core_subnet" "langfuse_private"/);
   assert.match(terraform, /resource "oci_core_nat_gateway" "langfuse"/);
@@ -124,13 +132,17 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /hosted UI launch proxies/);
   assert.match(terraform, /is_oauth_client\s+=\s+true/);
   assert.match(terraform, /client_type\s+=\s+"confidential"/);
+  assert.match(terraform, /when\s+=\s+destroy/);
+  assert.match(terraform, /oci identity-domains app patch/);
+  assert.match(terraform, /"path":"active","value":false/);
   assert.match(terraform, /n8n_idcs_allowed_grants\s+=\s+length\(local\.n8n_idcs_redirect_uris\) > 0 \? \["client_credentials", "authorization_code"\] : \["client_credentials"\]/);
   assert.match(terraform, /allowed_grants\s+=\s+local\.n8n_idcs_allowed_grants/);
   assert.match(terraform, /redirect_uris\s+=\s+local\.n8n_idcs_redirect_uris/);
   assert.match(terraform, /n8n_idcs_client\.json/);
   assert.match(terraform, /N8N_IDCS_CLIENT_SECRET = oci_identity_domains_app\.n8n_launch_client\[0\]\.client_secret/);
   assert.match(terraform, /n8n_idcs_launch_client_id/);
-  assert.match(terraform, /depends_on = \[terraform_data\.n8n_idcs_launch_client_metadata\]/);
+  assert.match(terraform, /terraform_data\.n8n_idcs_launch_client_metadata/);
+  assert.match(terraform, /oci_artifacts_container_repository\.n8n/);
   assert.match(terraform, /oci artifacts container repository create/);
   assert.match(terraform, /langgraph_hosted_agent\.json/);
   assert.match(terraform, /langgraph_hosted_application\.json/);
@@ -296,6 +308,60 @@ test("startup script can destroy all Terraform modules in cleanup order", () => 
   assert.match(script, /terraform -chdir=infra\/responses-api destroy -auto-approve/);
   assert.match(script, /Infrastructure cleanup complete\./);
   assert.match(script, /exit 0/);
+});
+
+test("resource manager aggregate stack covers all Terraform deployment modules", () => {
+  const terraform = [
+    read("infra/resource-manager-demo/versions.tf"),
+    read("infra/resource-manager-demo/variables.tf"),
+    read("infra/resource-manager-demo/main.tf"),
+    read("infra/resource-manager-demo/outputs.tf"),
+    read("infra/devops-hosted-image-build/main.tf"),
+    read("infra/devops-hosted-image-build/build_spec.yaml")
+  ].join("\n");
+  const readme = read("infra/resource-manager-demo/README.md");
+  const hostedAppTerraform = [
+    read("infra/hosted-agentic-applications/hosted_application.tf"),
+    read("infra/hosted-agentic-applications/langgraph_hosted_application.tf"),
+    read("infra/hosted-agentic-applications/n8n_hosted_application.tf"),
+    read("infra/hosted-agentic-applications/langfuse_hosted_application.tf"),
+    read("infra/hosted-agentic-applications/openclaw_hosted_application.tf"),
+    read("infra/hosted-agentic-applications/llamaindex_control_tower_hosted_application.tf")
+  ].join("\n");
+
+  assert.match(terraform, /module "responses_api"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/responses-api"/);
+  assert.match(terraform, /module "shared_demo_security"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/shared-demo-security"/);
+  assert.match(terraform, /module "file_search_vector_store_rag"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/file-search-vector-store-rag"/);
+  assert.match(terraform, /module "code_interpreter"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/code-interpreter"/);
+  assert.match(terraform, /module "nl2sql_sql_search"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/nl2sql-sql-search"/);
+  assert.match(terraform, /module "devops_hosted_image_build"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/devops-hosted-image-build"/);
+  assert.match(terraform, /resource "oci_devops_project" "this"/);
+  assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
+  assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build"/);
+  assert.match(terraform, /resource "oci_devops_build_run" "this"/);
+  assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
+  assert.match(terraform, /OCIR_USERNAME/);
+  assert.match(terraform, /OCIR_AUTH_TOKEN/);
+  assert.match(terraform, /podman login/);
+  assert.match(terraform, /podman build --platform linux\/amd64/);
+  assert.match(terraform, /podman push/);
+  assert.match(terraform, /module "hosted_agentic_applications"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/hosted-agentic-applications"/);
+  assert.match(terraform, /resource_suffix\s+=\s+module\.responses_api\.resource_suffix/);
+  assert.match(terraform, /push_image\s+=\s+var\.hosted_app_push_image/);
+  assert.equal((hostedAppTerraform.match(/hosted_image_build_run_id\s+=\s+var\.hosted_image_build_run_id/g) || []).length, 6);
+  assert.doesNotMatch(hostedAppTerraform, /push_image\s+=\s+true/);
+  assert.match(terraform, /output "resource_suffix"/);
+  assert.match(terraform, /output "portal_runtime_note"/);
+  assert.match(readme, /OCI Resource Manager/);
+  assert.match(readme, /working directory `infra\/resource-manager-demo`/);
+  assert.match(readme, /prebuilt image/);
 });
 
 test("startup script captures logs to a directory by default and can disable file capture", () => {

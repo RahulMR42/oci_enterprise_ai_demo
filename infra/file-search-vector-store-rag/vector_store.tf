@@ -16,13 +16,19 @@ resource "terraform_data" "file_search_vector_store" {
       if [ ! -x "$python_bin" ]; then
         python_bin="python3"
       fi
+      if [ "$python_bin" = "python3" ]; then
+        "$python_bin" -m pip install --user --quiet openai oci_openai
+      fi
       vector_store_json="$("$python_bin" - <<PY
 import json
-from oci_openai import OciOpenAI, OciUserPrincipalAuth
+from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciUserPrincipalAuth
+
+profile = "${self.input.profile}"
+auth = OciUserPrincipalAuth(profile_name=profile) if profile else OciResourcePrincipalAuth()
 
 client = OciOpenAI(
     service_endpoint="${self.input.control_plane_base_url}",
-    auth=OciUserPrincipalAuth(profile_name="${self.input.profile}"),
+    auth=auth,
     compartment_id="${self.input.compartment_id}",
 )
 vector_store = client.vector_stores.create(
@@ -65,12 +71,18 @@ PY
       if [ ! -x "$python_bin" ]; then
         python_bin="python3"
       fi
+      if [ "$python_bin" = "python3" ]; then
+        "$python_bin" -m pip install --user --quiet openai oci_openai
+      fi
       "$python_bin" - <<PY
-from oci_openai import OciOpenAI, OciUserPrincipalAuth
+from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciUserPrincipalAuth
+
+profile = "${self.input.profile}"
+auth = OciUserPrincipalAuth(profile_name=profile) if profile else OciResourcePrincipalAuth()
 
 client = OciOpenAI(
     service_endpoint="${self.input.control_plane_base_url}",
-    auth=OciUserPrincipalAuth(profile_name="${self.input.profile}"),
+    auth=auth,
     compartment_id="${self.input.compartment_id}",
 )
 client.vector_stores.delete("$vector_store_id")
@@ -104,6 +116,9 @@ resource "terraform_data" "file_search_seed_documents" {
       python_bin="../../env/bin/python"
       if [ ! -x "$python_bin" ]; then
         python_bin="python3"
+      fi
+      if [ "$python_bin" = "python3" ]; then
+        "$python_bin" -m pip install --user --quiet openai oci_openai
       fi
       "$python_bin" - <<PY
 import json
@@ -208,6 +223,9 @@ PY
       python_bin="../../env/bin/python"
       if [ ! -x "$python_bin" ]; then
         python_bin="python3"
+      fi
+      if [ "$python_bin" = "python3" ]; then
+        "$python_bin" -m pip install --user --quiet openai oci_openai
       fi
       "$python_bin" - <<PY
 import json

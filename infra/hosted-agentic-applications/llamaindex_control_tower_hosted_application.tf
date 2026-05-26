@@ -7,7 +7,8 @@ resource "terraform_data" "llamaindex_control_tower" {
     var.image_tag,
     var.idcs_domain_url,
     var.idcs_audience,
-    var.idcs_scope
+    var.idcs_scope,
+    var.hosted_image_build_run_id
   ]
 
   input = {
@@ -16,6 +17,7 @@ resource "terraform_data" "llamaindex_control_tower" {
     generated_dir                   = local.generated_dir
     hosted_application_display_name = local.llamaindex_application_display_name
     hosted_deployment_display_name  = local.llamaindex_deployment_display_name
+    hosted_image_build_run_id        = var.hosted_image_build_run_id
     image_repository_uri            = var.llamaindex_image_repository_uri
     image_tag                       = var.image_tag
     container_cli                   = var.container_cli
@@ -28,6 +30,7 @@ resource "terraform_data" "llamaindex_control_tower" {
     push_image                      = var.push_image
     region                          = var.region
     repository_name                 = local.llamaindex_repository_name
+    repository_managed_by_terraform = var.llamaindex_image_repository_uri == ""
     scaling_type                    = var.scaling_type
   }
 
@@ -36,10 +39,15 @@ resource "terraform_data" "llamaindex_control_tower" {
       set -euo pipefail
       mkdir -p '${self.input.generated_dir}'
 
+      oci_auth_args="--auth resource_principal"
+      if [ -n '${self.input.profile}' ]; then
+        oci_auth_args="--profile '${self.input.profile}'"
+      fi
+
       existing_repository_json="$(oci artifacts container repository list \
         --compartment-id '${self.input.compartment_id}' \
         --display-name '${self.input.repository_name}' \
-        --profile '${self.input.profile}' \
+        $oci_auth_args \
         --region '${self.input.region}' \
         --output json)"
       repository_json="$(python3 - <<PY
@@ -57,7 +65,7 @@ PY
           --compartment-id '${self.input.compartment_id}' \
           --display-name '${self.input.repository_name}' \
           --is-public false \
-          --profile '${self.input.profile}' \
+          $oci_auth_args \
           --region '${self.input.region}' \
           --wait-for-state AVAILABLE \
           --output json)"
@@ -65,7 +73,7 @@ PY
       printf '%s\n' "$repository_json" > '${self.input.generated_dir}/llamaindex_ocir_repository.json'
 
       namespace="$(oci os ns get \
-        --profile '${self.input.profile}' \
+        $oci_auth_args \
         --region '${self.input.region}' \
         --query 'data' \
         --raw-output)"
@@ -105,7 +113,7 @@ PY
         --scaling-config '{"scalingType":"${self.input.scaling_type}","minReplica":1,"maxReplica":1,"targetRpsThreshold":10}' \
         --inbound-auth-config "$inbound_auth_config" \
         --freeform-tags '{"enterprise-ai-demo":"true","demo":"agentic-control-tower"}' \
-        --profile '${self.input.profile}' \
+        $oci_auth_args \
         --region '${self.input.region}' \
         --wait-for-state SUCCEEDED \
         --max-wait-seconds 1200 \
@@ -150,7 +158,7 @@ PY
         --active-artifact-tag '${self.input.image_tag}' \
         --active-artifact-status ACTIVE \
         --freeform-tags '{"enterprise-ai-demo":"true","demo":"agentic-control-tower"}' \
-        --profile '${self.input.profile}' \
+        $oci_auth_args \
         --region '${self.input.region}' \
         --output json > "$deployment_file"
       hosted_deployment_id="$(python3 - "$deployment_file" <<'PY'
@@ -166,7 +174,7 @@ PY
         for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
           oci generative-ai hosted-deployment get \
             --hosted-deployment-id "$hosted_deployment_id" \
-            --profile '${self.input.profile}' \
+            $oci_auth_args \
             --region '${self.input.region}' \
             --output json > "$deployment_file"
           deployment_state="$(python3 - "$deployment_file" <<'PY'
@@ -226,4 +234,6 @@ print(json.dumps(runtime, indent=2))
 PY
     EOT
   }
+
+  depends_on = [oci_artifacts_container_repository.llamaindex]
 }

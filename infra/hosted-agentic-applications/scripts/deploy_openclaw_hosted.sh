@@ -4,6 +4,11 @@ set -eu
 mkdir -p "$GENERATED_DIR"
 echo "Starting hosted deployment"
 
+oci_auth_args="--auth resource_principal"
+if [ -n "${OCI_CLI_PROFILE:-}" ]; then
+  oci_auth_args="--profile $OCI_CLI_PROFILE"
+fi
+
 demo_name="open""claw"
 demo_tag="${DEMO_TAG:-openclaw-hosted-agent-gateway}"
 app_source_dir="$APP_SOURCE_ROOT/hosted-$demo_name"
@@ -30,7 +35,7 @@ if [ -z "$image_repository_uri" ]; then
   existing_repository_json="$(oci artifacts container repository list \
     --compartment-id "$COMPARTMENT_ID" \
     --display-name "$repository_name" \
-    --profile "$OCI_CLI_PROFILE" \
+    $oci_auth_args \
     --region "$OCI_CLI_REGION" \
     --output json)"
   repository_json="$(python3 - <<PY
@@ -48,7 +53,7 @@ PY
       --compartment-id "$COMPARTMENT_ID" \
       --display-name "$repository_name" \
       --is-public false \
-      --profile "$OCI_CLI_PROFILE" \
+      $oci_auth_args \
       --region "$OCI_CLI_REGION" \
       --wait-for-state AVAILABLE \
       --output json)"
@@ -57,7 +62,7 @@ fi
 printf '%s\n' "$repository_json" > "$GENERATED_DIR/$repository_file"
 
 if [ -z "$image_repository_uri" ]; then
-  namespace="$(oci os ns get --profile "$OCI_CLI_PROFILE" --region "$OCI_CLI_REGION" --query 'data' --raw-output)"
+  namespace="$(oci os ns get $oci_auth_args --region "$OCI_CLI_REGION" --query 'data' --raw-output)"
   image_repository_uri="$OCIR_REGION_KEY.ocir.io/${namespace}/${repository_name}"
 fi
 image_uri="${image_repository_uri}:${IMAGE_TAG}"
@@ -105,7 +110,7 @@ oci generative-ai hosted-application create \
   --environment-variables "$environment_variables" \
   --inbound-auth-config "$inbound_auth_config" \
   --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"$demo_tag\"}" \
-  --profile "$OCI_CLI_PROFILE" \
+  $oci_auth_args \
   --region "$OCI_CLI_REGION" \
   --wait-for-state SUCCEEDED \
   --max-wait-seconds 1200 \

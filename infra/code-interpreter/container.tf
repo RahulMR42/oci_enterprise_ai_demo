@@ -27,6 +27,9 @@ resource "terraform_data" "code_interpreter_container" {
       if [ ! -x "$python_bin" ]; then
         python_bin="python3"
       fi
+      if [ "$python_bin" = "python3" ]; then
+        "$python_bin" -m pip install --user --quiet openai
+      fi
       container_json="$("$python_bin" - <<PY
 import json
 from openai import OpenAI
@@ -75,6 +78,9 @@ PY
       python_bin="../../env/bin/python"
       if [ ! -x "$python_bin" ]; then
         python_bin="python3"
+      fi
+      if [ "$python_bin" = "python3" ]; then
+        "$python_bin" -m pip install --user --quiet openai
       fi
       "$python_bin" - <<PY
 from openai import OpenAI

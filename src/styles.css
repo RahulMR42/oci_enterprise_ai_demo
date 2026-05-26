@@ -117,6 +117,17 @@ nav {
   letter-spacing: 0;
 }
 
+.app-version {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  color: #475569;
+  background: #f8fafc;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
 .nav-link {
   min-height: 38px;
   padding: 0 16px;
