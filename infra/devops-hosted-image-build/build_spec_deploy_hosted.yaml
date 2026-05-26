@@ -86,7 +86,7 @@ steps:
           --compartment-id "$COMPARTMENT_ID" \
           --display-name "$display" \
           --description "Enterprise AI demo ${demo} hosted application." \
-          --scaling-config '{"scalingType":"AUTOMATIC","minReplica":1,"maxReplica":1,"targetRpsThreshold":10}' \
+          --scaling-config '{"scalingType":"REQUESTS_PER_SECOND","minReplica":1,"maxReplica":1,"targetRpsThreshold":10}' \
           "${env_args[@]}" \
           --inbound-auth-config "$inbound_auth_config" \
           "${networking_args[@]}" \
