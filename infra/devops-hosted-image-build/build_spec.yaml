@@ -82,16 +82,16 @@ steps:
       }
 
       inbound_auth_config="$(python3 - <<PY
-import json
-print(json.dumps({
-  "inboundAuthConfigType": "IDCS_AUTH_CONFIG",
-  "idcsConfig": {
-    "domainUrl": "${IDCS_DOMAIN_URL}",
-    "audience": "${IDCS_AUDIENCE}",
-    "scope": "${IDCS_SCOPE}",
-  },
-}))
-PY
+      import json
+      print(json.dumps({
+        "inboundAuthConfigType": "IDCS_AUTH_CONFIG",
+        "idcsConfig": {
+          "domainUrl": "${IDCS_DOMAIN_URL}",
+          "audience": "${IDCS_AUDIENCE}",
+          "scope": "${IDCS_SCOPE}",
+        },
+      }))
+      PY
       )"
 
       create_hosted() {
@@ -131,11 +131,11 @@ PY
 
         local app_id
         app_id="$(python3 - "$app_file" <<'PY'
-import json, sys
-data=json.load(open(sys.argv[1])).get("data", {})
-resources=data.get("resources") or []
-print(next((r.get("identifier", "") for r in resources if r.get("entity-type") == "HOSTED_APPLICATION" and r.get("identifier")), "") or data.get("id", "") or data.get("hosted-application-id", "") or data.get("hostedApplicationId", ""))
-PY
+      import json, sys
+      data=json.load(open(sys.argv[1])).get("data", {})
+      resources=data.get("resources") or []
+      print(next((r.get("identifier", "") for r in resources if r.get("entity-type") == "HOSTED_APPLICATION" and r.get("identifier")), "") or data.get("id", "") or data.get("hosted-application-id", "") or data.get("hostedApplicationId", ""))
+      PY
         )"
         if [ -z "$app_id" ]; then
           echo "Hosted application ${display} did not return an id." >&2
@@ -156,9 +156,9 @@ PY
 
         local dep_id dep_state
         dep_id="$(python3 - "$dep_file" <<'PY'
-import json, sys
-print(json.load(open(sys.argv[1])).get("data", {}).get("id", ""))
-PY
+      import json, sys
+      print(json.load(open(sys.argv[1])).get("data", {}).get("id", ""))
+      PY
         )"
         for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
           [ -z "$dep_id" ] && break
@@ -168,9 +168,9 @@ PY
             --region "$OCI_REGION" \
             --output json > "$dep_file"
           dep_state="$(python3 - "$dep_file" <<'PY'
-import json, sys
-print(json.load(open(sys.argv[1])).get("data", {}).get("lifecycle-state", ""))
-PY
+      import json, sys
+      print(json.load(open(sys.argv[1])).get("data", {}).get("lifecycle-state", ""))
+      PY
           )"
           [ "$dep_state" = "ACTIVE" ] || [ "$dep_state" = "FAILED" ] && break
           sleep 10
@@ -183,54 +183,54 @@ PY
       }
 
       n8n_env="$(python3 - <<PY
-import json, os
-print(json.dumps([
-  {"name":"N8N_BASIC_AUTH_ACTIVE","type":"PLAINTEXT","value":"false"},
-  {"name":"N8N_BASIC_AUTH_USER","type":"PLAINTEXT","value":os.getenv("N8N_BASIC_AUTH_USER","admin")},
-  {"name":"N8N_BASIC_AUTH_PASSWORD","type":"PLAINTEXT","value":os.getenv("N8N_BASIC_AUTH_PASSWORD","")},
-  {"name":"N8N_HOST","type":"PLAINTEXT","value":"0.0.0.0"},
-  {"name":"N8N_LISTEN_ADDRESS","type":"PLAINTEXT","value":"0.0.0.0"},
-  {"name":"N8N_PORT","type":"PLAINTEXT","value":"8080"},
-  {"name":"N8N_SECURE_COOKIE","type":"PLAINTEXT","value":"false"},
-  {"name":"N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS","type":"PLAINTEXT","value":"false"},
-]))
-PY
+      import json, os
+      print(json.dumps([
+        {"name":"N8N_BASIC_AUTH_ACTIVE","type":"PLAINTEXT","value":"false"},
+        {"name":"N8N_BASIC_AUTH_USER","type":"PLAINTEXT","value":os.getenv("N8N_BASIC_AUTH_USER","admin")},
+        {"name":"N8N_BASIC_AUTH_PASSWORD","type":"PLAINTEXT","value":os.getenv("N8N_BASIC_AUTH_PASSWORD","")},
+        {"name":"N8N_HOST","type":"PLAINTEXT","value":"0.0.0.0"},
+        {"name":"N8N_LISTEN_ADDRESS","type":"PLAINTEXT","value":"0.0.0.0"},
+        {"name":"N8N_PORT","type":"PLAINTEXT","value":"8080"},
+        {"name":"N8N_SECURE_COOKIE","type":"PLAINTEXT","value":"false"},
+        {"name":"N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS","type":"PLAINTEXT","value":"false"},
+      ]))
+      PY
       )"
       openclaw_env="$(python3 - <<PY
-import json, os
-print(json.dumps([
-  {"name":"OPENCLAW_GATEWAY_BIND","type":"PLAINTEXT","value":"lan"},
-  {"name":"OPENCLAW_GATEWAY_PORT","type":"PLAINTEXT","value":"18789"},
-  {"name":"OPENCLAW_GATEWAY_TOKEN","type":"PLAINTEXT","value":os.getenv("OPENCLAW_GATEWAY_TOKEN","")},
-]))
-PY
+      import json, os
+      print(json.dumps([
+        {"name":"OPENCLAW_GATEWAY_BIND","type":"PLAINTEXT","value":"lan"},
+        {"name":"OPENCLAW_GATEWAY_PORT","type":"PLAINTEXT","value":"18789"},
+        {"name":"OPENCLAW_GATEWAY_TOKEN","type":"PLAINTEXT","value":os.getenv("OPENCLAW_GATEWAY_TOKEN","")},
+      ]))
+      PY
       )"
       langfuse_env="$(python3 - <<PY
-import json, os
-values = {
-  "NEXTAUTH_URL": "http://0.0.0.0:3000",
-  "NEXTAUTH_SECRET": os.getenv("LANGFUSE_NEXTAUTH_SECRET", ""),
-  "SALT": os.getenv("LANGFUSE_SALT", ""),
-  "ENCRYPTION_KEY": os.getenv("LANGFUSE_ENCRYPTION_KEY", ""),
-  "DATABASE_URL": os.getenv("LANGFUSE_DATABASE_URL", ""),
-  "CLICKHOUSE_URL": os.getenv("LANGFUSE_CLICKHOUSE_URL", ""),
-  "CLICKHOUSE_USER": os.getenv("LANGFUSE_CLICKHOUSE_USER", ""),
-  "CLICKHOUSE_PASSWORD": os.getenv("LANGFUSE_CLICKHOUSE_PASSWORD", ""),
-  "CLICKHOUSE_CLUSTER_ENABLED": "false",
-  "LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED": "true",
-  "REDIS_CONNECTION_STRING": os.getenv("LANGFUSE_REDIS_CONNECTION_STRING", ""),
-  "LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE": "true",
-  "LANGFUSE_OCI_AUTH_TYPE": "resource_principal",
-  "LANGFUSE_S3_EVENT_UPLOAD_BUCKET": os.getenv("LANGFUSE_S3_EVENT_UPLOAD_BUCKET", ""),
-  "LANGFUSE_S3_EVENT_UPLOAD_REGION": os.getenv("LANGFUSE_S3_UPLOAD_REGION", "auto"),
-  "LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT": os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT", ""),
-  "LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE": "true",
-  "LANGFUSE_S3_MEDIA_UPLOAD_BUCKET": os.getenv("LANGFUSE_S3_MEDIA_UPLOAD_BUCKET", ""),
-  "LANGFUSE_S3_MEDIA_UPLOAD_REGION": os.getenv("LANGFUSE_S3_UPLOAD_REGION", "auto"),
-  "LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT": os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT", ""),
-}
-print(json.dumps([{"name": name, "type": "PLAINTEXT", "value": value} for name, value in values.items()]))
-PY
+      import json, os
+      values = {
+        "NEXTAUTH_URL": "http://0.0.0.0:3000",
+        "NEXTAUTH_SECRET": os.getenv("LANGFUSE_NEXTAUTH_SECRET", ""),
+        "SALT": os.getenv("LANGFUSE_SALT", ""),
+        "ENCRYPTION_KEY": os.getenv("LANGFUSE_ENCRYPTION_KEY", ""),
+        "DATABASE_URL": os.getenv("LANGFUSE_DATABASE_URL", ""),
+        "CLICKHOUSE_URL": os.getenv("LANGFUSE_CLICKHOUSE_URL", ""),
+        "CLICKHOUSE_USER": os.getenv("LANGFUSE_CLICKHOUSE_USER", ""),
+        "CLICKHOUSE_PASSWORD": os.getenv("LANGFUSE_CLICKHOUSE_PASSWORD", ""),
+        "CLICKHOUSE_CLUSTER_ENABLED": "false",
+        "LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED": "true",
+        "REDIS_CONNECTION_STRING": os.getenv("LANGFUSE_REDIS_CONNECTION_STRING", ""),
+        "LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE": "true",
+        "LANGFUSE_OCI_AUTH_TYPE": "resource_principal",
+        "LANGFUSE_S3_EVENT_UPLOAD_BUCKET": os.getenv("LANGFUSE_S3_EVENT_UPLOAD_BUCKET", ""),
+        "LANGFUSE_S3_EVENT_UPLOAD_REGION": os.getenv("LANGFUSE_S3_UPLOAD_REGION", "auto"),
+        "LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT": os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT", ""),
+        "LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE": "true",
+        "LANGFUSE_S3_MEDIA_UPLOAD_BUCKET": os.getenv("LANGFUSE_S3_MEDIA_UPLOAD_BUCKET", ""),
+        "LANGFUSE_S3_MEDIA_UPLOAD_REGION": os.getenv("LANGFUSE_S3_UPLOAD_REGION", "auto"),
+        "LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT": os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT", ""),
+      }
+      print(json.dumps([{"name": name, "type": "PLAINTEXT", "value": value} for name, value in values.items()]))
+      PY
       )"
 
       create_hosted HOSTED_AGENT "enterprise-ai-demo-hosted-agent-${RESOURCE_SUFFIX}" "enterprise-ai-demo-hosted-agent-deployment-${RESOURCE_SUFFIX}" "$HOSTED_AGENT_IMAGE_URI" "hosted-agentic-applications"
