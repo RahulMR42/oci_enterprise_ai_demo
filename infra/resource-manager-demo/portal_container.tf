@@ -166,8 +166,6 @@ resource "oci_container_instances_container_instance" "portal" {
       OCI_HOSTED_LANGGRAPH_URL             = local.hosted_deployment_exports.LANGGRAPH_URL
       OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID  = local.hosted_deployment_exports.LLAMAINDEX_DEPLOYMENT_ID
       OCI_HOSTED_LLAMAINDEX_URL            = local.hosted_deployment_exports.LLAMAINDEX_URL
-      OCI_HOSTED_N8N_DEPLOYMENT_ID         = local.hosted_deployment_exports.N8N_DEPLOYMENT_ID
-      OCI_HOSTED_N8N_URL                   = local.hosted_deployment_exports.N8N_URL
       OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID    = local.hosted_deployment_exports.OPENCLAW_DEPLOYMENT_ID
       OCI_HOSTED_OPENCLAW_URL              = local.hosted_deployment_exports.OPENCLAW_URL
       PORT                                 = tostring(var.portal_container_port)
@@ -240,8 +238,6 @@ locals {
     LANGGRAPH_URL              = ""
     LLAMAINDEX_DEPLOYMENT_ID   = ""
     LLAMAINDEX_URL             = ""
-    N8N_DEPLOYMENT_ID          = ""
-    N8N_URL                    = ""
     OPENCLAW_DEPLOYMENT_ID     = ""
     OPENCLAW_URL               = ""
   }, module.devops_hosted_image_build.hosted_deployment_exports)

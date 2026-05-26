@@ -226,8 +226,8 @@ resource "oci_devops_build_pipeline_stage" "build" {
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
   display_name                       = "build-hosted-images"
-  description                        = "Managed build stage for all hosted demo images."
-  build_spec_file                    = "infra/devops-hosted-image-build/build_spec.yaml"
+  description                        = "Builds hosted demo container images without pushing them."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_images.yaml"
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
   is_pass_all_parameters_enabled     = true
@@ -257,6 +257,86 @@ resource "oci_devops_build_pipeline_stage" "build" {
   }
 
   depends_on = [terraform_data.seed_devops_repository]
+}
+
+resource "oci_devops_deploy_artifact" "image" {
+  for_each = var.enabled ? local.image_artifacts : {}
+
+  project_id                 = oci_devops_project.this[0].id
+  display_name               = "enterprise-ai-demo-${each.value.display_name}-${var.resource_suffix}"
+  deploy_artifact_type       = "DOCKER_IMAGE"
+  argument_substitution_mode = "SUBSTITUTE_PLACEHOLDERS"
+  description                = "OCIR image artifact for Enterprise AI demo ${each.value.display_name}."
+
+  deploy_artifact_source {
+    deploy_artifact_source_type = "OCIR"
+    image_uri                   = "${var.ocir_region_key}.ocir.io/${data.oci_objectstorage_namespace.this[0].namespace}/${local.repositories[each.key]}:$${IMAGE_TAG}"
+  }
+}
+
+resource "oci_devops_build_pipeline_stage" "deliver_image" {
+  for_each = var.enabled ? local.image_artifacts : {}
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "DELIVER_ARTIFACT"
+  display_name                       = "deliver-${each.value.display_name}-image"
+  description                        = "Delivers the ${each.value.display_name} image artifact to OCIR."
+  stage_execution_timeout_in_seconds = 3600
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline_stage.build[0].id
+    }
+  }
+
+  deliver_artifact_collection {
+    items {
+      artifact_id   = oci_devops_deploy_artifact.image[each.key].id
+      artifact_name = each.value.artifact_name
+    }
+  }
+}
+
+resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "deploy-hosted-applications"
+  description                        = "Creates OCI Generative AI hosted applications and deployments from delivered OCIR images."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 7200
+
+  build_pipeline_stage_predecessor_collection {
+    dynamic "items" {
+      for_each = oci_devops_build_pipeline_stage.deliver_image
+      content {
+        id = items.value.id
+      }
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 1
+    memory_in_gbs     = 8
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [oci_devops_build_pipeline_stage.deliver_image]
 }
 
 resource "oci_devops_build_run" "this" {
@@ -313,14 +393,6 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "IDCS_SCOPE"
       value = var.idcs_scope
-    }
-    items {
-      name  = "N8N_BASIC_AUTH_USER"
-      value = var.n8n_basic_auth_user
-    }
-    items {
-      name  = "N8N_BASIC_AUTH_PASSWORD"
-      value = var.n8n_basic_auth_password
     }
     items {
       name  = "OPENCLAW_GATEWAY_TOKEN"
@@ -385,7 +457,7 @@ resource "oci_devops_build_run" "this" {
   }
 
   depends_on = [
-    oci_devops_build_pipeline_stage.build,
+    oci_devops_build_pipeline_stage.deploy_hosted,
     oci_logging_log.devops,
     terraform_data.seed_devops_repository
   ]

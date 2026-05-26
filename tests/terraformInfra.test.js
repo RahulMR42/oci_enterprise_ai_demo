@@ -326,7 +326,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/code-interpreter/variables.tf"),
     read("infra/code-interpreter/container.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
-    read("infra/devops-hosted-image-build/build_spec.yaml")
+    read("infra/devops-hosted-image-build/build_spec_images.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml")
   ].join("\n");
   const readme = read("infra/resource-manager-demo/README.md");
   const hostedAppTerraform = [
@@ -359,16 +360,24 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_project" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build"/);
+  assert.match(terraform, /resource "oci_devops_deploy_artifact" "image"/);
+  assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deliver_image"/);
+  assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_hosted"/);
+  assert.match(terraform, /build_pipeline_stage_type\s+=\s+"DELIVER_ARTIFACT"/);
+  assert.match(terraform, /deploy_artifact_type\s+=\s+"DOCKER_IMAGE"/);
+  assert.match(terraform, /argument_substitution_mode\s+=\s+"SUBSTITUTE_PLACEHOLDERS"/);
+  assert.match(terraform, /artifact_name\s+=\s+each\.value\.artifact_name/);
+  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
+  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_deploy_hosted\.yaml"/);
   assert.match(terraform, /resource "oci_devops_build_run" "this"/);
   assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
   assert.match(terraform, /resource "oci_logging_log_group" "devops"/);
   assert.match(terraform, /resource "oci_logging_log" "devops"/);
   assert.match(terraform, /category\s+=\s+"all"/);
-  assert.match(terraform, /OCIR_USERNAME/);
-  assert.match(terraform, /OCIR_AUTH_TOKEN/);
-  assert.match(terraform, /podman login/);
   assert.match(terraform, /podman build --platform linux\/amd64/);
-  assert.match(terraform, /podman push/);
+  assert.doesNotMatch(terraform, /podman push/);
+  assert.doesNotMatch(terraform, /hosted-n8n-\$\{RESOURCE_SUFFIX\}/);
+  assert.doesNotMatch(terraform, /N8N_IMAGE_URI/);
   assert.match(terraform, /default_branch\s+=\s+var\.devops_repository_branch/);
   assert.match(terraform, /git clone --branch '\$\{self\.input\.source_branch\}'/);
   assert.match(terraform, /HEAD:refs\/heads\/\$\{self\.input\.devops_repository_branch\}/);

@@ -1,0 +1,43 @@
+version: 0.1
+component: build
+timeoutInSeconds: 7200
+shell: bash
+failImmediatelyOnError: true
+
+env:
+  variables:
+    HOSTED_AGENT_CONTEXT: "apps/hosted-agent"
+    LANGGRAPH_CONTEXT: "apps/hosted-langgraph-agent"
+    LANGFUSE_CONTEXT: "apps/hosted-langfuse"
+    OPENCLAW_CONTEXT: "apps/hosted-openclaw"
+    LLAMAINDEX_CONTEXT: "apps/hosted-llamaindex-control-tower"
+
+steps:
+  - type: Command
+    name: build-hosted-images
+    timeoutInSeconds: 7200
+    command: |
+      set -euo pipefail
+
+      podman build --platform linux/amd64 -t hosted-agent-image "$HOSTED_AGENT_CONTEXT"
+      podman build --platform linux/amd64 -t langgraph-image "$LANGGRAPH_CONTEXT"
+      podman build --platform linux/amd64 -t langfuse-image "$LANGFUSE_CONTEXT"
+      podman build --platform linux/amd64 -t openclaw-image "$OPENCLAW_CONTEXT"
+      podman build --platform linux/amd64 -t llamaindex-image "$LLAMAINDEX_CONTEXT"
+
+outputArtifacts:
+  - name: hosted-agent-image
+    type: DOCKER_IMAGE
+    location: hosted-agent-image
+  - name: langgraph-image
+    type: DOCKER_IMAGE
+    location: langgraph-image
+  - name: langfuse-image
+    type: DOCKER_IMAGE
+    location: langfuse-image
+  - name: openclaw-image
+    type: DOCKER_IMAGE
+    location: openclaw-image
+  - name: llamaindex-image
+    type: DOCKER_IMAGE
+    location: llamaindex-image
