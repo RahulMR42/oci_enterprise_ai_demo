@@ -2,6 +2,10 @@
 
 A local portal for OCI Enterprise AI demos. It combines runnable UI cards, Python demo backends, Terraform-provisioned OCI resources, generated runtime metadata, and per-run logs in one workspace.
 
+[![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https://github.com/RahulMR42/oci_enterprise_ai_demo/releases/latest/download/enterprise-ai-demo-resource-manager-stack.zip)
+
+Use the button to create the full OCI Resource Manager stack from the latest GitHub release package. The stack working directory is `infra/resource-manager-demo`. See [docs/deployment/resource-manager-one-click.md](docs/deployment/resource-manager-one-click.md) for required variables, release packaging, and validation steps.
+
 ## Demo Coverage
 
 | Demo | Runtime | Infrastructure |

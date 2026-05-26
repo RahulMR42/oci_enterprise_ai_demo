@@ -1,0 +1,65 @@
+name: Release Resource Manager Stack
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create or update, for example v0.1.0"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package Terraform stack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          if [[ ! "${tag}" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Release tag must start with v and contain only letters, numbers, dot, underscore, or dash." >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Package Resource Manager zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          git archive \
+            --format=zip \
+            --output="release/enterprise-ai-demo-resource-manager-stack.zip" \
+            HEAD
+          unzip -l release/enterprise-ai-demo-resource-manager-stack.zip "infra/resource-manager-demo/main.tf"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: Enterprise AI Demo Resource Manager Stack ${{ steps.release.outputs.tag }}
+          body: |
+            OCI Resource Manager stack package for Enterprise AI Demo Portal.
+
+            Use this release asset with the Deploy to Oracle Cloud button. Set the stack working directory to `infra/resource-manager-demo`.
+          files: release/enterprise-ai-demo-resource-manager-stack.zip
+          fail_on_unmatched_files: true
+          make_latest: true

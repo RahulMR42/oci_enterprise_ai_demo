@@ -421,7 +421,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /output "portal_runtime_note"/);
   assert.match(readme, /OCI Resource Manager/);
   assert.match(readme, /working directory `infra\/resource-manager-demo`/);
-  assert.match(readme, /prebuilt image/);
+  assert.match(readme, /Deploy to Oracle Cloud/);
+  assert.match(readme, /enterprise-ai-demo-resource-manager-stack\.zip/);
+  assert.match(readme, /OCI DevOps to build the hosted app images/);
 });
 
 test("startup script captures logs to a directory by default and can disable file capture", () => {
