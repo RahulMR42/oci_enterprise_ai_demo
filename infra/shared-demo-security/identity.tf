@@ -15,6 +15,6 @@ resource "oci_identity_policy" "enterprise_ai_demo" {
     "allow dynamic-group ${oci_identity_dynamic_group.enterprise_ai_demo.name} to manage database-tools-family in compartment id ${var.compartment_id}",
     "allow dynamic-group ${oci_identity_dynamic_group.enterprise_ai_demo.name} to read secret-family in compartment id ${var.compartment_id}",
     "allow dynamic-group ${oci_identity_dynamic_group.enterprise_ai_demo.name} to manage object-family in compartment id ${var.compartment_id}",
-    "allow dynamic-group ${oci_identity_dynamic_group.enterprise_ai_demo.name} to read repos in compartment id ${var.compartment_id}"
+    "allow dynamic-group ${oci_identity_dynamic_group.enterprise_ai_demo.name} to manage repos in compartment id ${var.compartment_id}"
   ]
 }

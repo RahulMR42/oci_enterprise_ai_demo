@@ -54,7 +54,7 @@ test("shared security terraform creates reusable dynamic group and demo policies
   assert.match(terraform, /database-tools-family/);
   assert.match(terraform, /secret-family/);
   assert.match(terraform, /object-family/);
-  assert.match(terraform, /read repos in compartment id/);
+  assert.match(terraform, /manage repos in compartment id/);
 });
 
 test("nl2sql terraform includes autonomous database and db tools but no local IAM policy", () => {
@@ -405,7 +405,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /environment\s+=\s+\{[\s\S]*OCI_GENAI_API_KEY\s+=\s+var\.oci_genai_api_key/);
   assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+local\.portal_auth_password/);
   assert.doesNotMatch(terraform, /image_pull_secrets/);
-  assert.match(terraform, /read repos in compartment id/);
+  assert.match(terraform, /manage repos in compartment id/);
   assert.match(terraform, /module "hosted_agentic_applications"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/hosted-agentic-applications"/);
   assert.match(terraform, /resource_suffix\s+=\s+var\.resource_suffix/);
