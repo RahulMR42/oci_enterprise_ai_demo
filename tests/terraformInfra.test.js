@@ -370,6 +370,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_deploy_hosted\.yaml"/);
   assert.match(terraform, /resource "oci_devops_build_run" "this"/);
+  assert.match(terraform, /timeouts\s+\{[\s\S]*create\s+=\s+"90m"[\s\S]*\}/);
   assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
   assert.match(terraform, /resource "oci_logging_log_group" "devops"/);
   assert.match(terraform, /resource "oci_logging_log" "devops"/);

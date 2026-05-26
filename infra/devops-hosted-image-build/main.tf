@@ -345,6 +345,10 @@ resource "oci_devops_build_run" "this" {
   build_pipeline_id = oci_devops_build_pipeline.this[0].id
   display_name      = "enterprise-ai-demo-hosted-images-${var.resource_suffix}"
 
+  timeouts {
+    create = "90m"
+  }
+
   build_run_arguments {
     items {
       name  = "RESOURCE_SUFFIX"
