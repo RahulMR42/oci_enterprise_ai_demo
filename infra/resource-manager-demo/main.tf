@@ -24,6 +24,8 @@ module "file_search_vector_store_rag" {
   region          = var.region
   profile         = var.profile
   resource_suffix = module.responses_api.resource_suffix
+
+  depends_on = [module.responses_api]
 }
 
 module "code_interpreter" {
@@ -31,6 +33,8 @@ module "code_interpreter" {
 
   region          = var.region
   resource_suffix = module.responses_api.resource_suffix
+
+  depends_on = [module.responses_api]
 }
 
 module "nl2sql_sql_search" {

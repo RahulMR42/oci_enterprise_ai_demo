@@ -77,7 +77,7 @@ resource "terraform_data" "seed_devops_repository" {
 
       work_dir="$(mktemp -d)"
       trap 'rm -rf "$work_dir"' EXIT
-      git clone --depth 1 --branch '${self.input.source_branch}' '${self.input.source_repo_url}' "$work_dir/source"
+      git clone --branch '${self.input.source_branch}' '${self.input.source_repo_url}' "$work_dir/source"
       cd "$work_dir/source"
       git config user.email "resource-manager@example.invalid"
       git config user.name "OCI Resource Manager"

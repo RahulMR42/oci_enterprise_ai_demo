@@ -4,8 +4,11 @@ resource "terraform_data" "file_search_vector_store" {
     control_plane_base_url = local.control_plane_base_url
     display_name           = local.vector_store_display_name
     generated_file         = "${path.module}/.terraform/generated/vector_store.json"
+    openai_base_url        = local.openai_base_url
     profile                = var.profile
+    shared_api_key_file    = "${path.module}/${var.shared_generated_dir}/api_key.json"
     shared_generated_dir   = var.shared_generated_dir
+    shared_project_file    = "${path.module}/${var.shared_generated_dir}/project.json"
   }
 
   provisioner "local-exec" {
@@ -17,23 +20,27 @@ resource "terraform_data" "file_search_vector_store" {
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet openai oci_openai
+        "$python_bin" -m pip install --user --quiet openai
       fi
       vector_store_json="$("$python_bin" - <<PY
 import json
-from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciUserPrincipalAuth
+from pathlib import Path
+from openai import OpenAI
 
-profile = "${self.input.profile}"
-auth = OciUserPrincipalAuth(profile_name=profile) if profile else OciResourcePrincipalAuth()
+api_key = json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+if not api_key:
+    raise SystemExit("Missing shared OCI Generative AI API key. Apply infra/responses-api first.")
+if not project_id:
+    raise SystemExit("Missing shared OCI Generative AI project ID. Apply infra/responses-api first.")
 
-client = OciOpenAI(
-    service_endpoint="${self.input.control_plane_base_url}",
-    auth=auth,
-    compartment_id="${self.input.compartment_id}",
+client = OpenAI(
+    base_url="${self.input.openai_base_url}",
+    api_key=api_key,
+    project=project_id,
 )
 vector_store = client.vector_stores.create(
     name="${self.input.display_name}",
-    description="Enterprise AI Demo File Search vector store",
     expires_after={"anchor": "last_active_at", "days": 30},
     metadata={
         "compartment_id": "${self.input.compartment_id}",
@@ -72,18 +79,23 @@ PY
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet openai oci_openai
+        "$python_bin" -m pip install --user --quiet openai
       fi
       "$python_bin" - <<PY
-from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciUserPrincipalAuth
+import json
+from pathlib import Path
+from openai import OpenAI
 
-profile = "${self.input.profile}"
-auth = OciUserPrincipalAuth(profile_name=profile) if profile else OciResourcePrincipalAuth()
+api_key = json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+if not api_key or not project_id:
+    print("Missing shared OCI Generative AI project/API key; skipping vector store remote delete.")
+    raise SystemExit(0)
 
-client = OciOpenAI(
-    service_endpoint="${self.input.control_plane_base_url}",
-    auth=auth,
-    compartment_id="${self.input.compartment_id}",
+client = OpenAI(
+    base_url="${self.input.openai_base_url}",
+    api_key=api_key,
+    project=project_id,
 )
 client.vector_stores.delete("$vector_store_id")
 print("Deleted File Search vector store $vector_store_id")

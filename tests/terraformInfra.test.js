@@ -11,8 +11,10 @@ test("file search terraform owns vector store provisioning contract", () => {
 
   assert.match(terraform, /resource "terraform_data" "file_search_vector_store"/);
   assert.match(terraform, /resource "terraform_data" "file_search_seed_documents"/);
-  assert.match(terraform, /OciOpenAI/);
-  assert.match(terraform, /OciUserPrincipalAuth/);
+  assert.match(terraform, /from openai import OpenAI/);
+  assert.match(terraform, /shared_api_key_file/);
+  assert.match(terraform, /shared_project_file/);
+  assert.match(terraform, /base_url="\$\{self\.input\.openai_base_url\}"/);
   assert.match(terraform, /vector_stores\.create/);
   assert.match(terraform, /client\.files\.create/);
   assert.match(terraform, /vector_stores\.files\.create/);
