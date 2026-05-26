@@ -58,6 +58,37 @@ output "devops_hosted_image_repository_uris" {
   value       = module.devops_hosted_image_build.image_repository_uris
 }
 
+output "portal_container_instance_id" {
+  description = "OCI Container Instance OCID for the demo portal."
+  value       = var.portal_container_enabled ? oci_container_instances_container_instance.portal[0].id : ""
+}
+
+output "portal_container_image_uri" {
+  description = "OCIR image URI used by the demo portal container instance."
+  value       = var.portal_container_enabled ? local.portal_container_image_uri : ""
+}
+
+output "portal_public_ip" {
+  description = "Public IP address assigned to the demo portal container instance."
+  value       = var.portal_container_enabled ? data.oci_core_vnic.portal[0].public_ip_address : ""
+}
+
+output "portal_url" {
+  description = "Public URL for the demo portal container instance."
+  value       = var.portal_container_enabled ? "http://${data.oci_core_vnic.portal[0].public_ip_address}:${var.portal_container_port}" : ""
+}
+
+output "portal_login_user" {
+  description = "Demo portal login username."
+  value       = var.portal_container_enabled ? "oci" : ""
+}
+
+output "portal_login_password" {
+  description = "Demo portal login password."
+  value       = var.portal_container_enabled ? local.portal_auth_password : ""
+  sensitive   = true
+}
+
 output "portal_runtime_note" {
   description = "How the local portal consumes Resource Manager-created runtime metadata."
   value       = "The portal reads generated runtime JSON from each Terraform module path after apply. Download Resource Manager job logs/generated files or refresh local metadata before launching the local Node portal."

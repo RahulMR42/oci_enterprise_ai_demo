@@ -54,6 +54,7 @@ test("shared security terraform creates reusable dynamic group and demo policies
   assert.match(terraform, /database-tools-family/);
   assert.match(terraform, /secret-family/);
   assert.match(terraform, /object-family/);
+  assert.match(terraform, /read repos in compartment id/);
 });
 
 test("nl2sql terraform includes autonomous database and db tools but no local IAM policy", () => {
@@ -317,7 +318,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/resource-manager-demo/versions.tf"),
     read("infra/resource-manager-demo/variables.tf"),
     read("infra/resource-manager-demo/main.tf"),
+    read("infra/resource-manager-demo/portal_container.tf"),
     read("infra/resource-manager-demo/outputs.tf"),
+    read("infra/shared-demo-security/identity.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
     read("infra/devops-hosted-image-build/build_spec.yaml")
   ].join("\n");
@@ -356,6 +359,18 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /podman login/);
   assert.match(terraform, /podman build --platform linux\/amd64/);
   assert.match(terraform, /podman push/);
+  assert.match(terraform, /resource "oci_core_vcn" "portal"/);
+  assert.match(terraform, /resource "oci_core_internet_gateway" "portal"/);
+  assert.match(terraform, /resource "oci_core_subnet" "portal_public"/);
+  assert.match(terraform, /resource "oci_core_network_security_group" "portal"/);
+  assert.match(terraform, /resource "oci_container_instances_container_instance" "portal"/);
+  assert.match(terraform, /data "oci_core_vnic" "portal"/);
+  assert.match(terraform, /is_public_ip_assigned\s+=\s+true/);
+  assert.match(terraform, /image_url\s+=\s+local\.portal_container_image_uri/);
+  assert.match(terraform, /HOST\s+=\s+"0\.0\.0\.0"/);
+  assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+local\.portal_auth_password/);
+  assert.doesNotMatch(terraform, /image_pull_secrets/);
+  assert.match(terraform, /read repos in compartment id/);
   assert.match(terraform, /module "hosted_agentic_applications"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/hosted-agentic-applications"/);
   assert.match(terraform, /resource_suffix\s+=\s+var\.resource_suffix/);
@@ -363,6 +378,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.equal((hostedAppTerraform.match(/hosted_image_build_run_id\s+=\s+var\.hosted_image_build_run_id/g) || []).length, 6);
   assert.doesNotMatch(hostedAppTerraform, /push_image\s+=\s+true/);
   assert.match(terraform, /output "resource_suffix"/);
+  assert.match(terraform, /output "portal_public_ip"/);
+  assert.match(terraform, /output "portal_url"/);
+  assert.match(terraform, /output "portal_login_user"/);
+  assert.match(terraform, /output "portal_login_password"/);
   assert.match(terraform, /output "portal_runtime_note"/);
   assert.match(readme, /OCI Resource Manager/);
   assert.match(readme, /working directory `infra\/resource-manager-demo`/);
