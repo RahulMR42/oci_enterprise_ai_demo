@@ -7,6 +7,7 @@ locals {
     langfuse     = "enterprise-ai-demo/hosted-langfuse-${var.resource_suffix}"
     openclaw     = "enterprise-ai-demo/hosted-openclaw-${var.resource_suffix}"
     llamaindex   = "enterprise-ai-demo/hosted-llamaindex-control-tower-${var.resource_suffix}"
+    portal       = "enterprise-ai-demo/portal-rm"
   }
 
   image_artifacts = {
@@ -29,6 +30,10 @@ locals {
     llamaindex = {
       artifact_name = "llamaindex-image"
       display_name  = "llamaindex-control-tower"
+    }
+    portal = {
+      artifact_name = "portal-image"
+      display_name  = "portal"
     }
   }
 }

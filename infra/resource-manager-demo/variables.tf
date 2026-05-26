@@ -172,7 +172,7 @@ variable "hosted_app_ocir_region_key" {
 }
 
 variable "portal_container_enabled" {
-  description = "When true, create a public OCI Container Instance for the demo portal from the prebuilt OCIR image."
+  description = "When true, create a public OCI Container Instance for the demo portal from the RM-owned OCIR image."
   type        = bool
   default     = true
 }
@@ -187,6 +187,12 @@ variable "portal_container_repository_name" {
   description = "OCIR repository name that stores the demo portal image."
   type        = string
   default     = "enterprise-ai-demo/portal-rm"
+}
+
+variable "portal_container_repository_id" {
+  description = "Optional existing OCIR repository OCID for the demo portal image. Leave empty to let this stack create the repository."
+  type        = string
+  default     = ""
 }
 
 variable "portal_container_image_tag" {

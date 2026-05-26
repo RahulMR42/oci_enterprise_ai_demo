@@ -325,6 +325,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/file-search-vector-store-rag/vector_store.tf"),
     read("infra/code-interpreter/variables.tf"),
     read("infra/code-interpreter/container.tf"),
+    read("infra/devops-hosted-image-build/locals.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
     read("infra/devops-hosted-image-build/build_spec_images.yaml"),
     read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml")
@@ -363,6 +364,14 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_deploy_artifact" "image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deliver_image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_hosted"/);
+  assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
+  assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
+  assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
+  assert.match(terraform, /resource "oci_artifacts_container_repository" "portal"/);
+  assert.match(terraform, /variable "portal_container_repository_id"/);
+  assert.match(terraform, /var\.portal_container_repository_id != ""/);
+  assert.match(terraform, /try\(oci_artifacts_container_repository\.portal\[0\]\.id, ""\)/);
+  assert.match(terraform, /shared_policy_id\s+=\s+module\.shared_demo_security\.policy_id/);
   assert.match(terraform, /build_pipeline_stage_type\s+=\s+"DELIVER_ARTIFACT"/);
   assert.match(terraform, /deploy_artifact_type\s+=\s+"DOCKER_IMAGE"/);
   assert.match(terraform, /argument_substitution_mode\s+=\s+"NONE"/);

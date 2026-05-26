@@ -11,6 +11,7 @@ env:
     LANGFUSE_CONTEXT: "apps/hosted-langfuse"
     OPENCLAW_CONTEXT: "apps/hosted-openclaw"
     LLAMAINDEX_CONTEXT: "apps/hosted-llamaindex-control-tower"
+    PORTAL_CONTEXT: "."
 
 steps:
   - type: Command
@@ -24,6 +25,7 @@ steps:
       podman build --platform linux/amd64 -t langfuse-image "$LANGFUSE_CONTEXT"
       podman build --platform linux/amd64 -t openclaw-image "$OPENCLAW_CONTEXT"
       podman build --platform linux/amd64 -t llamaindex-image "$LLAMAINDEX_CONTEXT"
+      podman build --platform linux/amd64 -t portal-image "$PORTAL_CONTEXT"
 
 outputArtifacts:
   - name: hosted-agent-image
@@ -41,3 +43,6 @@ outputArtifacts:
   - name: llamaindex-image
     type: DOCKER_IMAGE
     location: llamaindex-image
+  - name: portal-image
+    type: DOCKER_IMAGE
+    location: portal-image

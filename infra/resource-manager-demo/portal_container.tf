@@ -6,6 +6,15 @@ data "oci_objectstorage_namespace" "portal" {
   compartment_id = var.compartment_id
 }
 
+resource "oci_artifacts_container_repository" "portal" {
+  count = var.portal_container_enabled && var.portal_container_image_uri == "" && var.portal_container_repository_id == "" ? 1 : 0
+
+  compartment_id = var.compartment_id
+  display_name   = var.portal_container_repository_name
+  is_public      = false
+  freeform_tags  = local.portal_tags
+}
+
 resource "random_password" "portal_auth" {
   count = var.portal_container_enabled && var.portal_auth_password == "" ? 1 : 0
 
@@ -192,6 +201,7 @@ resource "oci_container_instances_container_instance" "portal" {
   }
 
   depends_on = [
+    oci_artifacts_container_repository.portal,
     module.shared_demo_security,
     module.file_search_vector_store_rag,
     module.code_interpreter,

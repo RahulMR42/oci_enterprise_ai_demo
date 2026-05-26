@@ -103,7 +103,13 @@ module "devops_hosted_image_build" {
   langfuse_salt                    = try(module.hosted_agentic_applications[0].langfuse_salt, "")
   langfuse_encryption_key          = try(module.hosted_agentic_applications[0].langfuse_encryption_key, "")
   langfuse_networking_config_json  = try(module.hosted_agentic_applications[0].langfuse_networking_config_json, "")
-  run_build                        = var.devops_hosted_image_run_build
+  portal_container_repository_id = (
+    var.portal_container_repository_id != ""
+    ? var.portal_container_repository_id
+    : try(oci_artifacts_container_repository.portal[0].id, "")
+  )
+  shared_policy_id = module.shared_demo_security.policy_id
+  run_build        = var.devops_hosted_image_run_build
 }
 
 module "hosted_agentic_applications" {

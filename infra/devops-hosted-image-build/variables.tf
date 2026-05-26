@@ -104,6 +104,18 @@ variable "image_tag" {
   default     = "latest"
 }
 
+variable "portal_container_repository_id" {
+  description = "Optional portal OCIR repository OCID. Used to order the DevOps build after Terraform creates the portal repository."
+  type        = string
+  default     = ""
+}
+
+variable "shared_policy_id" {
+  description = "Optional shared IAM policy OCID. Used to order the DevOps build after policy creation."
+  type        = string
+  default     = ""
+}
+
 variable "ocir_username" {
   description = "OCIR username used by the DevOps build to push images."
   type        = string

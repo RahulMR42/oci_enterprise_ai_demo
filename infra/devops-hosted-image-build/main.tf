@@ -159,13 +159,13 @@ resource "oci_devops_build_pipeline" "this" {
 
   project_id   = oci_devops_project.this[0].id
   display_name = "enterprise-ai-demo-hosted-images-${var.resource_suffix}"
-  description  = "Builds and pushes Enterprise AI demo hosted application images to OCIR."
+  description  = "Builds and pushes Enterprise AI demo application images to OCIR."
 
   build_pipeline_parameters {
     items {
       name          = "RESOURCE_SUFFIX"
       default_value = var.resource_suffix
-      description   = "Resource suffix used by the hosted image repository names."
+      description   = "Resource suffix used by the image repository names."
     }
     items {
       name          = "OCI_REGION"
@@ -198,6 +198,16 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Source revision marker used to correlate Resource Manager applies and DevOps build runs."
     }
     items {
+      name          = "PORTAL_CONTAINER_REPOSITORY_ID"
+      default_value = var.portal_container_repository_id
+      description   = "Portal OCIR repository dependency marker."
+    }
+    items {
+      name          = "SHARED_POLICY_ID"
+      default_value = var.shared_policy_id
+      description   = "Shared IAM policy dependency marker."
+    }
+    items {
       name          = "IDCS_DOMAIN_URL"
       default_value = var.idcs_domain_url
       description   = "Identity domain URL used by hosted app inbound auth."
@@ -226,7 +236,7 @@ resource "oci_devops_build_pipeline_stage" "build" {
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
   display_name                       = "build-hosted-images"
-  description                        = "Builds hosted demo container images without pushing them."
+  description                        = "Builds demo container images without pushing them."
   build_spec_file                    = "infra/devops-hosted-image-build/build_spec_images.yaml"
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
@@ -377,6 +387,14 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "SOURCE_REVISION"
       value = var.source_revision
+    }
+    items {
+      name  = "PORTAL_CONTAINER_REPOSITORY_ID"
+      value = var.portal_container_repository_id
+    }
+    items {
+      name  = "SHARED_POLICY_ID"
+      value = var.shared_policy_id
     }
     items {
       name  = "IDCS_DOMAIN_URL"
