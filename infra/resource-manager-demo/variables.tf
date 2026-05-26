@@ -80,7 +80,13 @@ variable "devops_source_repo_url" {
 }
 
 variable "devops_source_branch" {
-  description = "Git branch used by the DevOps build stage."
+  description = "Upstream Git branch Resource Manager clones before seeding the OCI DevOps code repository."
+  type        = string
+  default     = "main"
+}
+
+variable "devops_repository_branch" {
+  description = "Branch name used inside the OCI DevOps hosted code repository and build source."
   type        = string
   default     = "main"
 }

@@ -26,7 +26,13 @@ variable "source_repo_url" {
 }
 
 variable "source_branch" {
-  description = "Git branch used by the managed build stage when manually triggered from Terraform."
+  description = "Upstream Git branch Resource Manager clones before seeding the OCI DevOps code repository."
+  type        = string
+  default     = "main"
+}
+
+variable "devops_repository_branch" {
+  description = "Branch name used inside the OCI DevOps hosted code repository and build source."
   type        = string
   default     = "main"
 }

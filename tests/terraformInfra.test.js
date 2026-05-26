@@ -346,6 +346,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /source\s+=\s+"\.\.\/nl2sql-sql-search"/);
   assert.match(terraform, /module "devops_hosted_image_build"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/devops-hosted-image-build"/);
+  assert.match(terraform, /variable "devops_repository_branch"/);
+  assert.match(terraform, /devops_repository_branch\s+=\s+var\.devops_repository_branch/);
   assert.match(terraform, /resource "oci_devops_project" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build"/);
@@ -359,6 +361,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /podman login/);
   assert.match(terraform, /podman build --platform linux\/amd64/);
   assert.match(terraform, /podman push/);
+  assert.match(terraform, /default_branch\s+=\s+var\.devops_repository_branch/);
+  assert.match(terraform, /git clone --branch '\$\{self\.input\.source_branch\}'/);
+  assert.match(terraform, /HEAD:refs\/heads\/\$\{self\.input\.devops_repository_branch\}/);
+  assert.match(terraform, /branch\s+=\s+var\.create_devops_repository \? var\.devops_repository_branch : var\.source_branch/);
   assert.match(terraform, /resource "oci_core_vcn" "portal"/);
   assert.match(terraform, /resource "oci_core_internet_gateway" "portal"/);
   assert.match(terraform, /resource "oci_core_subnet" "portal_public"/);

@@ -76,7 +76,7 @@ resource "oci_devops_repository" "source" {
   project_id       = oci_devops_project.this[0].id
   name             = "enterprise-ai-demo-source-${var.resource_suffix}"
   repository_type  = "HOSTED"
-  default_branch   = var.source_branch
+  default_branch   = var.devops_repository_branch
   description      = "Resource Manager-seeded source repository for Enterprise AI demo hosted image builds."
 }
 
@@ -86,11 +86,13 @@ resource "terraform_data" "seed_devops_repository" {
   triggers_replace = [
     var.source_repo_url,
     var.source_branch,
+    var.devops_repository_branch,
     oci_devops_repository.source[0].id
   ]
 
   input = {
     devops_repository_http_url = oci_devops_repository.source[0].http_url
+    devops_repository_branch   = var.devops_repository_branch
     source_branch              = var.source_branch
     source_repo_url            = var.source_repo_url
     username                   = var.devops_repository_git_username
@@ -123,7 +125,7 @@ password = quote("$${DEVOPS_GIT_PASSWORD}", safe="")
 print(urlunsplit((url.scheme, f"{username}:{password}@{url.netloc}", url.path, url.query, url.fragment)))
 PY
       )"
-      git push "$target_url" "HEAD:refs/heads/${self.input.source_branch}" --force
+      git push "$target_url" "HEAD:refs/heads/${self.input.devops_repository_branch}" --force
     EOT
   }
 }
@@ -196,7 +198,7 @@ resource "oci_devops_build_pipeline_stage" "build" {
       connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
       repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
       repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
-      branch          = var.source_branch
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
     }
   }
 

@@ -57,6 +57,7 @@ module "devops_hosted_image_build" {
   resource_suffix                = var.resource_suffix
   source_repo_url                = var.devops_source_repo_url
   source_branch                  = var.devops_source_branch
+  devops_repository_branch       = var.devops_repository_branch
   source_connection_type         = var.devops_source_connection_type
   source_connection_id           = var.devops_source_connection_id
   source_repository_id           = var.devops_source_repository_id
