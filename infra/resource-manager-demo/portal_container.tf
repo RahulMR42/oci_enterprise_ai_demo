@@ -108,6 +108,22 @@ resource "oci_core_network_security_group_security_rule" "portal_egress" {
   description               = "Allow the demo portal to reach OCI APIs and external dependencies."
 }
 
+data "local_file" "file_search_vector_store" {
+  count = var.portal_container_enabled && var.file_search_local_exec_enabled ? 1 : 0
+
+  filename = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"
+
+  depends_on = [module.file_search_vector_store_rag]
+}
+
+data "local_file" "code_interpreter_container" {
+  count = var.portal_container_enabled && var.code_interpreter_local_exec_enabled ? 1 : 0
+
+  filename = "${path.module}/../code-interpreter/.terraform/generated/container.json"
+
+  depends_on = [module.code_interpreter]
+}
+
 resource "oci_container_instances_container_instance" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -136,12 +152,14 @@ resource "oci_container_instances_container_instance" "portal" {
     image_url    = local.portal_container_image_uri
 
     environment_variables = {
-      HOST                 = "0.0.0.0"
-      OCI_GENAI_API_KEY    = var.oci_genai_api_key
-      OCI_GENAI_PROJECT_ID = var.oci_genai_project_id
-      OCI_GENAI_REGION     = var.region
-      PORT                 = tostring(var.portal_container_port)
-      OCI_PORTAL_PASSWORD  = local.portal_auth_password
+      HOST                                 = "0.0.0.0"
+      OCI_GENAI_API_KEY                    = var.oci_genai_api_key
+      OCI_GENAI_CODE_INTERPRETER_CONTAINER = local.portal_code_interpreter_container_id
+      OCI_GENAI_PROJECT_ID                 = var.oci_genai_project_id
+      OCI_GENAI_REGION                     = var.region
+      OCI_GENAI_VECTOR_STORE_ID            = local.portal_vector_store_id
+      PORT                                 = tostring(var.portal_container_port)
+      OCI_PORTAL_PASSWORD                  = local.portal_auth_password
     }
 
     health_checks {
@@ -163,7 +181,11 @@ resource "oci_container_instances_container_instance" "portal" {
     }
   }
 
-  depends_on = [module.shared_demo_security]
+  depends_on = [
+    module.shared_demo_security,
+    module.file_search_vector_store_rag,
+    module.code_interpreter
+  ]
 }
 
 data "oci_core_vnic" "portal" {
@@ -186,4 +208,14 @@ locals {
     var.portal_container_image_tag
   )
   portal_auth_password = var.portal_auth_password != "" ? var.portal_auth_password : random_password.portal_auth[0].result
+  portal_vector_store_id = (
+    var.file_search_local_exec_enabled
+    ? try(jsondecode(data.local_file.file_search_vector_store[0].content).id, "")
+    : ""
+  )
+  portal_code_interpreter_container_id = (
+    var.code_interpreter_local_exec_enabled
+    ? try(jsondecode(data.local_file.code_interpreter_container[0].content).id, "")
+    : ""
+  )
 }

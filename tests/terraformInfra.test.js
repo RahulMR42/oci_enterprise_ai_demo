@@ -321,6 +321,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/resource-manager-demo/portal_container.tf"),
     read("infra/resource-manager-demo/outputs.tf"),
     read("infra/shared-demo-security/identity.tf"),
+    read("infra/file-search-vector-store-rag/variables.tf"),
+    read("infra/file-search-vector-store-rag/vector_store.tf"),
+    read("infra/code-interpreter/variables.tf"),
+    read("infra/code-interpreter/container.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
     read("infra/devops-hosted-image-build/build_spec.yaml")
   ].join("\n");
@@ -342,6 +346,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /source\s+=\s+"\.\.\/file-search-vector-store-rag"/);
   assert.match(terraform, /module "code_interpreter"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/code-interpreter"/);
+  assert.match(terraform, /module "conversation_store"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/conversation-store"/);
+  assert.match(terraform, /module "guardrails"/);
+  assert.match(terraform, /source\s+=\s+"\.\.\/guardrails"/);
   assert.match(terraform, /module "nl2sql_sql_search"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/nl2sql-sql-search"/);
   assert.match(terraform, /module "devops_hosted_image_build"/);
@@ -379,6 +387,13 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /OCI_GENAI_PROJECT_ID\s+=\s+var\.oci_genai_project_id/);
   assert.match(terraform, /OCI_GENAI_API_KEY\s+=\s+var\.oci_genai_api_key/);
   assert.match(terraform, /OCI_GENAI_REGION\s+=\s+var\.region/);
+  assert.match(terraform, /OCI_GENAI_VECTOR_STORE_ID\s+=\s+local\.portal_vector_store_id/);
+  assert.match(terraform, /OCI_GENAI_CODE_INTERPRETER_CONTAINER\s+=\s+local\.portal_code_interpreter_container_id/);
+  assert.match(terraform, /data "local_file" "file_search_vector_store"/);
+  assert.match(terraform, /data "local_file" "code_interpreter_container"/);
+  assert.match(terraform, /output "portal_vector_store_id"/);
+  assert.match(terraform, /output "portal_code_interpreter_container_id"/);
+  assert.match(terraform, /environment\s+=\s+\{[\s\S]*OCI_GENAI_API_KEY\s+=\s+var\.oci_genai_api_key/);
   assert.match(terraform, /OCI_PORTAL_PASSWORD\s+=\s+local\.portal_auth_password/);
   assert.doesNotMatch(terraform, /image_pull_secrets/);
   assert.match(terraform, /read repos in compartment id/);

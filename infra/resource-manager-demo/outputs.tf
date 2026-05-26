@@ -89,6 +89,16 @@ output "portal_login_password" {
   sensitive   = true
 }
 
+output "portal_vector_store_id" {
+  description = "File Search vector store ID injected into the demo portal."
+  value       = var.portal_container_enabled ? local.portal_vector_store_id : ""
+}
+
+output "portal_code_interpreter_container_id" {
+  description = "Code Interpreter container ID injected into the demo portal."
+  value       = var.portal_container_enabled ? local.portal_code_interpreter_container_id : ""
+}
+
 output "portal_runtime_note" {
   description = "How the local portal consumes Resource Manager-created runtime metadata."
   value       = "The portal reads generated runtime JSON from each Terraform module path after apply. Download Resource Manager job logs/generated files or refresh local metadata before launching the local Node portal."

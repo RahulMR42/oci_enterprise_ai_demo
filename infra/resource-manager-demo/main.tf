@@ -22,10 +22,12 @@ module "file_search_vector_store_rag" {
   count  = var.file_search_local_exec_enabled ? 1 : 0
   source = "../file-search-vector-store-rag"
 
-  compartment_id  = var.compartment_id
-  region          = var.region
-  profile         = var.profile
-  resource_suffix = var.resource_suffix
+  compartment_id       = var.compartment_id
+  region               = var.region
+  profile              = var.profile
+  resource_suffix      = var.resource_suffix
+  oci_genai_project_id = var.oci_genai_project_id
+  oci_genai_api_key    = var.oci_genai_api_key
 
   depends_on = [module.responses_api]
 }
@@ -34,10 +36,20 @@ module "code_interpreter" {
   count  = var.code_interpreter_local_exec_enabled ? 1 : 0
   source = "../code-interpreter"
 
-  region          = var.region
-  resource_suffix = var.resource_suffix
+  region               = var.region
+  resource_suffix      = var.resource_suffix
+  oci_genai_project_id = var.oci_genai_project_id
+  oci_genai_api_key    = var.oci_genai_api_key
 
   depends_on = [module.responses_api]
+}
+
+module "conversation_store" {
+  source = "../conversation-store"
+}
+
+module "guardrails" {
+  source = "../guardrails"
 }
 
 module "nl2sql_sql_search" {
