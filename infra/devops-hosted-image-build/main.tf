@@ -265,12 +265,12 @@ resource "oci_devops_deploy_artifact" "image" {
   project_id                 = oci_devops_project.this[0].id
   display_name               = "enterprise-ai-demo-${each.value.display_name}-${var.resource_suffix}"
   deploy_artifact_type       = "DOCKER_IMAGE"
-  argument_substitution_mode = "SUBSTITUTE_PLACEHOLDERS"
+  argument_substitution_mode = "NONE"
   description                = "OCIR image artifact for Enterprise AI demo ${each.value.display_name}."
 
   deploy_artifact_source {
     deploy_artifact_source_type = "OCIR"
-    image_uri                   = "${var.ocir_region_key}.ocir.io/${data.oci_objectstorage_namespace.this[0].namespace}/${local.repositories[each.key]}:$${IMAGE_TAG}"
+    image_uri                   = "${var.ocir_region_key}.ocir.io/${data.oci_objectstorage_namespace.this[0].namespace}/${local.repositories[each.key]}:${var.image_tag}"
   }
 }
 

@@ -365,7 +365,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_hosted"/);
   assert.match(terraform, /build_pipeline_stage_type\s+=\s+"DELIVER_ARTIFACT"/);
   assert.match(terraform, /deploy_artifact_type\s+=\s+"DOCKER_IMAGE"/);
-  assert.match(terraform, /argument_substitution_mode\s+=\s+"SUBSTITUTE_PLACEHOLDERS"/);
+  assert.match(terraform, /argument_substitution_mode\s+=\s+"NONE"/);
   assert.match(terraform, /artifact_name\s+=\s+each\.value\.artifact_name/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_deploy_hosted\.yaml"/);
