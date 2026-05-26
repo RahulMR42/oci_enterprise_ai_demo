@@ -1,4 +1,6 @@
 resource "terraform_data" "n8n_hosted_workflow_automation" {
+  count = var.hosted_cli_deployments_enabled ? 1 : 0
+
   triggers_replace = [
     "20260515-add-n8n-hosted-workflow",
     var.resource_suffix,

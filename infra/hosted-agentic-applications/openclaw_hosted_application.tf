@@ -1,4 +1,6 @@
 resource "terraform_data" "openclaw_hosted_agent_gateway" {
+  count = var.hosted_cli_deployments_enabled ? 1 : 0
+
   input = {
     provisioning_revision           = "20260522-openclaw-hosted-gateway-demo-ui"
     compartment_id                  = var.compartment_id

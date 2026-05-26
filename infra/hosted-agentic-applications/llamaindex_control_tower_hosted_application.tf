@@ -1,4 +1,6 @@
 resource "terraform_data" "llamaindex_control_tower" {
+  count = var.hosted_cli_deployments_enabled ? 1 : 0
+
   triggers_replace = [
     "20260525-add-llamaindex-control-tower",
     var.resource_suffix,

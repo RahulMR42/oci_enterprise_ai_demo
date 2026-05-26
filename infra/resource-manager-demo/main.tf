@@ -106,4 +106,5 @@ module "hosted_agentic_applications" {
   llamaindex_image_repository_uri = var.llamaindex_image_repository_uri
   openclaw_gateway_token          = var.openclaw_gateway_token
   hosted_image_build_run_id       = module.devops_hosted_image_build.build_run_id
+  hosted_cli_deployments_enabled  = false
 }

@@ -1,4 +1,6 @@
 resource "terraform_data" "hosted_agentic_application" {
+  count = var.hosted_cli_deployments_enabled ? 1 : 0
+
   triggers_replace = [
     "20260512-refresh-hosted-deployment-after-create",
     var.resource_suffix,

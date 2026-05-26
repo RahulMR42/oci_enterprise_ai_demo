@@ -219,6 +219,12 @@ variable "hosted_image_build_run_id" {
   default     = ""
 }
 
+variable "hosted_cli_deployments_enabled" {
+  description = "When true, this Terraform module runs OCI CLI local-exec deployment for hosted applications. Keep false in Resource Manager and deploy through OCI DevOps instead."
+  type        = bool
+  default     = true
+}
+
 variable "idcs_domain_url" {
   description = "Existing identity domain URL used for hosted application inbound OAuth authentication."
   type        = string
