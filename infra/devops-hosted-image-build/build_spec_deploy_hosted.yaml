@@ -24,6 +24,12 @@ steps:
     command: |
       set -euo pipefail
 
+      python3 -m pip install --user --upgrade oci-cli
+      export PATH="$HOME/.local/bin:$PATH"
+      oci --version
+      oci generative-ai hosted-application create -h >/dev/null
+      oci generative-ai hosted-deployment create-hosted-deployment-single-docker-artifact -h >/dev/null
+
       : "${RESOURCE_SUFFIX:?RESOURCE_SUFFIX is required}"
       : "${OCI_REGION:?OCI_REGION is required}"
       : "${COMPARTMENT_ID:?COMPARTMENT_ID is required}"
