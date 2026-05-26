@@ -167,45 +167,17 @@ if [ -z "$hosted_application_id" ]; then
   exit 1
 fi
 
-IMAGE_REPOSITORY_URI="$image_repository_uri" python3 - "$deployment_path" "$hosted_application_id" "$hosted_deployment_display_name" <<'PY'
-import json
-import os
-import sys
-from pathlib import Path
-
-import oci
-from oci.generative_ai import GenerativeAiClient
-from oci.generative_ai.models import (
-    CreateHostedDeploymentDetails,
-    SingleDockerArtifact,
-)
-from oci.util import to_dict
-
-deployment_path = Path(sys.argv[1])
-hosted_application_id = sys.argv[2]
-hosted_deployment_display_name = sys.argv[3]
-image_repository_uri = os.environ["IMAGE_REPOSITORY_URI"]
-config = oci.config.from_file(profile_name=os.environ["OCI_CLI_PROFILE"])
-config["region"] = os.environ["OCI_CLI_REGION"]
-client = GenerativeAiClient(config)
-details = CreateHostedDeploymentDetails(
-    hosted_application_id=hosted_application_id,
-    compartment_id=os.environ["COMPARTMENT_ID"],
-    display_name=hosted_deployment_display_name,
-    active_artifact=SingleDockerArtifact(
-        artifact_type=SingleDockerArtifact.ARTIFACT_TYPE_SIMPLE_DOCKER_ARTIFACT,
-        container_uri=image_repository_uri,
-        status=SingleDockerArtifact.STATUS_ACTIVE,
-        tag=os.environ["IMAGE_TAG"],
-    ),
-    freeform_tags={
-        "enterprise-ai-demo": "true",
-        "demo": os.environ["DEMO_TAG"],
-    },
-)
-response = client.create_hosted_deployment(details)
-deployment_path.write_text(json.dumps({"data": to_dict(response.data)}, indent=2))
-PY
+oci generative-ai hosted-deployment create-hosted-deployment-single-docker-artifact \
+  --hosted-application-id "$hosted_application_id" \
+  --compartment-id "$COMPARTMENT_ID" \
+  --display-name "$hosted_deployment_display_name" \
+  --active-artifact-container-uri "$image_repository_uri" \
+  --active-artifact-tag "$IMAGE_TAG" \
+  --active-artifact-status ACTIVE \
+  --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"$DEMO_TAG\"}" \
+  $oci_auth_args \
+  --region "$OCI_CLI_REGION" \
+  --output json > "$deployment_path"
 
 IMAGE_URI="$image_uri" python3 - "$GENERATED_DIR" "$repository_file" "$application_file" "$deployment_file" "$gateway_file" "$repository_name" "$OCI_CLI_REGION" "$hosted_application_display_name" "$hosted_deployment_display_name" <<'PY'
 import json

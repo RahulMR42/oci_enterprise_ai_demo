@@ -165,7 +165,7 @@ oci generative-ai hosted-deployment create-hosted-deployment-single-docker-artif
   --active-artifact-tag "$IMAGE_TAG" \
   --active-artifact-status ACTIVE \
   --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"$demo_tag\"}" \
-  --profile "$OCI_CLI_PROFILE" \
+  $oci_auth_args \
   --region "$OCI_CLI_REGION" \
   --output json > "$deployment_path"
 
