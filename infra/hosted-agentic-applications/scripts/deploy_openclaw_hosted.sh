@@ -4,6 +4,10 @@ set -eu
 mkdir -p "$GENERATED_DIR"
 echo "Starting hosted deployment"
 
+if [ -z "${OCI_CLI_PROFILE:-}" ]; then
+  unset OCI_CLI_PROFILE
+fi
+
 oci_auth_args="--auth resource_principal"
 if [ -n "${OCI_CLI_PROFILE:-}" ]; then
   oci_auth_args="--profile $OCI_CLI_PROFILE"
