@@ -1,16 +1,54 @@
 # Enterprise AI Demo Resource Manager Stack
 
-This Terraform root is the OCI Resource Manager entry point for the demo. Package the repository as a Terraform configuration zip and set the stack working directory to `infra/resource-manager-demo`. The working directory `infra/resource-manager-demo` must be used for plan and apply jobs.
+This Terraform root is the OCI Resource Manager entry point for the full demo. Package the repository as a Terraform configuration zip and set the stack working directory to `infra/resource-manager-demo`. The working directory `infra/resource-manager-demo` must be used for plan and apply jobs.
 
-The stack wires every Terraform-based deployment module:
+The stack owns the shared demo infrastructure, OCI DevOps build pipeline, hosted application deployment flow, and the public portal container instance. Hosted application create/deploy operations run from OCI DevOps with resource principal auth. Resource Manager should not depend on local OCI credentials for those operations.
+
+## What the stack deploys
+
+The aggregate stack wires every Terraform-based deployment module used by the portal:
 
 - `infra/responses-api`
-- `infra/shared-demo-security`
-- `infra/file-search-vector-store-rag`
-- `infra/code-interpreter`
-- `infra/nl2sql-sql-search`
-- `infra/hosted-agentic-applications`
+- `infra/shared-demo-security`: shared dynamic group and demo policies, including repository pull access for OCI-managed runtimes.
+- `infra/file-search-vector-store-rag`: File Search vector store and seed document registration.
+- `infra/code-interpreter`: managed Code Interpreter container.
+- `infra/nl2sql-sql-search`: Autonomous Database, Database Tools connections, KMS, and secrets for SQL Search.
+- `infra/hosted-agentic-applications`: OCIR repositories, hosted application metadata, and Langfuse dependencies: VCN, private subnet, NSGs, PostgreSQL, ClickHouse container instance, Redis container instance, and Object Storage.
+- `infra/devops-hosted-image-build`: OCI DevOps project, source repository seeding from GitHub, image build stage, parallel image artifact delivery stages, and final hosted deployment build stage.
+- `infra/conversation-store` and `infra/guardrails`: no-op Terraform roots kept in the aggregate stack so the local-only demos are represented in the same deployment map.
+- `infra/resource-manager-demo/portal_container.tf`: Enterprise AI portal image repository, public VCN/subnet/NSG, and OCI Container Instance.
 
-OCI Resource Manager should use prebuilt image repository URIs when its worker environment cannot build and push containers. Set `hosted_app_push_image=false` and provide prebuilt image variables for hosted UI images that cannot be built inside Resource Manager.
+## Image and hosted deployment flow
 
-The local portal remains a Node.js development portal. It reads generated Terraform runtime metadata from the module `.terraform/generated` directories; after Resource Manager apply, refresh those generated files locally before starting the portal.
+Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, builds the hosted images plus the portal image, delivers each image to its OCIR repository, then runs the hosted application deployment stage with resource principal auth.
+
+The DevOps pipeline currently publishes images for:
+
+- hosted agent
+- LangGraph hosted agent
+- Langfuse hosted observability
+- OpenClaw hosted gateway
+- LlamaIndex control tower
+- Enterprise AI portal
+
+The n8n demo code remains in the repository for local/demo compatibility, but the Resource Manager DevOps image pipeline does not publish an n8n image.
+
+## Portal deployment
+
+Set `portal_container_enabled=true` to deploy the portal as an OCI Container Instance. The portal container receives the Resource Manager-created demo IDs, hosted deployment URLs, hosted deployment IDs, region, project ID, API key, and portal password through environment variables.
+
+If `portal_container_repository_id` is empty, the stack creates `portal_container_repository_name`. If a repository already exists, pass its OCID through `portal_container_repository_id` so the stack adopts the repository for image delivery without trying to recreate it.
+
+Useful outputs for login and validation:
+
+- `portal_url`
+- `portal_public_ip`
+- `portal_login_user`
+- `portal_login_password`
+- `portal_container_image_uri`
+- `portal_container_repository_id`
+- `devops_hosted_image_build_run_id`
+- `devops_hosted_deployment_exports`
+- `devops_hosted_image_repository_uris`
+
+Langfuse dependency outputs expose the private PostgreSQL endpoint, ClickHouse URL, Redis endpoint, Object Storage bucket, and hosted app networking configuration used by the deployment. Sensitive connection strings remain sensitive Terraform outputs.

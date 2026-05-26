@@ -73,6 +73,15 @@ output "portal_container_image_uri" {
   value       = var.portal_container_enabled ? local.portal_container_image_uri : ""
 }
 
+output "portal_container_repository_id" {
+  description = "OCIR repository OCID used by the demo portal image."
+  value = var.portal_container_enabled ? (
+    var.portal_container_repository_id != ""
+    ? var.portal_container_repository_id
+    : try(oci_artifacts_container_repository.portal[0].id, "")
+  ) : ""
+}
+
 output "portal_public_ip" {
   description = "Public IP address assigned to the demo portal container instance."
   value       = var.portal_container_enabled ? data.oci_core_vnic.portal[0].public_ip_address : ""
@@ -104,7 +113,32 @@ output "portal_code_interpreter_container_id" {
   value       = var.portal_container_enabled ? local.portal_code_interpreter_container_id : ""
 }
 
+output "langfuse_postgres_private_endpoint" {
+  description = "Private PostgreSQL endpoint used by the Langfuse hosted deployment."
+  value       = try(module.hosted_agentic_applications[0].langfuse_postgres_private_endpoint, "")
+}
+
+output "langfuse_clickhouse_url" {
+  description = "Private ClickHouse HTTP endpoint used by the Langfuse hosted deployment."
+  value       = try(module.hosted_agentic_applications[0].langfuse_clickhouse_url, "")
+}
+
+output "langfuse_redis_endpoint" {
+  description = "Private Redis endpoint used by the Langfuse hosted deployment."
+  value       = try(module.hosted_agentic_applications[0].langfuse_redis_endpoint, "")
+}
+
+output "langfuse_object_storage_bucket" {
+  description = "OCI Object Storage bucket used by the Langfuse hosted deployment."
+  value       = try(module.hosted_agentic_applications[0].langfuse_object_storage_bucket, "")
+}
+
+output "langfuse_networking_config_json" {
+  description = "Hosted application private networking configuration used by Langfuse."
+  value       = try(module.hosted_agentic_applications[0].langfuse_networking_config_json, "")
+}
+
 output "portal_runtime_note" {
   description = "How the local portal consumes Resource Manager-created runtime metadata."
-  value       = "The portal reads generated runtime JSON from each Terraform module path after apply. Download Resource Manager job logs/generated files or refresh local metadata before launching the local Node portal."
+  value       = "Resource Manager deploys the OCI Container Instance portal directly. Local Node development can still read generated runtime JSON from each Terraform module path after apply."
 }

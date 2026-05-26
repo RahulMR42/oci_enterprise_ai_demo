@@ -427,10 +427,18 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /output "portal_url"/);
   assert.match(terraform, /output "portal_login_user"/);
   assert.match(terraform, /output "portal_login_password"/);
+  assert.match(terraform, /output "portal_container_repository_id"/);
+  assert.match(terraform, /output "langfuse_postgres_private_endpoint"/);
+  assert.match(terraform, /output "langfuse_clickhouse_url"/);
+  assert.match(terraform, /output "langfuse_redis_endpoint"/);
+  assert.match(terraform, /output "langfuse_object_storage_bucket"/);
+  assert.match(terraform, /output "langfuse_networking_config_json"/);
   assert.match(terraform, /output "portal_runtime_note"/);
   assert.match(readme, /OCI Resource Manager/);
   assert.match(readme, /working directory `infra\/resource-manager-demo`/);
-  assert.match(readme, /prebuilt image/);
+  assert.match(readme, /resource principal auth/);
+  assert.match(readme, /Enterprise AI portal image repository/);
+  assert.match(readme, /The n8n demo code remains in the repository/);
 });
 
 test("startup script captures logs to a directory by default and can disable file capture", () => {
