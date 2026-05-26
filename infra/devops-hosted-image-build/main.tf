@@ -375,14 +375,6 @@ resource "oci_devops_build_run" "this" {
       value = var.source_revision
     }
     items {
-      name  = "OCIR_USERNAME"
-      value = var.ocir_username
-    }
-    items {
-      name  = "OCIR_AUTH_TOKEN"
-      value = var.ocir_auth_token
-    }
-    items {
       name  = "IDCS_DOMAIN_URL"
       value = var.idcs_domain_url
     }
