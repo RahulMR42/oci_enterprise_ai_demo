@@ -683,6 +683,29 @@ h1 {
   padding: 10px 0 76px;
 }
 
+.admin-page {
+  width: min(100% - 32px, 1180px);
+  margin: 0 auto;
+  padding: 24px 0 56px;
+}
+
+.admin-page .portal-header {
+  min-height: auto;
+  margin: 0 0 22px;
+  padding: 0;
+  background: transparent;
+}
+
+.admin-page h1 {
+  color: #0f172a;
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.admin-page .eyebrow {
+  color: #64748b;
+}
+
 .admin-toolbar {
   display: flex;
   align-items: center;
@@ -803,6 +826,10 @@ h1 {
   color: #64748b;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+#admin-connection-grid .admin-demo-row {
+  grid-template-columns: minmax(180px, 0.8fr) 96px minmax(180px, 1.6fr);
 }
 
 .admin-run-log {

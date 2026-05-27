@@ -82,6 +82,21 @@ output "portal_container_repository_id" {
   ) : ""
 }
 
+output "portal_runtime_config_bucket" {
+  description = "Object Storage bucket holding non-sensitive portal runtime config and run summaries."
+  value       = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+}
+
+output "portal_runtime_config_object" {
+  description = "Object name for non-sensitive portal runtime config."
+  value       = var.portal_container_enabled ? oci_objectstorage_object.portal_runtime_config[0].object : ""
+}
+
+output "portal_run_history_object" {
+  description = "Object name for portal demo run history and count summaries."
+  value       = var.portal_container_enabled ? oci_objectstorage_object.portal_run_history[0].object : ""
+}
+
 output "portal_public_ip" {
   description = "Public IP address assigned to the demo portal container instance."
   value       = var.portal_container_enabled ? data.oci_core_vnic.portal[0].public_ip_address : ""

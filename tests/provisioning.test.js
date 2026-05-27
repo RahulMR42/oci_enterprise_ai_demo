@@ -111,6 +111,9 @@ test("server exposes redacted administration demo run history", () => {
   assert.equal(JSON.stringify(history).includes("secret-client"), false);
   assert.match(server, /requestPath === "\/api\/admin\/demo-runs"/);
   assert.match(server, /readDemoRunHistory/);
+  assert.match(server, /writePersistentDemoRunRecord/);
+  assert.match(server, /portalRunHistoryObject/);
+  assert.match(server, /OCI_PORTAL_RUN_HISTORY_OBJECT/);
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {

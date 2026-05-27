@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Administration | OCI Enterprise AI Portal</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="admin-page" id="administration">
+      <header class="admin-page-header">
+        <nav aria-label="Administration">
+          <div class="brand-mark">
+            <span class="brand-icon" aria-hidden="true">AI</span>
+            <span>OCI Enterprise AI Administration</span>
+          </div>
+          <div class="nav-actions">
+            <a class="nav-link" href="/">Catalog</a>
+            <button class="nav-link logout-button" id="admin-refresh-button" type="button">Refresh</button>
+          </div>
+        </nav>
+      </header>
+
+      <section class="admin-section" aria-labelledby="administration-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h1 id="administration-title">Demo operations</h1>
+          </div>
+          <p class="section-note" id="admin-last-updated">Loading operational status...</p>
+        </div>
+
+        <div class="admin-metric-grid" id="admin-metric-grid">
+          <div class="admin-metric"><span>Total runs</span><strong>0</strong></div>
+          <div class="admin-metric"><span>Success</span><strong>0</strong></div>
+          <div class="admin-metric"><span>Failed</span><strong>0</strong></div>
+          <div class="admin-metric"><span>Avg duration</span><strong>0 ms</strong></div>
+        </div>
+
+        <div class="admin-layout">
+          <section class="admin-demo-table" aria-label="Hosted application references">
+            <h2>Hosted application references</h2>
+            <div class="admin-connection-grid" id="admin-connection-grid">
+              <div class="admin-demo-row">
+                <strong>No hosted references loaded</strong>
+                <span>Refresh to load deployment metadata.</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="admin-demo-table" aria-label="Usage summary">
+            <h2>Usage summary</h2>
+            <div id="admin-demo-summary">
+              <div class="admin-demo-row">
+                <strong>No demo runs yet</strong>
+                <span>Run a demo to populate usage metrics.</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="admin-run-log-panel" aria-label="Recent execution logs">
+          <h2>Recent execution logs</h2>
+          <div id="admin-run-logs">
+            <div class="admin-run-log-empty">No execution logs yet.</div>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>

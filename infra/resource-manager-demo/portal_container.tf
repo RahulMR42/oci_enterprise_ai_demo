@@ -133,6 +133,40 @@ data "local_file" "code_interpreter_container" {
   depends_on = [module.code_interpreter]
 }
 
+resource "oci_objectstorage_bucket" "portal_config" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  namespace      = data.oci_objectstorage_namespace.portal.namespace
+  name           = "enterprise-ai-demo-portal-config-${var.resource_suffix}"
+  access_type    = "NoPublicAccess"
+  freeform_tags  = local.portal_tags
+}
+
+resource "oci_objectstorage_object" "portal_runtime_config" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  namespace    = data.oci_objectstorage_namespace.portal.namespace
+  bucket       = oci_objectstorage_bucket.portal_config[0].name
+  object       = "portal-runtime-config.json"
+  content      = jsonencode(local.portal_runtime_config)
+  content_type = "application/json"
+}
+
+resource "oci_objectstorage_object" "portal_run_history" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  namespace    = data.oci_objectstorage_namespace.portal.namespace
+  bucket       = oci_objectstorage_bucket.portal_config[0].name
+  object       = "portal-demo-run-summary.json"
+  content      = jsonencode({ updatedAt = "", metrics = {}, runs = [] })
+  content_type = "application/json"
+
+  lifecycle {
+    ignore_changes = [content]
+  }
+}
+
 resource "oci_container_instances_container_instance" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -181,10 +215,18 @@ resource "oci_container_instances_container_instance" "portal" {
       OCI_HOSTED_LANGGRAPH_URL             = local.hosted_deployment_exports.LANGGRAPH_URL
       OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID  = local.hosted_deployment_exports.LLAMAINDEX_DEPLOYMENT_ID
       OCI_HOSTED_LLAMAINDEX_URL            = local.hosted_deployment_exports.LLAMAINDEX_URL
+      OCI_HOSTED_N8N_DEPLOYMENT_ID         = local.hosted_deployment_exports.N8N_DEPLOYMENT_ID
+      OCI_HOSTED_N8N_URL                   = local.hosted_deployment_exports.N8N_URL
       OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID    = local.hosted_deployment_exports.OPENCLAW_DEPLOYMENT_ID
       OCI_HOSTED_OPENCLAW_URL              = local.hosted_deployment_exports.OPENCLAW_URL
       PORT                                 = tostring(var.portal_container_port)
       OCI_PORTAL_PASSWORD                  = local.portal_auth_password
+      OCI_PORTAL_RUNTIME_CONFIG_BUCKET     = oci_objectstorage_bucket.portal_config[0].name
+      OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE  = data.oci_objectstorage_namespace.portal.namespace
+      OCI_PORTAL_RUNTIME_CONFIG_OBJECT     = oci_objectstorage_object.portal_runtime_config[0].object
+      OCI_PORTAL_RUN_HISTORY_BUCKET        = oci_objectstorage_bucket.portal_config[0].name
+      OCI_PORTAL_RUN_HISTORY_NAMESPACE     = data.oci_objectstorage_namespace.portal.namespace
+      OCI_PORTAL_RUN_HISTORY_OBJECT        = oci_objectstorage_object.portal_run_history[0].object
       OCI_RESOURCE_SUFFIX                  = var.resource_suffix
     }
 
@@ -212,7 +254,9 @@ resource "oci_container_instances_container_instance" "portal" {
     module.shared_demo_security,
     module.file_search_vector_store_rag,
     module.code_interpreter,
-    module.devops_hosted_image_build
+    module.devops_hosted_image_build,
+    oci_objectstorage_object.portal_runtime_config,
+    oci_objectstorage_object.portal_run_history
   ]
 }
 
@@ -246,7 +290,7 @@ locals {
     ? try(jsondecode(data.local_file.code_interpreter_container[0].content).id, "")
     : ""
   )
-  hosted_deployment_exports = merge({
+  default_hosted_deployment_exports = {
     HOSTED_AGENT_DEPLOYMENT_ID = ""
     HOSTED_AGENT_URL           = ""
     LANGFUSE_DEPLOYMENT_ID     = ""
@@ -255,7 +299,34 @@ locals {
     LANGGRAPH_URL              = ""
     LLAMAINDEX_DEPLOYMENT_ID   = ""
     LLAMAINDEX_URL             = ""
+    N8N_DEPLOYMENT_ID          = ""
+    N8N_URL                    = ""
     OPENCLAW_DEPLOYMENT_ID     = ""
     OPENCLAW_URL               = ""
-  }, module.devops_hosted_image_build.hosted_deployment_exports)
+  }
+  existing_hosted_deployment_exports = {
+    for key, value in try(jsondecode(var.existing_hosted_deployment_exports_json), {}) :
+    key => tostring(value)
+    if contains(keys(local.default_hosted_deployment_exports), key)
+  }
+  hosted_deployment_exports = merge(
+    local.default_hosted_deployment_exports,
+    local.existing_hosted_deployment_exports,
+    module.devops_hosted_image_build.hosted_deployment_exports
+  )
+  portal_runtime_config = {
+    resourceSuffix               = var.resource_suffix
+    region                       = var.region
+    sourceRevision               = var.devops_source_revision
+    projectId                    = var.oci_genai_project_id
+    vectorStoreId                = local.portal_vector_store_id
+    codeInterpreterContainerId   = local.portal_code_interpreter_container_id
+    hosted                       = local.hosted_deployment_exports
+    runHistoryObjectNamespace    = data.oci_objectstorage_namespace.portal.namespace
+    runHistoryObjectBucket       = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runHistoryObjectName         = "portal-demo-run-summary.json"
+    runtimeConfigObjectNamespace = data.oci_objectstorage_namespace.portal.namespace
+    runtimeConfigObjectBucket    = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runtimeConfigObjectName      = "portal-runtime-config.json"
+  }
 }
