@@ -167,6 +167,12 @@ resource "oci_container_instances_container_instance" "portal" {
       OCI_GENAI_PROJECT_ID                 = var.oci_genai_project_id
       OCI_GENAI_REGION                     = var.region
       OCI_GENAI_VECTOR_STORE_ID            = local.portal_vector_store_id
+      OCI_HOSTED_APP_IDCS_AUDIENCE         = var.idcs_audience
+      OCI_HOSTED_APP_IDCS_CLIENT_ID        = module.hosted_agentic_applications.n8n_idcs_launch_client_id
+      OCI_HOSTED_APP_IDCS_CLIENT_SECRET    = module.hosted_agentic_applications.n8n_idcs_launch_client_secret
+      OCI_HOSTED_APP_IDCS_DOMAIN_URL       = var.idcs_domain_url
+      OCI_HOSTED_APP_IDCS_SCOPE            = var.idcs_scope
+      OCI_HOSTED_APP_IDCS_TOKEN_URL        = "${trimsuffix(var.idcs_domain_url, "/")}/oauth2/v1/token"
       OCI_HOSTED_AGENT_DEPLOYMENT_ID       = local.hosted_deployment_exports.HOSTED_AGENT_DEPLOYMENT_ID
       OCI_HOSTED_AGENT_URL                 = local.hosted_deployment_exports.HOSTED_AGENT_URL
       OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID    = local.hosted_deployment_exports.LANGFUSE_DEPLOYMENT_ID

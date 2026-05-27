@@ -68,6 +68,12 @@ output "n8n_idcs_launch_client_id" {
   value       = var.n8n_idcs_launch_client_enabled ? local.n8n_idcs_client_name : ""
 }
 
+output "n8n_idcs_launch_client_secret" {
+  description = "Client secret for the Terraform-managed hosted UI launch confidential app."
+  value       = var.n8n_idcs_launch_client_enabled ? oci_identity_domains_app.n8n_launch_client[0].client_secret : ""
+  sensitive   = true
+}
+
 output "langfuse_hosted_observability_generated_file" {
   description = "Generated Langfuse hosted observability application/deployment metadata."
   value       = "${path.module}/.terraform/generated/langfuse_hosted_observability.json"

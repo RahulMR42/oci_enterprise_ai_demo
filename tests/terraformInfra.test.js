@@ -528,6 +528,9 @@ test("server refresh discovers hosted runtime metadata when generated files are 
   assert.match(server, /process\.env\.OCI_HOSTED_LANGFUSE_URL/);
   assert.match(server, /discoverGeneratedHostedRuntimeState/);
   assert.match(portalTerraform, /OCI_RESOURCE_SUFFIX\s+=\s+var\.resource_suffix/);
+  assert.match(portalTerraform, /OCI_HOSTED_APP_IDCS_CLIENT_ID\s+=\s+module\.hosted_agentic_applications\.n8n_idcs_launch_client_id/);
+  assert.match(portalTerraform, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET\s+=\s+module\.hosted_agentic_applications\.n8n_idcs_launch_client_secret/);
+  assert.match(portalTerraform, /OCI_HOSTED_APP_IDCS_TOKEN_URL/);
 });
 
 test("DevOps hosted deployment replaces old hosted apps instead of accumulating duplicates", () => {
