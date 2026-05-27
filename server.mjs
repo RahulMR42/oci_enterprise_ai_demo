@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -105,10 +105,114 @@ function redactForDemoLog(value) {
 function writeDemoLog(featureId, payload = {}) {
   const logDir = join(root, "logs/demos", safeLogName(featureId));
   mkdirSync(logDir, { recursive: true });
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const createdAt = new Date().toISOString();
+  const timestamp = createdAt.replace(/[:.]/g, "-");
   const logFile = join(logDir, `${timestamp}-${randomBytes(4).toString("hex")}.json`);
-  writeFileSync(logFile, JSON.stringify(redactForDemoLog({ featureId, ...payload }), null, 2));
+  writeFileSync(logFile, JSON.stringify(redactForDemoLog({ featureId, createdAt, ...payload }), null, 2));
   return logFile;
+}
+
+function demoLogPreview(value = "") {
+  return String(value || "").slice(0, 4000);
+}
+
+export function summarizeDemoRunHistory(records = []) {
+  const sortedRuns = records
+    .map((record) => redactForDemoLog(record || {}))
+    .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
+    .map((record) => ({
+      featureId: record.featureId || "unknown",
+      action: record.action || "run",
+      status: record.status || record.response?.status || "unknown",
+      durationMs: Number.isFinite(record.durationMs) ? record.durationMs : 0,
+      createdAt: record.createdAt || "",
+      error: record.error || record.response?.error || "",
+      logFile: record.logFile || "",
+      stdout: demoLogPreview(record.stdout),
+      stderr: demoLogPreview(record.stderr),
+      logs: Array.isArray(record.response?.logs) ? record.response.logs.slice(0, 5) : Array.isArray(record.logs) ? record.logs.slice(0, 5) : [],
+      trace: Array.isArray(record.response?.trace) ? record.response.trace.slice(0, 5) : Array.isArray(record.trace) ? record.trace.slice(0, 5) : []
+    }));
+
+  const totalDuration = sortedRuns.reduce((sum, run) => sum + (Number.isFinite(run.durationMs) ? run.durationMs : 0), 0);
+  const successfulRuns = sortedRuns.filter((run) => run.status === "success").length;
+  const failedRuns = sortedRuns.filter((run) => run.status === "failed").length;
+  const byFeature = new Map();
+  for (const run of sortedRuns) {
+    const current = byFeature.get(run.featureId) || {
+      featureId: run.featureId,
+      runs: 0,
+      successes: 0,
+      failures: 0,
+      totalDurationMs: 0,
+      lastStatus: "unknown",
+      lastRunAt: "",
+      lastError: ""
+    };
+    current.runs += 1;
+    current.successes += run.status === "success" ? 1 : 0;
+    current.failures += run.status === "failed" ? 1 : 0;
+    current.totalDurationMs += run.durationMs;
+    if (!current.lastRunAt || String(run.createdAt || "").localeCompare(current.lastRunAt) > 0) {
+      current.lastRunAt = run.createdAt;
+      current.lastStatus = run.status;
+      current.lastError = run.error;
+    }
+    byFeature.set(run.featureId, current);
+  }
+
+  const demos = [...byFeature.values()]
+    .map((demo) => ({
+      ...demo,
+      averageDurationMs: demo.runs ? Math.round(demo.totalDurationMs / demo.runs) : 0
+    }))
+    .sort((left, right) => String(right.lastRunAt || "").localeCompare(String(left.lastRunAt || "")));
+
+  return {
+    metrics: {
+      totalRuns: sortedRuns.length,
+      successfulRuns,
+      failedRuns,
+      averageDurationMs: sortedRuns.length ? Math.round(totalDuration / sortedRuns.length) : 0,
+      lastRunAt: sortedRuns[0]?.createdAt || ""
+    },
+    demos,
+    runs: sortedRuns.slice(0, 50)
+  };
+}
+
+export function readDemoRunHistory() {
+  const logRoot = join(root, "logs/demos");
+  if (!existsSync(logRoot)) {
+    return summarizeDemoRunHistory([]);
+  }
+
+  const records = [];
+  for (const featureDir of readdirSync(logRoot, { withFileTypes: true })) {
+    if (!featureDir.isDirectory()) {
+      continue;
+    }
+    const featurePath = join(logRoot, featureDir.name);
+    for (const logEntry of readdirSync(featurePath, { withFileTypes: true })) {
+      if (!logEntry.isFile() || !logEntry.name.endsWith(".json")) {
+        continue;
+      }
+      const logPath = join(featurePath, logEntry.name);
+      try {
+        const payload = JSON.parse(readFileSync(logPath, "utf8"));
+        records.push({
+          ...payload,
+          featureId: payload.featureId || featureDir.name,
+          createdAt: payload.createdAt || statSync(logPath).mtime.toISOString(),
+          logFile: logPath
+        });
+      } catch {
+        // Ignore malformed log files so one bad record does not break the admin page.
+      }
+    }
+  }
+
+  return summarizeDemoRunHistory(records);
 }
 
 function resolvePortalAuthPassword() {
@@ -2762,6 +2866,26 @@ export const server = createServer(async (request, response) => {
         error: error.message,
         components: [],
         logs: []
+      });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && requestPath === "/api/admin/demo-runs") {
+    try {
+      sendJson(response, 200, readDemoRunHistory());
+    } catch (error) {
+      sendJson(response, 500, {
+        metrics: {
+          totalRuns: 0,
+          successfulRuns: 0,
+          failedRuns: 0,
+          averageDurationMs: 0,
+          lastRunAt: ""
+        },
+        demos: [],
+        runs: [],
+        error: error.message
       });
     }
     return;

@@ -98,6 +98,12 @@ variable "devops_hosted_image_run_build" {
   default     = true
 }
 
+variable "deploy_only_app" {
+  description = "When true, the OCI DevOps pipeline builds and delivers images but skips hosted application deployment stages so only the portal app container is redeployed."
+  type        = bool
+  default     = false
+}
+
 variable "devops_source_repo_url" {
   description = "Git repository URL containing this demo source and the DevOps build spec."
   type        = string

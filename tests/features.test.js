@@ -163,3 +163,22 @@ test("portal stores star-only ratings and card run counts locally", () => {
   assert.match(styles, /\.run-count-badge/);
   assert.match(styles, /border-radius: 999px/);
 });
+
+test("portal replaces infrastructure panel with administration run history", () => {
+  const main = readFileSync("src/main.js", "utf8");
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(main, /href="#administration"/);
+  assert.match(main, /id="administration"/);
+  assert.match(main, /Administration/);
+  assert.match(main, /admin-metric-grid/);
+  assert.match(main, /admin-demo-table/);
+  assert.match(main, /loadAdministrationMetrics/);
+  assert.match(main, /\/api\/admin\/demo-runs/);
+  assert.match(main, /recordClientRunSummary/);
+  assert.doesNotMatch(main, /id="infra-panel"/);
+  assert.doesNotMatch(main, /id="infra-refresh-button"/);
+  assert.doesNotMatch(main, /id="infra-action-logs"/);
+  assert.match(styles, /\.admin-section/);
+  assert.match(styles, /\.admin-demo-row/);
+});

@@ -110,6 +110,7 @@ module "devops_hosted_image_build" {
   )
   shared_policy_id = module.shared_demo_security.policy_id
   run_build        = var.devops_hosted_image_run_build
+  deploy_only_app  = var.deploy_only_app
 }
 
 module "hosted_agentic_applications" {
