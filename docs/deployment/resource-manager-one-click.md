@@ -13,7 +13,9 @@ The OCI DevOps pipeline created by the stack:
 - clones the public GitHub branch into an OCI DevOps code repository,
 - builds the hosted demo container images and the Enterprise AI portal image,
 - uploads each image through parallel OCI DevOps `DELIVER_ARTIFACT` stages,
-- runs one managed build stage to create hosted deployments.
+- runs one managed hosted-deployment build stage per hosted app, each starting after its matching image delivery stage.
+
+The stack package includes `infra/resource-manager-demo/schema.yaml`, so OCI Resource Manager renders grouped inputs for target tenancy/compartment, source branch, DevOps credentials, portal settings, OCI Generative AI runtime values, and hosted application auth. Terraform variable validation enforces OCID shapes, branch names, CIDR syntax, port and size ranges, and the Resource Manager-safe defaults.
 
 The portal container instance is exposed on the stack output `portal_url`. The login user is `oci`; read the sensitive `portal_login_password` output from the Resource Manager job or stack outputs.
 
@@ -47,7 +49,7 @@ Keep these defaults for Resource Manager:
 | `devops_create_repository` | `true` |
 | `devops_source_connection_type` | `DEVOPS_CODE_REPOSITORY` |
 | `devops_source_repo_url` | `https://github.com/RahulMR42/oci_enterprise_ai_demo.git` |
-| `devops_source_branch` | `oci-rms` or the release branch you want Resource Manager to clone |
+| `devops_source_branch` | `oci-rms` |
 | `devops_repository_branch` | `main` |
 | `portal_container_enabled` | `true` |
 
@@ -63,6 +65,13 @@ Keep these defaults for Resource Manager:
 
 The apply can run for more than 20 minutes because the DevOps build compiles images, publishes artifacts, and creates hosted deployments. The Terraform build-run resource waits up to 90 minutes.
 
+For iterative deployments, update both of these values before applying the same stack again:
+
+- `devops_source_branch=oci-rms`
+- `devops_source_revision=<commit SHA on oci-rms>`
+
+Keeping the branch and revision current makes Resource Manager seed the exact source into the OCI DevOps repository and starts a new build run without creating a second Resource Manager stack.
+
 ## Validate
 
 After apply finishes, check these outputs:
@@ -76,7 +85,15 @@ After apply finishes, check these outputs:
 | `devops_hosted_deployment_exports` | Hosted app URLs and deployment OCIDs. |
 | `portal_public_ip` | Public IP attached to the portal container instance. |
 
-Open `portal_url`, log in, and run both normal demos and hosted deployment demos. If a hosted demo is unavailable, open the DevOps build run from `devops_hosted_image_build_run_id` and check the final `deploy-hosted-applications` stage.
+Open `portal_url`, log in, and run both normal demos and hosted deployment demos. If a hosted demo is unavailable, open the DevOps build run from `devops_hosted_image_build_run_id` and check the per-app stages:
+
+- `deploy-hosted-agent`
+- `deploy-langgraph-agent`
+- `deploy-langfuse`
+- `deploy-openclaw`
+- `deploy-llamaindex-control-tower`
+
+Each deploy stage deletes older hosted deployments and hosted applications with the same display name before creating the replacement, so reruns do not accumulate duplicate active hosted apps.
 
 ## Publish a New Release Asset
 

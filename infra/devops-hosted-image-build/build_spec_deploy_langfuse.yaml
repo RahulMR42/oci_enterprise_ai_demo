@@ -6,12 +6,12 @@ failImmediatelyOnError: true
 
 env:
   exportedVariables:
-    - HOSTED_AGENT_URL
-    - HOSTED_AGENT_DEPLOYMENT_ID
+    - LANGFUSE_URL
+    - LANGFUSE_DEPLOYMENT_ID
 
 steps:
   - type: Command
-    name: deploy-hosted-agent
+    name: deploy-langfuse
     timeoutInSeconds: 7200
     command: |
-      . infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh HOSTED_AGENT
+      . infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh LANGFUSE

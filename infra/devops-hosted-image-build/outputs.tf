@@ -30,8 +30,10 @@ output "hosted_deployment_exports" {
   description = "Hosted application/deployment metadata exported by the DevOps build run."
   value = var.enabled && var.run_build ? {
     for item in flatten([
-      for collection in try(oci_devops_build_run.this[0].build_outputs[0].exported_variables, []) :
-      collection.items
+      for build_output in try(oci_devops_build_run.this[0].build_outputs, []) : [
+        for collection in try(build_output.exported_variables, []) :
+        collection.items
+      ]
     ]) : item.name => item.value
   } : {}
 }

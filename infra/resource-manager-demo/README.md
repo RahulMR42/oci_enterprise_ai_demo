@@ -4,6 +4,8 @@ This Terraform root is the OCI Resource Manager entry point for the full demo. P
 
 The stack owns the shared demo infrastructure, OCI DevOps build pipeline, hosted application deployment flow, and the public portal container instance. Hosted application create/deploy operations run from OCI DevOps with resource principal auth. Resource Manager should not depend on local OCI credentials for those operations.
 
+The stack includes `schema.yaml` for OCI Resource Manager input grouping and Terraform `validation` blocks for OCIDs, branch names, CIDRs, ports, shape sizing, connection type, and Resource Manager-safe branch defaults. The default source branch is `oci-rms`; set `devops_source_revision` to the exact commit SHA you want the DevOps build to consume.
+
 ## What the stack deploys
 
 The aggregate stack wires every Terraform-based deployment module used by the portal:
@@ -20,7 +22,9 @@ The aggregate stack wires every Terraform-based deployment module used by the po
 
 ## Image and hosted deployment flow
 
-Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, builds the hosted images plus the portal image, delivers each image to its OCIR repository, then runs the hosted application deployment stage with resource principal auth.
+Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, builds the hosted images plus the portal image, delivers each image to its OCIR repository, then runs one hosted application deployment stage per hosted app with resource principal auth. Each hosted app deploy stage depends only on its matching image delivery stage, so deployments can run in parallel as soon as their artifacts are available.
+
+Before creating a hosted app replacement, the deployment script deletes older hosted deployments and hosted applications with the same display names. This intentionally uses delete-then-create semantics on reruns to avoid duplicate hosted apps for the same demo name.
 
 The DevOps pipeline currently publishes images for:
 

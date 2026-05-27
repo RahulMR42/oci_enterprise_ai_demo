@@ -1,0 +1,300 @@
+title: Enterprise AI Demo Resource Manager Stack
+description: Deploys the Enterprise AI demo portal, shared OCI Generative AI resources, OCI DevOps image pipeline, hosted applications, and portal container instance.
+schemaVersion: 1.1.0
+version: 20260527
+locale: en
+
+variableGroups:
+  - title: Required OCI Target
+    variables:
+      - tenancy_id
+      - compartment_id
+      - region
+      - resource_suffix
+  - title: Source Branch and DevOps Build
+    variables:
+      - devops_source_repo_url
+      - devops_source_branch
+      - devops_source_revision
+      - devops_repository_branch
+      - devops_source_connection_type
+      - devops_create_repository
+      - devops_repository_git_username
+      - devops_repository_git_password
+      - devops_ocir_username
+      - devops_ocir_auth_token
+      - devops_hosted_image_build_enabled
+      - devops_hosted_image_run_build
+  - title: Portal Container
+    variables:
+      - portal_container_enabled
+      - portal_container_repository_id
+      - portal_container_repository_name
+      - portal_container_image_tag
+      - portal_container_port
+      - portal_container_shape
+      - portal_container_ocpus
+      - portal_container_memory_gbs
+      - portal_vcn_cidr
+      - portal_subnet_cidr
+      - portal_auth_password
+  - title: OCI Generative AI Runtime
+    variables:
+      - project_display_name
+      - oci_genai_project_id
+      - oci_genai_api_key
+  - title: Hosted Application Auth
+    variables:
+      - idcs_domain_url
+      - idcs_audience
+      - idcs_scope
+      - n8n_basic_auth_user
+      - n8n_basic_auth_password
+      - openclaw_gateway_token
+  - title: Advanced and Local-Exec Switches
+    variables:
+      - hosted_applications_local_exec_enabled
+      - responses_api_local_exec_enabled
+      - file_search_local_exec_enabled
+      - code_interpreter_local_exec_enabled
+      - hosted_app_push_image
+      - hosted_app_container_cli
+      - hosted_app_ocir_region_key
+      - portal_container_image_uri
+      - n8n_image_repository_uri
+      - langfuse_image_repository_uri
+      - openclaw_image_repository_uri
+      - llamaindex_image_repository_uri
+      - profile
+
+variables:
+  tenancy_id:
+    title: Tenancy OCID
+    description: Tenancy OCID where shared IAM resources are created.
+    type: ocid
+    required: true
+  compartment_id:
+    title: Compartment OCID
+    description: Compartment OCID that owns all demo resources.
+    type: ocid
+    required: true
+  region:
+    title: OCI Region
+    description: Region for all regional resources.
+    type: string
+    default: us-chicago-1
+    required: true
+  resource_suffix:
+    title: Resource Suffix
+    description: Exactly six lowercase letters or digits. Keep this stable across reruns to update the same stack resources.
+    type: string
+    required: true
+    pattern: "^[a-z0-9]{6}$"
+  devops_source_repo_url:
+    title: Source Git Repository URL
+    description: HTTPS Git repository cloned by Resource Manager before seeding the OCI DevOps repository.
+    type: string
+    default: https://github.com/RahulMR42/oci_enterprise_ai_demo.git
+  devops_source_branch:
+    title: Source Git Branch
+    description: Target source branch for Resource Manager. Use oci-rms for this deployment path.
+    type: string
+    default: oci-rms
+    pattern: "^[A-Za-z0-9._/-]+$"
+  devops_source_revision:
+    title: Source Revision
+    description: Optional Git commit SHA. Set this when branch contents change to force a new DevOps build run.
+    type: string
+    required: false
+    pattern: "^$|^[A-Fa-f0-9]{7,40}$"
+  devops_repository_branch:
+    title: OCI DevOps Repository Branch
+    description: Branch name inside the OCI DevOps code repository used by build stages.
+    type: string
+    default: main
+  devops_source_connection_type:
+    title: DevOps Source Connection Type
+    description: Keep DEVOPS_CODE_REPOSITORY when Resource Manager seeds an OCI DevOps repository.
+    type: enum
+    enum:
+      - DEVOPS_CODE_REPOSITORY
+      - GITHUB
+    default: DEVOPS_CODE_REPOSITORY
+  devops_create_repository:
+    title: Create OCI DevOps Repository
+    type: boolean
+    default: true
+  devops_repository_git_username:
+    title: OCI DevOps Git Username
+    type: string
+    required: true
+  devops_repository_git_password:
+    title: OCI DevOps Git Password or Auth Token
+    type: password
+    required: true
+    sensitive: true
+  devops_ocir_username:
+    title: OCIR Username
+    type: string
+    required: true
+  devops_ocir_auth_token:
+    title: OCIR Auth Token
+    type: password
+    required: true
+    sensitive: true
+  devops_hosted_image_build_enabled:
+    title: Enable OCI DevOps Hosted Image Build
+    type: boolean
+    default: true
+  devops_hosted_image_run_build:
+    title: Run OCI DevOps Build During Apply
+    type: boolean
+    default: true
+  portal_container_enabled:
+    title: Deploy Portal Container Instance
+    type: boolean
+    default: true
+  portal_container_repository_id:
+    title: Existing Portal OCIR Repository OCID
+    description: Optional. Use this to adopt an existing portal image repository instead of creating a duplicate.
+    type: ocid
+    required: false
+  portal_container_repository_name:
+    title: Portal OCIR Repository Name
+    type: string
+    default: enterprise-ai-demo/portal-rm
+  portal_container_image_tag:
+    title: Portal Image Tag
+    type: string
+    default: latest
+  portal_container_port:
+    title: Portal Port
+    type: integer
+    default: 5173
+    minimum: 1024
+    maximum: 65535
+  portal_container_shape:
+    title: Portal Container Shape
+    type: string
+    default: CI.Standard.E4.Flex
+  portal_container_ocpus:
+    title: Portal OCPUs
+    type: number
+    default: 1
+    minimum: 1
+    maximum: 4
+  portal_container_memory_gbs:
+    title: Portal Memory GB
+    type: number
+    default: 4
+    minimum: 1
+    maximum: 64
+  portal_vcn_cidr:
+    title: Portal VCN CIDR
+    type: string
+    default: 10.42.0.0/16
+  portal_subnet_cidr:
+    title: Portal Public Subnet CIDR
+    type: string
+    default: 10.42.1.0/24
+  portal_auth_password:
+    title: Optional Portal Login Password
+    description: Leave empty to generate a sensitive Terraform output.
+    type: password
+    required: false
+    sensitive: true
+  project_display_name:
+    title: OCI Generative AI Project Display Name Prefix
+    type: string
+    default: enterprise-ai-demo-responses-api
+  oci_genai_project_id:
+    title: Existing OCI Generative AI Project OCID
+    type: ocid
+    required: false
+  oci_genai_api_key:
+    title: Existing OCI Generative AI API Key
+    type: password
+    required: false
+    sensitive: true
+  idcs_domain_url:
+    title: IDCS Domain URL
+    description: HTTPS identity domain URL used for hosted application inbound auth.
+    type: string
+    required: true
+  idcs_audience:
+    title: IDCS Audience
+    type: string
+    required: true
+  idcs_scope:
+    title: IDCS Scope
+    type: string
+    required: true
+  n8n_basic_auth_user:
+    title: n8n Basic Auth User
+    type: string
+    default: admin
+  n8n_basic_auth_password:
+    title: n8n Basic Auth Password
+    type: password
+    required: true
+    sensitive: true
+  openclaw_gateway_token:
+    title: OpenClaw Gateway Token
+    type: password
+    required: false
+    sensitive: true
+  hosted_applications_local_exec_enabled:
+    title: Enable Hosted App Local-Exec
+    type: boolean
+    default: false
+  responses_api_local_exec_enabled:
+    title: Enable Responses API Local-Exec
+    type: boolean
+    default: false
+  file_search_local_exec_enabled:
+    title: Enable File Search Local-Exec
+    type: boolean
+    default: false
+  code_interpreter_local_exec_enabled:
+    title: Enable Code Interpreter Local-Exec
+    type: boolean
+    default: false
+  hosted_app_push_image:
+    title: Build Images From Terraform Local-Exec
+    type: boolean
+    default: false
+  hosted_app_container_cli:
+    title: Local Container CLI
+    type: enum
+    enum:
+      - podman
+      - docker
+    default: podman
+  hosted_app_ocir_region_key:
+    title: OCIR Region Key
+    type: string
+    default: ord
+  portal_container_image_uri:
+    title: Optional Full Portal Image URI
+    type: string
+    required: false
+  n8n_image_repository_uri:
+    title: Optional n8n Image Repository URI
+    type: string
+    required: false
+  langfuse_image_repository_uri:
+    title: Optional Langfuse Image Repository URI
+    type: string
+    required: false
+  openclaw_image_repository_uri:
+    title: Optional OpenClaw Image Repository URI
+    type: string
+    required: false
+  llamaindex_image_repository_uri:
+    title: Optional LlamaIndex Image Repository URI
+    type: string
+    required: false
+  profile:
+    title: Local OCI CLI Profile
+    type: string
+    required: false

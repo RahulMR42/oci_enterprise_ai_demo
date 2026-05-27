@@ -45,6 +45,7 @@ const demoScripts = {
   "a2a-agent-collaboration": "a2a_agent_collaboration.py",
   "agentic-control-tower": "agentic_control_tower.py",
   "agentic-rag-planner": "agentic_rag_planner.py",
+  "locus-sdk-agentic-workflows": "locus_sdk_agentic_workflows.py",
   "human-approval-agent": "human_approval_agent.py",
   "governance-center": "governance_center.py",
   "document-understanding-genai": "document_understanding_genai.py",
@@ -783,7 +784,188 @@ async function refreshHostedJsonFile({ label, id, targetFile, commandArgs, runti
   };
 }
 
+function resolveHostedRuntimeResourceSuffix() {
+  const envSuffix = String(process.env.OCI_RESOURCE_SUFFIX || "").trim();
+  if (envSuffix) {
+    return envSuffix;
+  }
+
+  const state = readJsonFile(join(root, "infra/responses-api/terraform.tfstate"));
+  const resource = (state.resources || []).find((candidate) => candidate.type === "terraform_data" && candidate.name === "resource_suffix");
+  return String(resource?.instances?.[0]?.attributes?.input?.resource_suffix || "fd2ed9").trim();
+}
+
+function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntimeResourceSuffix()) {
+  const region = process.env.OCI_GENAI_REGION || "us-chicago-1";
+  return [
+    {
+      label: "Hosted Agent",
+      runtime: "hosted-agent",
+      applicationDisplayName: `enterprise-ai-demo-hosted-agent-${resourceSuffix}`,
+      deploymentDisplayName: `enterprise-ai-demo-hosted-agent-deployment-${resourceSuffix}`,
+      runtimeFile: "hosted_agent.json",
+      envUrl: process.env.OCI_HOSTED_AGENT_URL || "",
+      envDeploymentId: process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || "",
+      repositoryName: `enterprise-ai-demo/hosted-agent-${resourceSuffix}`
+    },
+    {
+      label: "LangGraph",
+      runtime: "langgraph",
+      applicationDisplayName: `enterprise-ai-demo-langgraph-agent-${resourceSuffix}`,
+      deploymentDisplayName: `enterprise-ai-demo-langgraph-agent-deployment-${resourceSuffix}`,
+      runtimeFile: "langgraph_hosted_agent.json",
+      envUrl: process.env.OCI_HOSTED_LANGGRAPH_URL || "",
+      envDeploymentId: process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || "",
+      repositoryName: `enterprise-ai-demo/hosted-langgraph-agent-${resourceSuffix}`
+    },
+    {
+      label: "Langfuse",
+      runtime: "langfuse",
+      applicationDisplayName: `enterprise-ai-demo-langfuse-${resourceSuffix}`,
+      deploymentDisplayName: `enterprise-ai-demo-langfuse-deployment-${resourceSuffix}`,
+      runtimeFile: "langfuse_hosted_observability.json",
+      envUrl: process.env.OCI_HOSTED_LANGFUSE_URL || "",
+      envDeploymentId: process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || "",
+      repositoryName: `enterprise-ai-demo/hosted-langfuse-${resourceSuffix}`
+    },
+    {
+      label: "OpenClaw",
+      runtime: "openclaw",
+      applicationDisplayName: `enterprise-ai-demo-openclaw-${resourceSuffix}`,
+      deploymentDisplayName: `enterprise-ai-demo-openclaw-deployment-${resourceSuffix}`,
+      runtimeFile: "openclaw_hosted_gateway.json",
+      envUrl: process.env.OCI_HOSTED_OPENCLAW_URL || "",
+      envDeploymentId: process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || "",
+      repositoryName: `enterprise-ai-demo/hosted-openclaw-${resourceSuffix}`
+    },
+    {
+      label: "LlamaIndex",
+      runtime: "llamaindex",
+      applicationDisplayName: `enterprise-ai-demo-llamaindex-control-tower-${resourceSuffix}`,
+      deploymentDisplayName: `enterprise-ai-demo-llamaindex-control-tower-deployment-${resourceSuffix}`,
+      runtimeFile: "llamaindex_control_tower.json",
+      envUrl: process.env.OCI_HOSTED_LLAMAINDEX_URL || "",
+      envDeploymentId: process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || "",
+      repositoryName: `enterprise-ai-demo/hosted-llamaindex-control-tower-${resourceSuffix}`
+    }
+  ].map((definition) => ({
+    ...definition,
+    region
+  }));
+}
+
+function resourceSearchCommand(label, queryText) {
+  return ociGetCommand(label, ["search", "resource", "structured-search", "--query-text", queryText]);
+}
+
+function selectDiscoveredResource(payload = {}, displayName = "", resourceKind = "") {
+  const items = payload.data?.items || payload.items || [];
+  const kind = resourceKind.toLowerCase();
+  return items
+    .filter((item) => {
+      const itemName = item["display-name"] || item.displayName || "";
+      const resourceType = String(item["resource-type"] || item.resourceType || "").toLowerCase();
+      const lifecycleState = String(item["lifecycle-state"] || item.lifecycleState || "").toLowerCase();
+      return itemName === displayName && resourceType.includes(kind) && !["deleted", "deleting"].includes(lifecycleState);
+    })
+    .sort((left, right) => String(right["time-created"] || right.timeCreated || "").localeCompare(String(left["time-created"] || left.timeCreated || "")))[0];
+}
+
+async function discoverHostedResource({ label, displayName, resourceKind }) {
+  const queryText = `query all resources where displayName = '${displayName}'`;
+  const result = await runCommand(resourceSearchCommand(`OCI ${label} discovery`, queryText));
+  if (result.status !== "success" || !result.stdout.trim()) {
+    return { result, resource: null };
+  }
+
+  try {
+    const resource = selectDiscoveredResource(JSON.parse(result.stdout), displayName, resourceKind);
+    return {
+      result: {
+        ...result,
+        stdout: resource ? `Discovered ${displayName}` : `No active ${displayName} resource discovered.`
+      },
+      resource
+    };
+  } catch (error) {
+    return {
+      result: {
+        ...result,
+        status: "failed",
+        stderr: `${result.stderr}\nFailed to parse OCI Search response: ${error.message}`.trim()
+      },
+      resource: null
+    };
+  }
+}
+
+async function discoverGeneratedHostedRuntimeState() {
+  const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
+  mkdirSync(hostedDir, { recursive: true });
+  const logs = [];
+
+  for (const definition of hostedRuntimeDiscoveryDefinitions()) {
+    const targetFile = join(hostedDir, definition.runtimeFile);
+    const current = readJsonFile(targetFile);
+    if (current.hostedApplicationId && (current.hostedDeploymentId || definition.envDeploymentId)) {
+      continue;
+    }
+
+    const applicationDiscovery = await discoverHostedResource({
+      label: `${definition.label} hosted application`,
+      displayName: definition.applicationDisplayName,
+      resourceKind: "hostedapplication"
+    });
+    logs.push(applicationDiscovery.result);
+
+    const deploymentDiscovery = await discoverHostedResource({
+      label: `${definition.label} hosted deployment`,
+      displayName: definition.deploymentDisplayName,
+      resourceKind: "hosteddeployment"
+    });
+    logs.push(deploymentDiscovery.result);
+
+    const hostedApplicationId = current.hostedApplicationId || applicationDiscovery.resource?.identifier || "";
+    const hostedDeploymentId = current.hostedDeploymentId || definition.envDeploymentId || deploymentDiscovery.resource?.identifier || "";
+    const endpoint = current.url || current.endpoint || definition.envUrl || hostedApplicationInvokeUrl(hostedApplicationId, definition.region);
+
+    if (hostedApplicationId || hostedDeploymentId || endpoint) {
+      writeFileSync(
+        targetFile,
+        JSON.stringify(
+          {
+            ...current,
+            runtime: current.runtime || definition.runtime,
+            repositoryName: current.repositoryName || definition.repositoryName,
+            hostedApplicationId,
+            hostedApplicationDisplayName: definition.applicationDisplayName,
+            hostedApplicationLifecycleState:
+              current.hostedApplicationLifecycleState ||
+              applicationDiscovery.resource?.["lifecycle-state"] ||
+              applicationDiscovery.resource?.lifecycleState ||
+              "",
+            hostedDeploymentId,
+            hostedDeploymentDisplayName: definition.deploymentDisplayName,
+            hostedDeploymentLifecycleState:
+              current.hostedDeploymentLifecycleState ||
+              deploymentDiscovery.resource?.["lifecycle-state"] ||
+              deploymentDiscovery.resource?.lifecycleState ||
+              "",
+            endpoint,
+            url: endpoint
+          },
+          null,
+          2
+        )
+      );
+    }
+  }
+
+  return logs.filter(Boolean);
+}
+
 async function refreshGeneratedRuntimeState() {
+  const discoveryLogs = await discoverGeneratedHostedRuntimeState();
   const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
   const hostedRuntimeFile = join(hostedDir, "hosted_agent.json");
   const langGraphRuntimeFile = join(hostedDir, "langgraph_hosted_agent.json");
@@ -879,7 +1061,7 @@ async function refreshGeneratedRuntimeState() {
     })
   ]);
 
-  return refreshLogs.filter(Boolean);
+  return [...discoveryLogs, ...refreshLogs.filter(Boolean)];
 }
 
 export function statusFromLifecycle(value, fallback = "not-created") {
@@ -916,17 +1098,32 @@ function hostedApplicationInvokeUrl(hostedApplicationId, region = "us-chicago-1"
 
 function readN8nLaunchUrl() {
   const workflow = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "n8n_hosted_workflow.json"));
-  return workflow.url || workflow.endpoint || hostedApplicationInvokeUrl(workflow.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+  return (
+    workflow.url ||
+    workflow.endpoint ||
+    process.env.OCI_HOSTED_N8N_URL ||
+    hostedApplicationInvokeUrl(workflow.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+  );
 }
 
 function readLangfuseLaunchUrl() {
   const observability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
-  return observability.url || observability.endpoint || hostedApplicationInvokeUrl(observability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+  return (
+    observability.url ||
+    observability.endpoint ||
+    process.env.OCI_HOSTED_LANGFUSE_URL ||
+    hostedApplicationInvokeUrl(observability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+  );
 }
 
 function readOpenClawLaunchUrl() {
   const gateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
-  return gateway.url || gateway.endpoint || hostedApplicationInvokeUrl(gateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+  return (
+    gateway.url ||
+    gateway.endpoint ||
+    process.env.OCI_HOSTED_OPENCLAW_URL ||
+    hostedApplicationInvokeUrl(gateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+  );
 }
 
 function readLlamaIndexControlTowerMetadata() {
@@ -935,7 +1132,12 @@ function readLlamaIndexControlTowerMetadata() {
 
 function readLlamaIndexControlTowerLaunchUrl() {
   const controlTower = readLlamaIndexControlTowerMetadata();
-  return controlTower.url || controlTower.endpoint || hostedApplicationInvokeUrl(controlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+  return (
+    controlTower.url ||
+    controlTower.endpoint ||
+    process.env.OCI_HOSTED_LLAMAINDEX_URL ||
+    hostedApplicationInvokeUrl(controlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+  );
 }
 
 function readN8nIdcsLaunchConfig() {
@@ -2076,6 +2278,10 @@ response = call_oci_responses_api(build_control_tower_prompt(workflow_result), t
     "agentic-rag-planner": `plan = build_retrieval_plan(prompt)
 queries = plan["retrievalQueries"]
 response = call_oci_responses_api(build_grounded_plan_prompt(plan), temperature, model, config)`,
+    "locus-sdk-agentic-workflows": `workflow = build_locus_agent_workflow(prompt)
+tools = select_locus_tools(workflow)
+memory = load_locus_memory_context(workflow)
+response = call_oci_responses_api(build_locus_prompt(workflow), temperature, model, config)`,
     "human-approval-agent": `approval = classify_agent_action_risk(prompt)
 if approval["approvalRequired"]:
     response = call_oci_responses_api(build_approval_prompt(approval), temperature, model, config)`,

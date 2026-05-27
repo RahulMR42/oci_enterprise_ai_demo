@@ -68,10 +68,13 @@ test("nl2sql terraform includes autonomous database and db tools but no local IA
 
   assert.match(terraform, /resource "random_password" "sql_search_admin"/);
   assert.match(terraform, /resource "oci_kms_vault" "sql_search"/);
+  assert.match(terraform, /resource "time_sleep" "sql_search_vault_dns"/);
   assert.match(terraform, /resource "oci_kms_key" "sql_search"/);
   assert.match(terraform, /resource "oci_vault_secret" "sql_search_admin_password"/);
   assert.match(terraform, /resource "oci_database_autonomous_database" "sql_search"/);
   assert.match(terraform, /admin_password\s+=\s+random_password\.sql_search_admin\.result/);
+  assert.match(terraform, /create_duration\s+=\s+"120s"/);
+  assert.match(terraform, /depends_on\s+=\s+\[time_sleep\.sql_search_vault_dns\]/);
   assert.match(terraform, /resource "oci_database_tools_database_tools_connection" "enrichment"/);
   assert.match(terraform, /resource "oci_database_tools_database_tools_connection" "query"/);
   assert.match(terraform, /secret_id\s+=\s+local\.database_password_secret_id/);
@@ -317,6 +320,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   const terraform = [
     read("infra/resource-manager-demo/versions.tf"),
     read("infra/resource-manager-demo/variables.tf"),
+    read("infra/resource-manager-demo/schema.yaml"),
     read("infra/resource-manager-demo/main.tf"),
     read("infra/resource-manager-demo/portal_container.tf"),
     read("infra/resource-manager-demo/outputs.tf"),
@@ -327,10 +331,18 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/code-interpreter/container.tf"),
     read("infra/devops-hosted-image-build/locals.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
+    read("infra/devops-hosted-image-build/outputs.tf"),
     read("infra/devops-hosted-image-build/build_spec_images.yaml"),
-    read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml")
+    read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_langgraph.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_openclaw.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_llamaindex.yaml"),
+    read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh")
   ].join("\n");
   const readme = read("infra/resource-manager-demo/README.md");
+  const deployDocs = read("docs/deployment/resource-manager-one-click.md");
+  const releaseWorkflow = read(".github/workflows/release-resource-manager-stack.yml");
   const hostedAppTerraform = [
     read("infra/hosted-agentic-applications/hosted_application.tf"),
     read("infra/hosted-agentic-applications/langgraph_hosted_application.tf"),
@@ -357,6 +369,14 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /module "devops_hosted_image_build"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/devops-hosted-image-build"/);
   assert.match(terraform, /variable "devops_repository_branch"/);
+  assert.match(terraform, /variable "devops_source_branch"[\s\S]*default\s+=\s+"oci-rms"/);
+  assert.match(terraform, /schemaVersion: 1\.1\.0/);
+  assert.match(terraform, /devops_source_branch:[\s\S]*default: oci-rms/);
+  assert.match(terraform, /devops_source_revision:[\s\S]*pattern: "\^\$\|\^\[A-Fa-f0-9\]\{7,40\}\$"/);
+  assert.match(terraform, /validation\s+\{[\s\S]*resource_suffix[\s\S]*\^\[a-z0-9\]\{6\}\$/);
+  assert.match(terraform, /validation\s+\{[\s\S]*portal_container_port >= 1024/);
+  assert.match(terraform, /validation\s+\{[\s\S]*contains\(\["GITHUB", "DEVOPS_CODE_REPOSITORY"\]/);
+  assert.match(terraform, /validation\s+\{[\s\S]*can\(cidrhost\(var\.portal_vcn_cidr, 1\)\)/);
   assert.match(terraform, /devops_repository_branch\s+=\s+var\.devops_repository_branch/);
   assert.match(terraform, /resource "oci_devops_project" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
@@ -377,8 +397,23 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /argument_substitution_mode\s+=\s+"NONE"/);
   assert.match(terraform, /artifact_name\s+=\s+each\.value\.artifact_name/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
-  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_deploy_hosted\.yaml"/);
+  assert.match(terraform, /hosted_application_deployments\s+=\s+\{/);
+  assert.match(terraform, /build_spec_file\s+=\s+each\.value\.build_spec_file/);
+  assert.match(terraform, /display_name\s+=\s+each\.value\.stage_name/);
+  assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.deliver_image\[each\.key\]\.id/);
+  assert.match(terraform, /build_spec_deploy_hosted\.yaml/);
+  assert.match(terraform, /build_spec_deploy_langgraph\.yaml/);
+  assert.match(terraform, /build_spec_deploy_langfuse\.yaml/);
+  assert.match(terraform, /build_spec_deploy_openclaw\.yaml/);
+  assert.match(terraform, /build_spec_deploy_llamaindex\.yaml/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh HOSTED_AGENT/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh LANGGRAPH/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh LANGFUSE/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh OPENCLAW/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh LLAMAINDEX/);
+  assert.doesNotMatch(terraform, /for_each = oci_devops_build_pipeline_stage\.deliver_image[\s\S]*items\.value\.id/);
   assert.match(terraform, /resource "oci_devops_build_run" "this"/);
+  assert.match(terraform, /for build_output in try\(oci_devops_build_run\.this\[0\]\.build_outputs, \[\]\)/);
   assert.match(terraform, /timeouts\s+\{[\s\S]*create\s+=\s+"90m"[\s\S]*\}/);
   assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
   assert.match(terraform, /resource "oci_logging_log_group" "devops"/);
@@ -418,6 +453,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /manage repos in compartment id/);
   assert.match(terraform, /module "hosted_agentic_applications"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/hosted-agentic-applications"/);
+  assert.doesNotMatch(terraform, /count\s+=\s+var\.hosted_applications_local_exec_enabled\s+\?\s+1\s+:\s+0/);
+  assert.match(terraform, /hosted_cli_deployments_enabled\s+=\s+var\.hosted_applications_local_exec_enabled/);
   assert.match(terraform, /resource_suffix\s+=\s+var\.resource_suffix/);
   assert.match(terraform, /push_image\s+=\s+var\.hosted_app_push_image/);
   assert.equal((hostedAppTerraform.match(/hosted_image_build_run_id\s+=\s+var\.hosted_image_build_run_id/g) || []).length, 6);
@@ -439,6 +476,12 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(readme, /resource principal auth/);
   assert.match(readme, /Enterprise AI portal image repository/);
   assert.match(readme, /The n8n demo code remains in the repository/);
+  assert.match(readme, /default source branch is `oci-rms`/);
+  assert.match(readme, /delete-then-create semantics/);
+  assert.match(deployDocs, /`devops_source_branch` \| `oci-rms`/);
+  assert.match(deployDocs, /`devops_source_revision=<commit SHA on oci-rms>`/);
+  assert.match(deployDocs, /deploy-langfuse/);
+  assert.match(releaseWorkflow, /infra\/resource-manager-demo\/schema\.yaml/);
 });
 
 test("startup script captures logs to a directory by default and can disable file capture", () => {
@@ -509,6 +552,45 @@ test("infrastructure tab renders all generated OCI runtime components", () => {
   assert.match(main, /function applyInfrastructureComponentFilters/);
   assert.match(styles, /\.infra-filter-bar/);
   assert.match(styles, /\.component-row\[hidden\]/);
+});
+
+test("server refresh discovers hosted runtime metadata when generated files are absent", () => {
+  const server = read("server.mjs");
+  const portalTerraform = read("infra/resource-manager-demo/portal_container.tf");
+
+  assert.match(server, /function resolveHostedRuntimeResourceSuffix/);
+  assert.match(server, /async function discoverGeneratedHostedRuntimeState/);
+  assert.match(server, /structured-search/);
+  assert.match(server, /enterprise-ai-demo-langfuse-\$\{resourceSuffix\}/);
+  assert.match(server, /langfuse_hosted_observability\.json/);
+  assert.match(server, /process\.env\.OCI_HOSTED_LANGFUSE_URL/);
+  assert.match(server, /discoverGeneratedHostedRuntimeState/);
+  assert.match(portalTerraform, /OCI_RESOURCE_SUFFIX\s+=\s+var\.resource_suffix/);
+  assert.match(portalTerraform, /OCI_HOSTED_APP_IDCS_CLIENT_ID\s+=\s+module\.hosted_agentic_applications\.n8n_idcs_launch_client_id/);
+  assert.match(portalTerraform, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET\s+=\s+module\.hosted_agentic_applications\.n8n_idcs_launch_client_secret/);
+  assert.match(portalTerraform, /OCI_HOSTED_APP_IDCS_TOKEN_URL/);
+});
+
+test("DevOps hosted deployment replaces old hosted apps instead of accumulating duplicates", () => {
+  const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml");
+  const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh");
+
+  assert.match(buildSpec, /deploy_hosted_application\.sh HOSTED_AGENT/);
+  assert.match(deployScript, /case "\$HOSTED_APP_KEY" in/);
+  assert.match(deployScript, /delete_existing_hosted_resources "\$deployment_display" "\$display"/);
+  assert.match(deployScript, /create_hosted HOSTED_AGENT/);
+  assert.match(deployScript, /create_hosted LANGGRAPH/);
+  assert.match(deployScript, /create_hosted LANGFUSE/);
+  assert.match(deployScript, /create_hosted OPENCLAW/);
+  assert.match(deployScript, /create_hosted LLAMAINDEX/);
+  assert.match(deployScript, /write_exported_variables "\$HOSTED_APP_KEY"/);
+  assert.match(deployScript, /previous_app_ids/);
+  assert.match(deployScript, /delete_existing_hosted_resources/);
+  assert.match(deployScript, /hosted-application delete/);
+  assert.match(deployScript, /hosted-deployment delete/);
+  assert.doesNotMatch(deployScript, /"\$old_app_id" != "\$new_app_id"/);
+  assert.doesNotMatch(deployScript, /"\$old_dep_id" != "\$new_dep_id"/);
+  assert.match(deployScript, /^display_name = sys\.argv\[1\]$/m);
 });
 
 test("run dialog renders user-facing demo brief", () => {

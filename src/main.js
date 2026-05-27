@@ -338,6 +338,16 @@ const demoDefaults = {
     toolResourceVisible: false,
     toolResourceId: ""
   },
+  "locus-sdk-agentic-workflows": {
+    title: "Locus SDK Agentic Workflows",
+    prompt: "Design a production incident agent with order lookup tools, long-term account memory, checkpoint resume, streaming progress, and human approval for risky actions.",
+    button: "Run Locus SDK Demo",
+    output: "Run a guided Locus SDK workflow plan and synthesize the production agent design with OCI Responses API.",
+    sessionVisible: true,
+    sessionId: "locus-incident-agent-001",
+    toolResourceVisible: false,
+    toolResourceId: ""
+  },
   "human-approval-agent": {
     title: "Human Approval Agent Workbench",
     prompt: "Prepare a customer-impacting refund and support update for delayed checkout confirmations, then require approval before action.",
@@ -688,6 +698,20 @@ const demoBriefs = {
       "Useful for enterprise RAG assistants that need explainable retrieval decisions."
     ]
   },
+  "locus-sdk-agentic-workflows": {
+    services: [
+      "Locus SDK agent loop mapped to OCI Responses model providers.",
+      "Tool execution, MCP integration, memory, checkpoints, and streaming event patterns."
+    ],
+    security: [
+      "Tools are selected from an approved registry before the model sees results.",
+      "Memory and checkpoint state are scoped to the workflow session."
+    ],
+    result: [
+      "Shows how to structure a production agent with tools, memory, streaming, and resumability.",
+      "Useful for moving from single prompt demos to multi-agent workflows."
+    ]
+  },
   "human-approval-agent": {
     services: [
       "OCI Responses API for drafting approval-ready agent action proposals.",
@@ -888,6 +912,12 @@ const flowDiagrams = {
     mermaid:
       "flowchart LR\n  A[User question] --> B[Planning agent]\n  B --> C[Retrieval queries]\n  C --> D[Evidence check]\n  D --> E[Grounded answer plan]"
   },
+  "locus-sdk-agentic-workflows": {
+    title: "Locus SDK Agentic Workflow",
+    nodes: ["Prompt", "Locus agent loop", "Tools and MCP", "Memory store", "Checkpoint", "Streamed answer"],
+    mermaid:
+      "flowchart LR\n  A[Prompt] --> B[Locus agent loop]\n  B --> C[Tools and MCP]\n  B --> D[Memory store]\n  B --> E[Checkpoint]\n  C --> F[Streamed answer]\n  D --> F\n  E --> F"
+  },
   "human-approval-agent": {
     title: "Human Approval Agent Flow",
     nodes: ["Agent request", "Risk classification", "Approval checkpoint", "Approved action proposal"],
@@ -998,6 +1028,18 @@ queries = plan["retrievalQueries"]`,
     model=model,
     input=build_grounded_plan_prompt(plan),
 )`
+  ],
+  "locus-sdk-agentic-workflows": [
+    `agent = Agent(
+    name="IncidentAgent",
+    tools=[lookup_order, create_ticket],
+    memory=memory_manager,
+)`,
+    `workflow = Orchestrator(
+    agents=[agent],
+    checkpointer=checkpoint_store,
+)
+events = workflow.stream(prompt)`
   ],
   "human-approval-agent": [
     `approval = classify_agent_action_risk(prompt)

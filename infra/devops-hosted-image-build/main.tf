@@ -308,24 +308,21 @@ resource "oci_devops_build_pipeline_stage" "deliver_image" {
 }
 
 resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
-  count = var.enabled ? 1 : 0
+  for_each = var.enabled ? local.hosted_application_deployments : {}
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
-  display_name                       = "deploy-hosted-applications"
-  description                        = "Creates OCI Generative AI hosted applications and deployments from delivered OCIR images."
-  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml"
+  display_name                       = each.value.stage_name
+  description                        = "Creates the OCI Generative AI hosted application and deployment for ${each.value.display_name}."
+  build_spec_file                    = each.value.build_spec_file
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
   is_pass_all_parameters_enabled     = true
   stage_execution_timeout_in_seconds = 7200
 
   build_pipeline_stage_predecessor_collection {
-    dynamic "items" {
-      for_each = oci_devops_build_pipeline_stage.deliver_image
-      content {
-        id = items.value.id
-      }
+    items {
+      id = oci_devops_build_pipeline_stage.deliver_image[each.key].id
     }
   }
 

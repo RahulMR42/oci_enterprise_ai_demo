@@ -1,17 +1,32 @@
 variable "tenancy_id" {
   description = "Tenancy OCID where shared IAM resources are created."
   type        = string
+
+  validation {
+    condition     = can(regex("^ocid1\\.tenancy\\.oc1\\.", var.tenancy_id))
+    error_message = "tenancy_id must be a valid OCI tenancy OCID."
+  }
 }
 
 variable "compartment_id" {
   description = "Compartment OCID that owns the Enterprise AI demo resources."
   type        = string
+
+  validation {
+    condition     = can(regex("^ocid1\\.compartment\\.oc1\\.", var.compartment_id))
+    error_message = "compartment_id must be a valid OCI compartment OCID."
+  }
 }
 
 variable "region" {
   description = "OCI region for the demo stack."
   type        = string
   default     = "us-chicago-1"
+
+  validation {
+    condition     = can(regex("^[a-z]+-[a-z]+-[0-9]+$", var.region))
+    error_message = "region must be an OCI region identifier such as us-chicago-1."
+  }
 }
 
 variable "profile" {
@@ -23,6 +38,11 @@ variable "profile" {
 variable "resource_suffix" {
   description = "Six-character suffix used to group all demo resources."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]{6}$", var.resource_suffix))
+    error_message = "resource_suffix must be exactly six lowercase letters or digits."
+  }
 }
 
 variable "hosted_applications_local_exec_enabled" {
@@ -53,6 +73,11 @@ variable "project_display_name" {
   description = "Display name prefix for the shared OCI Generative AI project."
   type        = string
   default     = "enterprise-ai-demo-responses-api"
+
+  validation {
+    condition     = length(trimspace(var.project_display_name)) > 0 && length(var.project_display_name) <= 80
+    error_message = "project_display_name must be non-empty and at most 80 characters."
+  }
 }
 
 variable "hosted_app_push_image" {
@@ -77,42 +102,77 @@ variable "devops_source_repo_url" {
   description = "Git repository URL containing this demo source and the DevOps build spec."
   type        = string
   default     = "https://github.com/RahulMR42/oci_enterprise_ai_demo.git"
+
+  validation {
+    condition     = can(regex("^https://", var.devops_source_repo_url))
+    error_message = "devops_source_repo_url must be an HTTPS Git URL."
+  }
 }
 
 variable "devops_source_branch" {
   description = "Upstream Git branch Resource Manager clones before seeding the OCI DevOps code repository."
   type        = string
-  default     = "main"
+  default     = "oci-rms"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.devops_source_branch))
+    error_message = "devops_source_branch may contain only letters, numbers, dot, underscore, slash, and dash."
+  }
 }
 
 variable "devops_source_revision" {
   description = "Optional source revision marker used to force a new Resource Manager-seeded DevOps build run when branch contents change."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.devops_source_revision == "" || can(regex("^[A-Fa-f0-9]{7,40}$", var.devops_source_revision))
+    error_message = "devops_source_revision must be empty or a Git commit SHA."
+  }
 }
 
 variable "devops_repository_branch" {
   description = "Branch name used inside the OCI DevOps hosted code repository and build source."
   type        = string
   default     = "main"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.devops_repository_branch))
+    error_message = "devops_repository_branch may contain only letters, numbers, dot, underscore, slash, and dash."
+  }
 }
 
 variable "devops_source_connection_type" {
   description = "Build source connection type. Use GITHUB for GitHub or DEVOPS_CODE_REPOSITORY for an OCI Code Repository."
   type        = string
   default     = "GITHUB"
+
+  validation {
+    condition     = contains(["GITHUB", "DEVOPS_CODE_REPOSITORY"], var.devops_source_connection_type)
+    error_message = "devops_source_connection_type must be GITHUB or DEVOPS_CODE_REPOSITORY."
+  }
 }
 
 variable "devops_source_connection_id" {
   description = "Existing OCI DevOps connection OCID. Required unless devops_create_github_connection is true."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.devops_source_connection_id == "" || can(regex("^ocid1\\.devopsconnection\\.oc1\\.", var.devops_source_connection_id))
+    error_message = "devops_source_connection_id must be empty or a valid OCI DevOps connection OCID."
+  }
 }
 
 variable "devops_source_repository_id" {
   description = "OCI DevOps code repository OCID. Required when devops_source_connection_type is DEVOPS_CODE_REPOSITORY."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.devops_source_repository_id == "" || can(regex("^ocid1\\.devopsrepository\\.oc1\\.", var.devops_source_repository_id))
+    error_message = "devops_source_repository_id must be empty or a valid OCI DevOps repository OCID."
+  }
 }
 
 variable "devops_create_repository" {
@@ -144,6 +204,11 @@ variable "devops_source_access_token_secret_id" {
   description = "OCI Vault secret OCID containing a GitHub personal access token for the DevOps connection."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.devops_source_access_token_secret_id == "" || can(regex("^ocid1\\.vaultsecret\\.oc1\\.", var.devops_source_access_token_secret_id))
+    error_message = "devops_source_access_token_secret_id must be empty or a valid OCI Vault secret OCID."
+  }
 }
 
 variable "devops_ocir_username" {
@@ -163,12 +228,22 @@ variable "hosted_app_container_cli" {
   description = "Container CLI used by hosted-app modules when hosted_app_push_image is true."
   type        = string
   default     = "podman"
+
+  validation {
+    condition     = contains(["podman", "docker"], var.hosted_app_container_cli)
+    error_message = "hosted_app_container_cli must be podman or docker."
+  }
 }
 
 variable "hosted_app_ocir_region_key" {
   description = "OCIR region key used to derive repository URIs."
   type        = string
   default     = "ord"
+
+  validation {
+    condition     = can(regex("^[a-z]{3}$", var.hosted_app_ocir_region_key))
+    error_message = "hosted_app_ocir_region_key must be a three-letter OCIR region key, for example ord."
+  }
 }
 
 variable "portal_container_enabled" {
@@ -193,6 +268,11 @@ variable "portal_container_repository_id" {
   description = "Optional existing OCIR repository OCID for the demo portal image. Leave empty to let this stack create the repository."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.portal_container_repository_id == "" || can(regex("^ocid1\\.containerrepo\\.oc1\\.", var.portal_container_repository_id))
+    error_message = "portal_container_repository_id must be empty or a valid OCI container repository OCID."
+  }
 }
 
 variable "portal_container_image_tag" {
@@ -205,6 +285,11 @@ variable "portal_container_port" {
   description = "Public TCP port exposed by the demo portal container."
   type        = number
   default     = 5173
+
+  validation {
+    condition     = var.portal_container_port >= 1024 && var.portal_container_port <= 65535
+    error_message = "portal_container_port must be between 1024 and 65535."
+  }
 }
 
 variable "portal_container_shape" {
@@ -217,24 +302,44 @@ variable "portal_container_ocpus" {
   description = "OCPUs assigned to the demo portal container instance."
   type        = number
   default     = 1
+
+  validation {
+    condition     = var.portal_container_ocpus >= 1 && var.portal_container_ocpus <= 4
+    error_message = "portal_container_ocpus must be between 1 and 4."
+  }
 }
 
 variable "portal_container_memory_gbs" {
   description = "Memory assigned to the demo portal container."
   type        = number
   default     = 4
+
+  validation {
+    condition     = var.portal_container_memory_gbs >= 1 && var.portal_container_memory_gbs <= 64
+    error_message = "portal_container_memory_gbs must be between 1 and 64."
+  }
 }
 
 variable "portal_vcn_cidr" {
   description = "CIDR block for the demo portal VCN."
   type        = string
   default     = "10.42.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.portal_vcn_cidr, 1))
+    error_message = "portal_vcn_cidr must be a valid IPv4 CIDR block."
+  }
 }
 
 variable "portal_subnet_cidr" {
   description = "Public subnet CIDR block for the demo portal container instance."
   type        = string
   default     = "10.42.1.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.portal_subnet_cidr, 1))
+    error_message = "portal_subnet_cidr must be a valid IPv4 CIDR block."
+  }
 }
 
 variable "portal_auth_password" {
@@ -248,6 +353,11 @@ variable "oci_genai_project_id" {
   description = "Existing OCI Generative AI project OCID injected into the demo portal as OCI_GENAI_PROJECT_ID."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.oci_genai_project_id == "" || can(regex("^ocid1\\.generativeaiproject\\.oc1\\.", var.oci_genai_project_id))
+    error_message = "oci_genai_project_id must be empty or a valid OCI Generative AI project OCID."
+  }
 }
 
 variable "oci_genai_api_key" {
@@ -260,6 +370,11 @@ variable "oci_genai_api_key" {
 variable "idcs_domain_url" {
   description = "Existing identity domain URL used for hosted application inbound OAuth authentication."
   type        = string
+
+  validation {
+    condition     = can(regex("^https://", var.idcs_domain_url))
+    error_message = "idcs_domain_url must be an HTTPS URL."
+  }
 }
 
 variable "idcs_audience" {
@@ -276,6 +391,11 @@ variable "n8n_basic_auth_user" {
   description = "Username for the hosted n8n basic authentication boundary."
   type        = string
   default     = "admin"
+
+  validation {
+    condition     = length(trimspace(var.n8n_basic_auth_user)) > 0
+    error_message = "n8n_basic_auth_user must be non-empty."
+  }
 }
 
 variable "n8n_basic_auth_password" {

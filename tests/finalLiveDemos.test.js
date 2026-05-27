@@ -46,6 +46,13 @@ const demos = [
     trace: "Prepared agentic RAG retrieval plan"
   },
   {
+    script: "backend/demos/locus_sdk_agentic_workflows.py",
+    feature: "Locus SDK Agentic Workflows",
+    mode: "locus-sdk-agentic-workflows",
+    prompt: "Design an incident agent with tools, memory, checkpoints, and streaming.",
+    trace: "Prepared Locus SDK agentic workflow map"
+  },
+  {
     script: "backend/demos/human_approval_agent.py",
     feature: "Human-in-the-Loop Agent Approval",
     mode: "human-approval-agent",
