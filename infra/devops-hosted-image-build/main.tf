@@ -198,6 +198,11 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Source revision marker used to correlate Resource Manager applies and DevOps build runs."
     }
     items {
+      name          = "DEPLOY_ONLY_APP"
+      default_value = var.deploy_only_app ? "true" : "false"
+      description   = "When true, hosted app deployment stages are skipped and only the portal app container redeploys."
+    }
+    items {
       name          = "PORTAL_CONTAINER_REPOSITORY_ID"
       default_value = var.portal_container_repository_id
       description   = "Portal OCIR repository dependency marker."
@@ -308,7 +313,7 @@ resource "oci_devops_build_pipeline_stage" "deliver_image" {
 }
 
 resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
-  for_each = var.enabled ? local.hosted_application_deployments : {}
+  for_each = var.enabled && !var.deploy_only_app ? local.hosted_application_deployments : {}
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
@@ -384,6 +389,10 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "SOURCE_REVISION"
       value = var.source_revision
+    }
+    items {
+      name  = "DEPLOY_ONLY_APP"
+      value = var.deploy_only_app ? "true" : "false"
     }
     items {
       name  = "PORTAL_CONTAINER_REPOSITORY_ID"

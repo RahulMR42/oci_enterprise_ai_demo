@@ -38,7 +38,7 @@ const infraState = {
 };
 
 let activeDemoId = "responses-api";
-let latestInfrastructureComponents = [];
+let latestAdministrationRuns = [];
 const demoRatingsStorageKey = "enterprise-ai-demo-ratings-v1";
 const demoRunCountsStorageKey = "enterprise-ai-demo-run-counts-v1";
 const minInitialRunCount = 20;
@@ -172,7 +172,7 @@ const demoDefaults = {
     prompt:
       "Summarize this support note: database latency increased after deployment and customers are seeing slower checkout confirmations.",
     button: "Run Responses API Demo",
-    output: "Provision infra, then run the live Responses API demo.",
+    output: "Configure the shared OCI project/API key, then run the live Responses API demo.",
     sessionVisible: false,
     sessionId: ""
   },
@@ -198,7 +198,7 @@ const demoDefaults = {
     title: "File Search & Vector Store RAG Workbench",
     prompt: "Answer from the configured documents: what guidance applies to delayed checkout confirmations?",
     button: "Run File Search Demo",
-    output: "Provision shared Responses API infra, provide a Vector Store ID, then run the live File Search demo.",
+    output: "Configure shared Responses API credentials, provide a Vector Store ID, then run the live File Search demo.",
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: true,
@@ -210,7 +210,7 @@ const demoDefaults = {
     title: "Code Interpreter Workbench",
     prompt: "Use Python to calculate the mean, median, and standard deviation for: 12, 18, 24, 30, 42.",
     button: "Run Code Interpreter Demo",
-    output: "Provision shared Responses API infra, then run the live Code Interpreter demo with an OCI-managed auto container.",
+    output: "Configure shared Responses API credentials, then run the live Code Interpreter demo with an OCI-managed auto container.",
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: true,
@@ -1122,6 +1122,7 @@ function renderPortal() {
           </div>
           <div class="nav-actions">
             <a class="nav-link" href="#catalog">Catalog</a>
+            <a class="nav-link" href="#administration">Administration</a>
             <form method="post" action="/logout">
               <button class="nav-link logout-button" type="submit">Logout</button>
             </form>
@@ -1134,7 +1135,7 @@ function renderPortal() {
             <h1>OCI Enterprise AI Demos</h1>
             <p>
               A focused portal for demonstrating OCI Enterprise AI capabilities, live backend flows,
-              Terraform-managed infrastructure, and governed runtime behavior.
+              governed runtime behavior, and operational execution history.
             </p>
             <div class="hero-actions" aria-label="Portal summary">
               <a href="#catalog">View demos</a>
@@ -1154,8 +1155,8 @@ function renderPortal() {
             </div>
             <div class="showcase-card showcase-three">
               <span>03</span>
-              <strong>Infrastructure</strong>
-              <p>Terraform state and provisioned resources</p>
+              <strong>Operations</strong>
+              <p>Run history, logs, and execution metrics</p>
             </div>
           </aside>
         </section>
@@ -1167,7 +1168,7 @@ function renderPortal() {
             <p class="eyebrow">Demo catalog</p>
             <h2 id="catalog-title">OCI Enterprise AI capabilities</h2>
           </div>
-          <p class="section-note">Run focused demos backed by shared OCI Generative AI configuration, live backend code paths, and refreshable infrastructure state.</p>
+          <p class="section-note">Run focused demos backed by shared OCI Generative AI configuration, live backend code paths, and managed deployment metadata.</p>
         </div>
         <div class="category-rail" aria-label="Feature categories">
           ${categories.map((category) => `<span>${category}</span>`).join("")}
@@ -1192,51 +1193,44 @@ function renderPortal() {
             <input id="card-darkness" type="range" min="0" max="100" value="${defaultCardAppearance.darkness}" />
           </label>
         </div>
-        <details class="infra-panel" id="infra-panel">
-          <summary>
-            <span>Infrastructure</span>
-            <span class="infra-summary-actions">
-              <button class="infra-refresh-button" id="infra-refresh-button" type="button" aria-label="Refresh infrastructure state" title="Refresh infrastructure state">🔄</button>
-              <strong id="infra-summary-status">Not created</strong>
-            </span>
-          </summary>
-          <div class="infra-layout">
-            <section class="infra-status-panel" aria-label="Infrastructure status">
-              <div>
-                <h3 class="infra-subheading">Resources</h3>
-                <div class="infra-filter-bar" aria-label="Infrastructure resource filters">
-                  <label for="infra-component-search">
-                    <span>Search</span>
-                    <input id="infra-component-search" type="search" placeholder="Filter resources" autocomplete="off" />
-                  </label>
-                  <label for="infra-component-type-filter">
-                    <span>Type</span>
-                    <select id="infra-component-type-filter">
-                      <option value="all">All types</option>
-                    </select>
-                  </label>
-                </div>
-                <div class="component-table" id="all-infra-components">
-                  <div class="component-row">
-                    <span class="component-icon" aria-hidden="true">○</span>
-                    <strong>Resources</strong>
-                    <span>Not loaded</span>
-                    <code>Use refresh to load current state</code>
-                    <button class="copy-resource-button" type="button" disabled>Copy</button>
-                  </div>
-                </div>
-              </div>
-              <div class="infra-log-panel">
-                <div class="infra-log-header">
-                  <h3>Action logs</h3>
-                </div>
-                <pre id="infra-action-logs">No infrastructure actions yet.</pre>
-              </div>
-            </section>
-          </div>
-        </details>
         <div class="results-count" id="results-count" aria-live="polite"></div>
         <div class="feature-grid" id="feature-grid"></div>
+      </section>
+      <section class="admin-section" id="administration" aria-labelledby="administration-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h2 id="administration-title">Demo operations</h2>
+          </div>
+          <p class="section-note">Review demo execution status, server-side logs, and run metrics without exposing deployment internals in the main catalog.</p>
+        </div>
+        <div class="admin-toolbar">
+          <button id="admin-refresh-button" type="button">Refresh</button>
+          <span id="admin-last-updated">Not loaded</span>
+        </div>
+        <div class="admin-metric-grid" id="admin-metric-grid">
+          <div class="admin-metric"><span>Total runs</span><strong>0</strong></div>
+          <div class="admin-metric"><span>Success</span><strong>0</strong></div>
+          <div class="admin-metric"><span>Failed</span><strong>0</strong></div>
+          <div class="admin-metric"><span>Avg duration</span><strong>0 ms</strong></div>
+        </div>
+        <div class="admin-layout">
+          <section class="admin-demo-table" aria-label="Demo run summary">
+            <h3>Demo summary</h3>
+            <div id="admin-demo-summary">
+              <div class="admin-demo-row">
+                <strong>No demo runs yet</strong>
+                <span>Run a demo to populate operations history.</span>
+              </div>
+            </div>
+          </section>
+          <section class="admin-run-log-panel" aria-label="Recent execution logs">
+            <h3>Recent execution logs</h3>
+            <div id="admin-run-logs">
+              <div class="admin-run-log-empty">No execution logs yet.</div>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
     <dialog class="flow-dialog" id="flow-dialog">
@@ -1292,7 +1286,7 @@ function renderPortal() {
             </label>
             <label>
               <span>Project OCID</span>
-              <input id="responses-project-id-display" placeholder="Provision infra first" />
+              <input id="responses-project-id-display" placeholder="OCI project OCID" />
             </label>
             <label id="responses-tool-resource-field" hidden>
               <span id="responses-tool-resource-label">Tool Resource ID</span>
@@ -1321,7 +1315,7 @@ function renderPortal() {
                   <button type="button" data-output-view="json" aria-pressed="false">JSON</button>
                 </div>
               </div>
-              <div class="response-output" id="responses-output">Provision infra, add API key if needed, then run the demo.</div>
+              <div class="response-output" id="responses-output">Configure OCI project details, add API key if needed, then run the demo.</div>
             </section>
             <section class="more-details-panel">
               <details class="more-details-tab" id="responses-technical-tab" data-more-details-tab>
@@ -1471,25 +1465,17 @@ function attachCardInteractions() {
   document.querySelectorAll("[data-provision-demo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      if (button.dataset.provisionDemo === "responses-api") {
-        document.getElementById("infra-panel").open = true;
-        document.getElementById("infra-panel").scrollIntoView({ block: "start" });
-      } else {
-        button.textContent = "Terraform Required";
-        window.setTimeout(() => {
-          button.textContent = "Provision Infra";
-        }, 1400);
-      }
+      button.textContent = "Managed externally";
+      window.setTimeout(() => {
+        button.textContent = "Provision Infra";
+      }, 1400);
     });
   });
 
   document.querySelectorAll("[data-destroy-demo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      if (button.dataset.destroyDemo === "responses-api") {
-        document.getElementById("infra-panel").open = true;
-        document.getElementById("infra-panel").scrollIntoView({ block: "start" });
-      }
+      document.getElementById("administration").scrollIntoView({ block: "start" });
     });
   });
 }
@@ -2433,99 +2419,6 @@ function attachCopyControls() {
 
 function updateInfraStatus(status) {
   infraState.status = status;
-  document.getElementById("infra-summary-status").textContent = status
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function renderAllInfrastructureComponents(components = []) {
-  const container = document.getElementById("all-infra-components");
-  if (!container) {
-    return;
-  }
-  latestInfrastructureComponents = [...components];
-  renderInfrastructureTypeFilter(latestInfrastructureComponents);
-
-  if (!components.length) {
-    container.innerHTML = `
-      <div class="component-row">
-        <span class="component-icon" aria-hidden="true">○</span>
-        <strong>Provisioned resources</strong>
-        <span>Not loaded</span>
-        <code>Refresh infrastructure state</code>
-        <button class="copy-resource-button" type="button" disabled>Copy</button>
-      </div>`;
-    return;
-  }
-
-  const sortedComponents = [...components].sort((left, right) =>
-    String(left.name || left.address || "").localeCompare(String(right.name || right.address || ""), undefined, {
-      sensitivity: "base"
-    })
-  );
-
-  container.innerHTML = sortedComponents.map((component, index) => {
-    const status = component.status || "not-created";
-    const targetId = `all-infra-component-${index}`;
-    const type = inferInfrastructureComponentType(component);
-    const searchable = [component.name, component.address, component.value, component.status, type].filter(Boolean).join(" ");
-    return `
-      <div class="component-row" data-component-type="${escapeHtml(type)}" data-component-search="${escapeHtml(searchable)}">
-        <span class="component-icon" data-status="${escapeHtml(status)}" aria-hidden="true">${status === "created" ? "✓" : "○"}</span>
-        <strong>${escapeHtml(component.name || component.address || "Infrastructure component")}</strong>
-        <span>${escapeHtml(status)}</span>
-        <code id="${targetId}" title="${escapeHtml(component.address || "")}">${escapeHtml(component.value || component.address || "-")}</code>
-        <button class="copy-resource-button" type="button" data-copy-target="${targetId}">Copy</button>
-      </div>`;
-  }).join("");
-  attachCopyControls();
-  attachInfrastructureFilterControls();
-  applyInfrastructureComponentFilters();
-}
-
-function inferInfrastructureComponentType(component = {}) {
-  const value = `${component.name || ""} ${component.address || ""}`.toLowerCase();
-  if (/hosted|deployment|application/.test(value)) return "Hosted App";
-  if (/ocir|repository|image|artifact/.test(value)) return "Container";
-  if (/idcs|identity|dynamic group|policy|api key|vault|secret/.test(value)) return "Security";
-  if (/vcn|subnet|gateway|network|nsg/.test(value)) return "Network";
-  if (/database|postgres|redis|clickhouse|object storage|bucket|vector store|file/.test(value)) return "Data";
-  return "Runtime";
-}
-
-function renderInfrastructureTypeFilter(components = []) {
-  const typeFilter = document.getElementById("infra-component-type-filter");
-  if (!typeFilter) {
-    return;
-  }
-  const selected = typeFilter.value || "all";
-  const types = [...new Set(components.map(inferInfrastructureComponentType))].sort((left, right) => left.localeCompare(right));
-  typeFilter.innerHTML = [`<option value="all">All types</option>`, ...types.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`)].join("");
-  typeFilter.value = types.includes(selected) ? selected : "all";
-}
-
-function attachInfrastructureFilterControls() {
-  const searchInput = document.getElementById("infra-component-search");
-  const typeFilter = document.getElementById("infra-component-type-filter");
-  [searchInput, typeFilter].forEach((control) => {
-    if (!control || control.dataset.filterBound === "true") {
-      return;
-    }
-    control.dataset.filterBound = "true";
-    control.addEventListener("input", applyInfrastructureComponentFilters);
-    control.addEventListener("change", applyInfrastructureComponentFilters);
-  });
-}
-
-function applyInfrastructureComponentFilters() {
-  const search = String(document.getElementById("infra-component-search")?.value || "").trim().toLowerCase();
-  const selectedType = document.getElementById("infra-component-type-filter")?.value || "all";
-  document.querySelectorAll("#all-infra-components .component-row").forEach((row) => {
-    const matchesSearch = !search || String(row.dataset.componentSearch || "").toLowerCase().includes(search);
-    const matchesType = selectedType === "all" || row.dataset.componentType === selectedType;
-    row.hidden = !(matchesSearch && matchesType);
-  });
 }
 
 function applyProvisionedValues(result) {
@@ -2565,7 +2458,6 @@ function applyProvisionedValues(result) {
     values.openclawHostedDeploymentStatus || openclawDeploymentComponent?.status || infraState.openclawHostedDeploymentStatus;
 
   document.getElementById("responses-project-id-display").value = projectId;
-  renderAllInfrastructureComponents(components);
   updateInfraStatus(result.status || "not-created");
 }
 
@@ -2573,11 +2465,98 @@ function syncDemoInfraFields() {
   document.getElementById("responses-project-id-display").value = infraState.projectId;
 }
 
+function renderAdministrationMetrics(summary = {}) {
+  const metrics = summary.metrics || {};
+  const metricGrid = document.getElementById("admin-metric-grid");
+  const demoSummary = document.getElementById("admin-demo-summary");
+  const runLogs = document.getElementById("admin-run-logs");
+  const lastUpdated = document.getElementById("admin-last-updated");
+
+  if (!metricGrid || !demoSummary || !runLogs) {
+    return;
+  }
+
+  latestAdministrationRuns = Array.isArray(summary.runs) ? summary.runs : [];
+  metricGrid.innerHTML = [
+    ["Total runs", metrics.totalRuns || 0],
+    ["Success", metrics.successfulRuns || 0],
+    ["Failed", metrics.failedRuns || 0],
+    ["Avg duration", formatElapsedTime(metrics.averageDurationMs || 0)]
+  ]
+    .map(([label, value]) => `<div class="admin-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
+    .join("");
+
+  const demos = Array.isArray(summary.demos) ? summary.demos : [];
+  demoSummary.innerHTML = demos.length
+    ? demos
+        .map(
+          (demo) => `
+            <div class="admin-demo-row" data-status="${escapeHtml(demo.lastStatus || "unknown")}">
+              <strong>${escapeHtml(demo.featureId)}</strong>
+              <span>${escapeHtml(demo.lastStatus || "unknown")}</span>
+              <span>${escapeHtml(String(demo.runs || 0))} runs</span>
+              <span>${escapeHtml(formatElapsedTime(demo.averageDurationMs || 0))} avg</span>
+              <code>${escapeHtml(demo.lastRunAt || "No runs")}</code>
+            </div>`
+        )
+        .join("")
+    : `<div class="admin-demo-row"><strong>No demo runs yet</strong><span>Run a demo to populate operations history.</span></div>`;
+
+  runLogs.innerHTML = latestAdministrationRuns.length
+    ? latestAdministrationRuns
+        .slice(0, 12)
+        .map(
+          (run) => `
+            <details class="admin-run-log" data-status="${escapeHtml(run.status || "unknown")}">
+              <summary>
+                <strong>${escapeHtml(run.featureId || "unknown")}</strong>
+                <span>${escapeHtml(run.status || "unknown")}</span>
+                <span>${escapeHtml(formatElapsedTime(run.durationMs || 0))}</span>
+                <time>${escapeHtml(run.createdAt || "")}</time>
+              </summary>
+              ${run.error ? `<div class="admin-run-error">${escapeHtml(run.error)}</div>` : ""}
+              <pre>${escapeHtml(JSON.stringify({ stdout: run.stdout || "", stderr: run.stderr || "", logs: run.logs || [], trace: run.trace || [] }, null, 2))}</pre>
+            </details>`
+        )
+        .join("")
+    : `<div class="admin-run-log-empty">No execution logs yet.</div>`;
+
+  if (lastUpdated) {
+    lastUpdated.textContent = metrics.lastRunAt ? `Latest run: ${metrics.lastRunAt}` : "No runs recorded";
+  }
+}
+
+async function loadAdministrationMetrics() {
+  const refreshButton = document.getElementById("admin-refresh-button");
+  if (refreshButton) {
+    refreshButton.disabled = true;
+  }
+  try {
+    const response = await fetch("/api/admin/demo-runs");
+    const result = await response.json();
+    renderAdministrationMetrics(result);
+  } catch (error) {
+    renderAdministrationMetrics({
+      metrics: { totalRuns: 0, successfulRuns: 0, failedRuns: 0, averageDurationMs: 0, lastRunAt: "" },
+      demos: [],
+      runs: [],
+      error: error.message
+    });
+  } finally {
+    if (refreshButton) {
+      refreshButton.disabled = false;
+    }
+  }
+}
+
+function recordClientRunSummary() {
+  loadAdministrationMetrics();
+}
+
 async function loadResponsesInfrastructureState({ refresh = false } = {}) {
   try {
     const response = await fetch(`/api/features/responses-api/state${refresh ? "?refresh=true" : ""}`);
     const result = await response.json();
-    writeActionLogs("state", result, "infra-action-logs");
 
     if (Array.isArray(result.components) && result.components.length > 0) {
       applyProvisionedValues(result);
@@ -2587,7 +2566,6 @@ async function loadResponsesInfrastructureState({ refresh = false } = {}) {
     updateInfraStatus(result.status || "not-created");
   } catch (error) {
     updateInfraStatus("failed");
-    document.getElementById("infra-action-logs").textContent = `state: failed\n\nerror: ${error.message}`;
   }
 }
 
@@ -2610,26 +2588,13 @@ attachCopyControls();
 attachMoreDetailsAccordion();
 renderFeatureGrid();
 loadResponsesInfrastructureState();
+loadAdministrationMetrics();
 
 document.getElementById("feature-search").addEventListener("input", (event) => {
   renderFeatureGrid(event.target.value);
 });
 
-document.getElementById("infra-refresh-button").addEventListener("click", async (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-
-  const button = document.getElementById("infra-refresh-button");
-  button.disabled = true;
-  button.textContent = "⏳";
-
-  try {
-    await loadResponsesInfrastructureState({ refresh: true });
-  } finally {
-    button.disabled = false;
-    button.textContent = "🔄";
-  }
-});
+document.getElementById("admin-refresh-button").addEventListener("click", loadAdministrationMetrics);
 
 document.getElementById("responses-minimize-button").addEventListener("click", () => {
   document.getElementById("responses-demo-dialog").classList.toggle("is-minimized");
@@ -2734,6 +2699,7 @@ document.getElementById("responses-run-button").addEventListener("click", async 
       trace: result.trace || [],
       logs: result.logs || []
     });
+    recordClientRunSummary();
   } catch (error) {
     renderDemoOutput(`Error: ${error.message}`);
     renderLiveLogs([
@@ -2748,6 +2714,7 @@ document.getElementById("responses-run-button").addEventListener("click", async 
       trace: error.trace || [],
       logs: error.logs || []
     });
+    recordClientRunSummary();
   } finally {
     if (elapsedTimer) {
       window.clearInterval(elapsedTimer);
@@ -2793,7 +2760,7 @@ function launchExternalDemo(featureId) {
   document.getElementById("responses-request").textContent = JSON.stringify(requestPayload, null, 2);
 
   if (!config.hostedUrl) {
-    renderDemoOutput(`Provision hosted application infrastructure and refresh Resources before launching ${config.shortLabel}.`);
+    renderDemoOutput(`Deploy the hosted application externally and refresh deployment metadata before launching ${config.shortLabel}.`);
     renderLiveLogs([
       { label: "Launch", status: "failed", timestamp: requestedAt, message: `${config.shortLabel} hosted URL is not available.` }
     ]);
@@ -2810,7 +2777,7 @@ function launchExternalDemo(featureId) {
     );
     showRunNotice({
       title: `Provision ${config.shortLabel} first`,
-      message: `Provision hosted application infrastructure and refresh Resources before opening the ${config.shortLabel} hosted deployment.`
+      message: `Deploy the hosted application externally and refresh deployment metadata before opening the ${config.shortLabel} hosted deployment.`
     });
     return;
   }
@@ -2818,7 +2785,7 @@ function launchExternalDemo(featureId) {
   if (config.hostedDeploymentStatus && config.hostedDeploymentStatus !== "created") {
     const statusLabel = config.hostedDeploymentStatus.replaceAll("-", " ");
     renderDemoOutput(
-      `Hosted deployment is not active for ${config.shortLabel}. Current status: ${statusLabel}. Refresh Resources and redeploy before launching.`
+      `Hosted deployment is not active for ${config.shortLabel}. Current status: ${statusLabel}. Refresh deployment metadata and redeploy before launching.`
     );
     renderLiveLogs([
       { label: "Launch", status: "failed", timestamp: requestedAt, message: `${config.shortLabel} hosted deployment status is ${statusLabel}.` }
@@ -2837,7 +2804,7 @@ function launchExternalDemo(featureId) {
     );
     showRunNotice({
       title: `${config.shortLabel} deployment is not active`,
-      message: `Hosted deployment is not active for ${config.shortLabel}. Current status: ${statusLabel}. Refresh Resources and redeploy before launching.`
+      message: `Hosted deployment is not active for ${config.shortLabel}. Current status: ${statusLabel}. Refresh deployment metadata and redeploy before launching.`
     });
     return;
   }

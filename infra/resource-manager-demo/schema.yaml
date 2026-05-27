@@ -25,6 +25,7 @@ variableGroups:
       - devops_ocir_auth_token
       - devops_hosted_image_build_enabled
       - devops_hosted_image_run_build
+      - deploy_only_app
   - title: Portal Container
     variables:
       - portal_container_enabled
@@ -150,6 +151,11 @@ variables:
     title: Run OCI DevOps Build During Apply
     type: boolean
     default: true
+  deploy_only_app:
+    title: DEPLOY_ONLY_APP
+    description: When true, build and deliver images but skip hosted application deployment stages; use this for portal-only redeployments that must not touch ClickHouse, Redis, or hosted app deployments.
+    type: boolean
+    default: false
   portal_container_enabled:
     title: Deploy Portal Container Instance
     type: boolean

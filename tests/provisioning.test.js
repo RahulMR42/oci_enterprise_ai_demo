@@ -23,7 +23,8 @@ import {
   n8nForwardedCookieHeader,
   n8nPushStreamFallbackPayload,
   rewriteN8nLaunchJson,
-  rewriteN8nLaunchHtml
+  rewriteN8nLaunchHtml,
+  summarizeDemoRunHistory
 } from "../server.mjs";
 
 test("normalizes provisioning config with OCI defaults", () => {
@@ -70,6 +71,46 @@ test("server exposes login, forgot password, and logout routes", () => {
   assert.match(server, /OCI_PORTAL_PASSWORD_FILE/);
   assert.match(server, /writeFileSync\(filePath, `\$\{value\}\\n`, \{ mode: 0o600 \}\)/);
   assert.match(gitignore, /^\.oci-portal-password$/m);
+});
+
+test("server exposes redacted administration demo run history", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const history = summarizeDemoRunHistory([
+    {
+      featureId: "responses-api",
+      status: "success",
+      durationMs: 1200,
+      createdAt: "2026-05-27T10:00:00.000Z",
+      request: { apiKey: "secret-api-key", prompt: "hello" },
+      stdout: "ok"
+    },
+    {
+      featureId: "responses-api",
+      status: "failed",
+      durationMs: 800,
+      createdAt: "2026-05-27T10:02:00.000Z",
+      error: "boom",
+      request: { clientSecret: "secret-client" },
+      stderr: "stack"
+    },
+    {
+      featureId: "guardrails",
+      status: "success",
+      durationMs: 500,
+      createdAt: "2026-05-27T10:03:00.000Z"
+    }
+  ]);
+
+  assert.equal(history.metrics.totalRuns, 3);
+  assert.equal(history.metrics.successfulRuns, 2);
+  assert.equal(history.metrics.failedRuns, 1);
+  assert.equal(history.metrics.averageDurationMs, 833);
+  assert.equal(history.demos.find((demo) => demo.featureId === "responses-api").runs, 2);
+  assert.equal(history.demos.find((demo) => demo.featureId === "responses-api").lastStatus, "failed");
+  assert.equal(JSON.stringify(history).includes("secret-api-key"), false);
+  assert.equal(JSON.stringify(history).includes("secret-client"), false);
+  assert.match(server, /requestPath === "\/api\/admin\/demo-runs"/);
+  assert.match(server, /readDemoRunHistory/);
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {

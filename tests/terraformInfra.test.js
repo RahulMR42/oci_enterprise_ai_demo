@@ -369,9 +369,12 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /module "devops_hosted_image_build"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/devops-hosted-image-build"/);
   assert.match(terraform, /variable "devops_repository_branch"/);
+  assert.match(terraform, /variable "deploy_only_app"/);
+  assert.match(terraform, /DEPLOY_ONLY_APP/);
   assert.match(terraform, /variable "devops_source_branch"[\s\S]*default\s+=\s+"oci-rms"/);
   assert.match(terraform, /schemaVersion: 1\.1\.0/);
   assert.match(terraform, /devops_source_branch:[\s\S]*default: oci-rms/);
+  assert.match(terraform, /deploy_only_app:[\s\S]*default: false/);
   assert.match(terraform, /devops_source_revision:[\s\S]*pattern: "\^\$\|\^\[A-Fa-f0-9\]\{7,40\}\$"/);
   assert.match(terraform, /validation\s+\{[\s\S]*resource_suffix[\s\S]*\^\[a-z0-9\]\{6\}\$/);
   assert.match(terraform, /validation\s+\{[\s\S]*portal_container_port >= 1024/);
@@ -384,6 +387,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_deploy_artifact" "image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deliver_image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_hosted"/);
+  assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.hosted_application_deployments : \{\}/);
   assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
   assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
@@ -413,6 +417,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh LLAMAINDEX/);
   assert.doesNotMatch(terraform, /for_each = oci_devops_build_pipeline_stage\.deliver_image[\s\S]*items\.value\.id/);
   assert.match(terraform, /resource "oci_devops_build_run" "this"/);
+  assert.match(terraform, /name\s+=\s+"DEPLOY_ONLY_APP"[\s\S]*value\s+=\s+var\.deploy_only_app \? "true" : "false"/);
   assert.match(terraform, /for build_output in try\(oci_devops_build_run\.this\[0\]\.build_outputs, \[\]\)/);
   assert.match(terraform, /timeouts\s+\{[\s\S]*create\s+=\s+"90m"[\s\S]*\}/);
   assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
@@ -509,7 +514,7 @@ test("server logs feature run lifecycle to console", () => {
   assert.match(server, /portalSessionCookie/);
 });
 
-test("infrastructure tab renders all generated OCI runtime components", () => {
+test("administration page replaces infrastructure tab while runtime metadata stays available", () => {
   const server = read("server.mjs");
   const main = read("src/main.js");
   const styles = read("src/styles.css");
@@ -543,15 +548,15 @@ test("infrastructure tab renders all generated OCI runtime components", () => {
   assert.match(server, /hostedApplicationInvokeUrl/);
   assert.match(server, /application\.generativeai\.\$\{region\}\.oci\.oraclecloud\.com\/20251112\/hostedApplications/);
   assert.doesNotMatch(server, /IDCS_CLIENT_SECRET=.*[0-9a-f-]{30,}/);
-  assert.match(main, /Resources/);
-  assert.doesNotMatch(main, /All Provisioned Components/);
-  assert.match(main, /renderAllInfrastructureComponents/);
-  assert.match(main, /infra-component-search/);
-  assert.match(main, /infra-component-type-filter/);
-  assert.match(main, /function inferInfrastructureComponentType/);
-  assert.match(main, /function applyInfrastructureComponentFilters/);
-  assert.match(styles, /\.infra-filter-bar/);
-  assert.match(styles, /\.component-row\[hidden\]/);
+  assert.match(main, /id="administration"/);
+  assert.match(main, /admin-demo-table/);
+  assert.match(main, /admin-run-log-panel/);
+  assert.match(main, /loadResponsesInfrastructureState/);
+  assert.doesNotMatch(main, /id="infra-panel"/);
+  assert.doesNotMatch(main, /infra-component-search/);
+  assert.doesNotMatch(main, /infra-component-type-filter/);
+  assert.match(styles, /\.admin-metric-grid/);
+  assert.match(styles, /\.admin-run-log/);
 });
 
 test("server refresh discovers hosted runtime metadata when generated files are absent", () => {
