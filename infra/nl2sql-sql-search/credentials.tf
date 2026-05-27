@@ -20,12 +20,20 @@ resource "oci_kms_vault" "sql_search" {
   }
 }
 
+resource "time_sleep" "sql_search_vault_dns" {
+  count = local.create_managed_secret ? 1 : 0
+
+  create_duration = "120s"
+  depends_on      = [oci_kms_vault.sql_search]
+}
+
 resource "oci_kms_key" "sql_search" {
   count = local.create_managed_secret ? 1 : 0
 
   compartment_id      = var.compartment_id
   display_name        = "enterprise-ai-demo-sql-key-${var.resource_suffix}"
   management_endpoint = oci_kms_vault.sql_search[0].management_endpoint
+  depends_on          = [time_sleep.sql_search_vault_dns]
 
   key_shape {
     algorithm = "AES"

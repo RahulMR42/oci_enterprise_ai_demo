@@ -69,17 +69,17 @@ steps:
           --auth resource_principal \
           --region "$OCI_REGION" \
           --output json | python3 -c 'import json, sys
-display_name = sys.argv[1]
-resource_kind = sys.argv[2].lower()
-payload = json.load(sys.stdin)
-items = (payload.get("data") or {}).get("items") or payload.get("items") or []
-for item in items:
-    item_name = item.get("display-name") or item.get("displayName") or ""
-    resource_type = (item.get("resource-type") or item.get("resourceType") or "").lower()
-    lifecycle_state = (item.get("lifecycle-state") or item.get("lifecycleState") or "").lower()
-    identifier = item.get("identifier") or ""
-    if item_name == display_name and resource_kind in resource_type and identifier and lifecycle_state not in {"deleted", "deleting"}:
-        print(identifier)' "$display_name" "$resource_kind"
+      display_name = sys.argv[1]
+      resource_kind = sys.argv[2].lower()
+      payload = json.load(sys.stdin)
+      items = (payload.get("data") or {}).get("items") or payload.get("items") or []
+      for item in items:
+          item_name = item.get("display-name") or item.get("displayName") or ""
+          resource_type = (item.get("resource-type") or item.get("resourceType") or "").lower()
+          lifecycle_state = (item.get("lifecycle-state") or item.get("lifecycleState") or "").lower()
+          identifier = item.get("identifier") or ""
+          if item_name == display_name and resource_kind in resource_type and identifier and lifecycle_state not in {"deleted", "deleting"}:
+              print(identifier)' "$display_name" "$resource_kind"
       }
 
       delete_old_hosted_resources() {

@@ -68,10 +68,13 @@ test("nl2sql terraform includes autonomous database and db tools but no local IA
 
   assert.match(terraform, /resource "random_password" "sql_search_admin"/);
   assert.match(terraform, /resource "oci_kms_vault" "sql_search"/);
+  assert.match(terraform, /resource "time_sleep" "sql_search_vault_dns"/);
   assert.match(terraform, /resource "oci_kms_key" "sql_search"/);
   assert.match(terraform, /resource "oci_vault_secret" "sql_search_admin_password"/);
   assert.match(terraform, /resource "oci_database_autonomous_database" "sql_search"/);
   assert.match(terraform, /admin_password\s+=\s+random_password\.sql_search_admin\.result/);
+  assert.match(terraform, /create_duration\s+=\s+"120s"/);
+  assert.match(terraform, /depends_on\s+=\s+\[time_sleep\.sql_search_vault_dns\]/);
   assert.match(terraform, /resource "oci_database_tools_database_tools_connection" "enrichment"/);
   assert.match(terraform, /resource "oci_database_tools_database_tools_connection" "query"/);
   assert.match(terraform, /secret_id\s+=\s+local\.database_password_secret_id/);
@@ -535,6 +538,8 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
   assert.match(buildSpec, /hosted-application delete/);
   assert.match(buildSpec, /hosted-deployment delete/);
   assert.match(buildSpec, /"\$old_app_id" != "\$new_app_id"/);
+  assert.match(buildSpec, /^      display_name = sys\.argv\[1\]$/m);
+  assert.doesNotMatch(buildSpec, /^display_name = sys\.argv\[1\]$/m);
 });
 
 test("run dialog renders user-facing demo brief", () => {
