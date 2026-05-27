@@ -330,8 +330,14 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/code-interpreter/container.tf"),
     read("infra/devops-hosted-image-build/locals.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
+    read("infra/devops-hosted-image-build/outputs.tf"),
     read("infra/devops-hosted-image-build/build_spec_images.yaml"),
-    read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml")
+    read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_langgraph.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_openclaw.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_deploy_llamaindex.yaml"),
+    read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh")
   ].join("\n");
   const readme = read("infra/resource-manager-demo/README.md");
   const hostedAppTerraform = [
@@ -380,8 +386,23 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /argument_substitution_mode\s+=\s+"NONE"/);
   assert.match(terraform, /artifact_name\s+=\s+each\.value\.artifact_name/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
-  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_deploy_hosted\.yaml"/);
+  assert.match(terraform, /hosted_application_deployments\s+=\s+\{/);
+  assert.match(terraform, /build_spec_file\s+=\s+each\.value\.build_spec_file/);
+  assert.match(terraform, /display_name\s+=\s+each\.value\.stage_name/);
+  assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.deliver_image\[each\.key\]\.id/);
+  assert.match(terraform, /build_spec_deploy_hosted\.yaml/);
+  assert.match(terraform, /build_spec_deploy_langgraph\.yaml/);
+  assert.match(terraform, /build_spec_deploy_langfuse\.yaml/);
+  assert.match(terraform, /build_spec_deploy_openclaw\.yaml/);
+  assert.match(terraform, /build_spec_deploy_llamaindex\.yaml/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh HOSTED_AGENT/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh LANGGRAPH/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh LANGFUSE/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh OPENCLAW/);
+  assert.match(terraform, /\. infra\/devops-hosted-image-build\/scripts\/deploy_hosted_application\.sh LLAMAINDEX/);
+  assert.doesNotMatch(terraform, /for_each = oci_devops_build_pipeline_stage\.deliver_image[\s\S]*items\.value\.id/);
   assert.match(terraform, /resource "oci_devops_build_run" "this"/);
+  assert.match(terraform, /for build_output in try\(oci_devops_build_run\.this\[0\]\.build_outputs, \[\]\)/);
   assert.match(terraform, /timeouts\s+\{[\s\S]*create\s+=\s+"90m"[\s\S]*\}/);
   assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
   assert.match(terraform, /resource "oci_logging_log_group" "devops"/);
@@ -535,14 +556,22 @@ test("server refresh discovers hosted runtime metadata when generated files are 
 
 test("DevOps hosted deployment replaces old hosted apps instead of accumulating duplicates", () => {
   const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml");
+  const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh");
 
-  assert.match(buildSpec, /previous_app_ids/);
-  assert.match(buildSpec, /delete_old_hosted_resources/);
-  assert.match(buildSpec, /hosted-application delete/);
-  assert.match(buildSpec, /hosted-deployment delete/);
-  assert.match(buildSpec, /"\$old_app_id" != "\$new_app_id"/);
-  assert.match(buildSpec, /^      display_name = sys\.argv\[1\]$/m);
-  assert.doesNotMatch(buildSpec, /^display_name = sys\.argv\[1\]$/m);
+  assert.match(buildSpec, /deploy_hosted_application\.sh HOSTED_AGENT/);
+  assert.match(deployScript, /case "\$HOSTED_APP_KEY" in/);
+  assert.match(deployScript, /create_hosted HOSTED_AGENT/);
+  assert.match(deployScript, /create_hosted LANGGRAPH/);
+  assert.match(deployScript, /create_hosted LANGFUSE/);
+  assert.match(deployScript, /create_hosted OPENCLAW/);
+  assert.match(deployScript, /create_hosted LLAMAINDEX/);
+  assert.match(deployScript, /write_exported_variables "\$HOSTED_APP_KEY"/);
+  assert.match(deployScript, /previous_app_ids/);
+  assert.match(deployScript, /delete_old_hosted_resources/);
+  assert.match(deployScript, /hosted-application delete/);
+  assert.match(deployScript, /hosted-deployment delete/);
+  assert.match(deployScript, /"\$old_app_id" != "\$new_app_id"/);
+  assert.match(deployScript, /^display_name = sys\.argv\[1\]$/m);
 });
 
 test("run dialog renders user-facing demo brief", () => {
