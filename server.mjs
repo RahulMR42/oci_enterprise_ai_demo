@@ -3064,7 +3064,7 @@ server.on("error", (error) => {
   throw error;
 });
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   server.listen(port, host, () => {
     console.log(`Enterprise AI demo portal is running at http://localhost:${port}`);
     console.log(`Portal login username: ${portalAuthUser}`);
