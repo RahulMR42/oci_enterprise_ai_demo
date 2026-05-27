@@ -9,7 +9,7 @@ function escapeXml(value) {
 }
 
 test("demo features provide card and flip-side content", () => {
-  assert.equal(aiFeatures.length, 24);
+  assert.equal(aiFeatures.length, 25);
 
   const featureIds = aiFeatures.map((feature) => feature.id);
   assert.deepEqual(featureIds, [
@@ -30,6 +30,7 @@ test("demo features provide card and flip-side content", () => {
     "openclaw-hosted-agent-gateway",
     "agentic-control-tower",
     "agentic-rag-planner",
+    "locus-sdk-agentic-workflows",
     "human-approval-agent",
     "governance-center",
     "document-understanding-genai",
@@ -49,9 +50,10 @@ test("demo features provide card and flip-side content", () => {
     assert.ok(feature.demoHref);
     assert.ok(feature.docsHref);
     assert.ok(
-      feature.docsHref.startsWith("https://docs.oracle.com/") ||
+        feature.docsHref.startsWith("https://docs.oracle.com/") ||
         feature.docsHref.startsWith("https://docs.openclaw.ai/") ||
-        feature.docsHref.startsWith("https://docs.llamaindex.ai/")
+        feature.docsHref.startsWith("https://docs.llamaindex.ai/") ||
+        feature.docsHref.startsWith("https://locusagents.oracle.com/")
     );
     assert.ok(feature.terraformPath);
     assert.ok(feature.sdkModule);
@@ -87,6 +89,7 @@ test("portal exposes mermaid-style flow diagrams for feature cards", () => {
   assert.match(main, /"langgraph-hosted-agent-mcp"[\s\S]*MCP tool call/);
   assert.match(main, /"a2a-agent-collaboration"[\s\S]*Agent card discovery/);
   assert.match(main, /"agentic-rag-planner"[\s\S]*Evidence check/);
+  assert.match(main, /"locus-sdk-agentic-workflows"[\s\S]*Locus SDK Agentic Workflow/);
   assert.match(main, /"human-approval-agent"[\s\S]*Approval checkpoint/);
   assert.match(main, /flowchart LR/);
   assert.match(main, /data-show-flow/);

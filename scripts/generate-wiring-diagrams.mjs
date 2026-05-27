@@ -105,6 +105,11 @@ const featureOverrides = {
     data: "Retrieval queries, evidence sufficiency policy",
     response: "Grounded answer plan and final answer policy"
   },
+  "locus-sdk-agentic-workflows": {
+    core: "Locus SDK agent workflow on OCI Responses",
+    data: "Tool registry, MCP integration, memory, checkpoints, streaming events",
+    response: "Production agent workflow plan"
+  },
   "human-approval-agent": {
     core: "OCI Responses API with approval classification",
     data: "Risk rules, action proposal, approval checkpoint",

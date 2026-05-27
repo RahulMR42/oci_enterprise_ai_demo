@@ -560,6 +560,7 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
 
   assert.match(buildSpec, /deploy_hosted_application\.sh HOSTED_AGENT/);
   assert.match(deployScript, /case "\$HOSTED_APP_KEY" in/);
+  assert.match(deployScript, /delete_existing_hosted_resources "\$deployment_display" "\$display"/);
   assert.match(deployScript, /create_hosted HOSTED_AGENT/);
   assert.match(deployScript, /create_hosted LANGGRAPH/);
   assert.match(deployScript, /create_hosted LANGFUSE/);
@@ -567,10 +568,11 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
   assert.match(deployScript, /create_hosted LLAMAINDEX/);
   assert.match(deployScript, /write_exported_variables "\$HOSTED_APP_KEY"/);
   assert.match(deployScript, /previous_app_ids/);
-  assert.match(deployScript, /delete_old_hosted_resources/);
+  assert.match(deployScript, /delete_existing_hosted_resources/);
   assert.match(deployScript, /hosted-application delete/);
   assert.match(deployScript, /hosted-deployment delete/);
-  assert.match(deployScript, /"\$old_app_id" != "\$new_app_id"/);
+  assert.doesNotMatch(deployScript, /"\$old_app_id" != "\$new_app_id"/);
+  assert.doesNotMatch(deployScript, /"\$old_dep_id" != "\$new_dep_id"/);
   assert.match(deployScript, /^display_name = sys\.argv\[1\]$/m);
 });
 

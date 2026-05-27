@@ -61,14 +61,18 @@ for item in items:
         print(identifier)' "$display_name" "$resource_kind"
 }
 
-delete_old_hosted_resources() {
-  local new_app_id="$1"
-  local new_dep_id="$2"
-  shift 2
+delete_existing_hosted_resources() {
+  local deployment_display="$1"
+  local app_display="$2"
   local old_dep_id old_app_id
+  local previous_app_ids=()
+  local previous_dep_ids=()
 
-  for old_dep_id in "$@"; do
-    if [ -n "$old_dep_id" ] && [ "$old_dep_id" != "$new_dep_id" ]; then
+  mapfile -t previous_app_ids < <(resource_ids_by_display_name "$app_display" "hostedapplication" || true)
+  mapfile -t previous_dep_ids < <(resource_ids_by_display_name "$deployment_display" "hosteddeployment" || true)
+
+  for old_dep_id in "${previous_dep_ids[@]}"; do
+    if [ -n "$old_dep_id" ]; then
       oci generative-ai hosted-deployment delete \
         --hosted-deployment-id "$old_dep_id" \
         --force \
@@ -79,7 +83,7 @@ delete_old_hosted_resources() {
   done
 
   for old_app_id in "${previous_app_ids[@]}"; do
-    if [ -n "$old_app_id" ] && [ "$old_app_id" != "$new_app_id" ]; then
+    if [ -n "$old_app_id" ]; then
       oci generative-ai hosted-application delete \
         --hosted-application-id "$old_app_id" \
         --force \
@@ -102,11 +106,8 @@ create_hosted() {
   local networking_json="${7:-}"
   local app_file="/tmp/${key}_hosted_application.json"
   local dep_file="/tmp/${key}_hosted_deployment.json"
-  local previous_app_ids=()
-  local previous_dep_ids=()
 
-  mapfile -t previous_app_ids < <(resource_ids_by_display_name "$display" "hostedapplication" || true)
-  mapfile -t previous_dep_ids < <(resource_ids_by_display_name "$deployment_display" "hosteddeployment" || true)
+  delete_existing_hosted_resources "$deployment_display" "$display"
 
   env_args=()
   if [ -n "$env_json" ] && [ "$env_json" != "[]" ]; then
@@ -164,8 +165,6 @@ create_hosted() {
     { [ "$dep_state" = "ACTIVE" ] || [ "$dep_state" = "FAILED" ]; } && break
     sleep 10
   done
-
-  delete_old_hosted_resources "$app_id" "$dep_id" "${previous_dep_ids[@]}"
 
   export "${key}_URL=$(invoke_url "$app_id")"
   export "${key}_DEPLOYMENT_ID=$dep_id"

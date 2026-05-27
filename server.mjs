@@ -45,6 +45,7 @@ const demoScripts = {
   "a2a-agent-collaboration": "a2a_agent_collaboration.py",
   "agentic-control-tower": "agentic_control_tower.py",
   "agentic-rag-planner": "agentic_rag_planner.py",
+  "locus-sdk-agentic-workflows": "locus_sdk_agentic_workflows.py",
   "human-approval-agent": "human_approval_agent.py",
   "governance-center": "governance_center.py",
   "document-understanding-genai": "document_understanding_genai.py",
@@ -2277,6 +2278,10 @@ response = call_oci_responses_api(build_control_tower_prompt(workflow_result), t
     "agentic-rag-planner": `plan = build_retrieval_plan(prompt)
 queries = plan["retrievalQueries"]
 response = call_oci_responses_api(build_grounded_plan_prompt(plan), temperature, model, config)`,
+    "locus-sdk-agentic-workflows": `workflow = build_locus_agent_workflow(prompt)
+tools = select_locus_tools(workflow)
+memory = load_locus_memory_context(workflow)
+response = call_oci_responses_api(build_locus_prompt(workflow), temperature, model, config)`,
     "human-approval-agent": `approval = classify_agent_action_risk(prompt)
 if approval["approvalRequired"]:
     response = call_oci_responses_api(build_approval_prompt(approval), temperature, model, config)`,

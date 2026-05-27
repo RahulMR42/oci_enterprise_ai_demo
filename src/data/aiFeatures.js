@@ -323,6 +323,25 @@ export const aiFeatures = [
     capabilities: ["Retrieval planning", "Evidence checks", "Grounded answer policy"]
   },
   {
+    id: "locus-sdk-agentic-workflows",
+    title: "Locus SDK Agentic Workflows",
+    serviceArea: "OCI Generative AI Agents",
+    summary: "Explore Oracle's Locus SDK patterns for agent loops, tools, memory, orchestration, streaming, and production controls.",
+    details:
+      "Runs a guided Locus SDK workflow plan based on the public Locus documentation: agent loop, tool execution, MCP-ready tools, conversation and long-term memory, orchestrator or swarm composition, checkpointing, streaming events, and OCI Responses model providers.",
+    provisioningDetails:
+      "Uses the shared OCI Generative AI project/API key for the live synthesis step. The demo is a portal-side SDK exploration pattern and does not create additional OCI infrastructure.",
+    status: "Live SDK Explorer",
+    accent: "violet",
+    terraformPath: "infra/responses-api",
+    sdkModule: "backend/demos/locus_sdk_agentic_workflows.py",
+    sampleUseCase: "Design a production incident agent that uses tools, remembers account context, streams progress, and resumes from checkpoints.",
+    demoHref: "#demo-locus-sdk-agentic-workflows",
+    docsHref: "https://locusagents.oracle.com/",
+    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
+    capabilities: ["Locus agent loop", "Tools and MCP", "Memory and checkpoints"]
+  },
+  {
     id: "human-approval-agent",
     title: "Human-in-the-Loop Agent Approval",
     serviceArea: "Enterprise AI Governance",
