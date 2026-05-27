@@ -320,6 +320,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   const terraform = [
     read("infra/resource-manager-demo/versions.tf"),
     read("infra/resource-manager-demo/variables.tf"),
+    read("infra/resource-manager-demo/schema.yaml"),
     read("infra/resource-manager-demo/main.tf"),
     read("infra/resource-manager-demo/portal_container.tf"),
     read("infra/resource-manager-demo/outputs.tf"),
@@ -340,6 +341,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh")
   ].join("\n");
   const readme = read("infra/resource-manager-demo/README.md");
+  const deployDocs = read("docs/deployment/resource-manager-one-click.md");
+  const releaseWorkflow = read(".github/workflows/release-resource-manager-stack.yml");
   const hostedAppTerraform = [
     read("infra/hosted-agentic-applications/hosted_application.tf"),
     read("infra/hosted-agentic-applications/langgraph_hosted_application.tf"),
@@ -366,6 +369,14 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /module "devops_hosted_image_build"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/devops-hosted-image-build"/);
   assert.match(terraform, /variable "devops_repository_branch"/);
+  assert.match(terraform, /variable "devops_source_branch"[\s\S]*default\s+=\s+"oci-rms"/);
+  assert.match(terraform, /schemaVersion: 1\.1\.0/);
+  assert.match(terraform, /devops_source_branch:[\s\S]*default: oci-rms/);
+  assert.match(terraform, /devops_source_revision:[\s\S]*pattern: "\^\$\|\^\[A-Fa-f0-9\]\{7,40\}\$"/);
+  assert.match(terraform, /validation\s+\{[\s\S]*resource_suffix[\s\S]*\^\[a-z0-9\]\{6\}\$/);
+  assert.match(terraform, /validation\s+\{[\s\S]*portal_container_port >= 1024/);
+  assert.match(terraform, /validation\s+\{[\s\S]*contains\(\["GITHUB", "DEVOPS_CODE_REPOSITORY"\]/);
+  assert.match(terraform, /validation\s+\{[\s\S]*can\(cidrhost\(var\.portal_vcn_cidr, 1\)\)/);
   assert.match(terraform, /devops_repository_branch\s+=\s+var\.devops_repository_branch/);
   assert.match(terraform, /resource "oci_devops_project" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
@@ -465,6 +476,12 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(readme, /resource principal auth/);
   assert.match(readme, /Enterprise AI portal image repository/);
   assert.match(readme, /The n8n demo code remains in the repository/);
+  assert.match(readme, /default source branch is `oci-rms`/);
+  assert.match(readme, /delete-then-create semantics/);
+  assert.match(deployDocs, /`devops_source_branch` \| `oci-rms`/);
+  assert.match(deployDocs, /`devops_source_revision=<commit SHA on oci-rms>`/);
+  assert.match(deployDocs, /deploy-langfuse/);
+  assert.match(releaseWorkflow, /infra\/resource-manager-demo\/schema\.yaml/);
 });
 
 test("startup script captures logs to a directory by default and can disable file capture", () => {

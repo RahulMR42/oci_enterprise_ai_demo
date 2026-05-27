@@ -50,6 +50,7 @@ jobs:
             --output="release/enterprise-ai-demo-resource-manager-stack.zip" \
             HEAD
           unzip -l release/enterprise-ai-demo-resource-manager-stack.zip "infra/resource-manager-demo/main.tf"
+          unzip -l release/enterprise-ai-demo-resource-manager-stack.zip "infra/resource-manager-demo/schema.yaml"
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
