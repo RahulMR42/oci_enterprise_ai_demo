@@ -10,32 +10,32 @@ output "responses_api_project_display_name" {
 
 output "hosted_agent_container_repository_name" {
   description = "OCIR repository name for the hosted agent image."
-  value       = var.hosted_applications_local_exec_enabled ? module.hosted_agentic_applications[0].container_repository_name : "enterprise-ai-demo/hosted-agent-${var.resource_suffix}"
+  value       = module.hosted_agentic_applications.container_repository_name
 }
 
 output "langgraph_container_repository_name" {
   description = "OCIR repository name for the LangGraph hosted agent image."
-  value       = var.hosted_applications_local_exec_enabled ? module.hosted_agentic_applications[0].langgraph_container_repository_name : "enterprise-ai-demo/hosted-langgraph-agent-${var.resource_suffix}"
+  value       = module.hosted_agentic_applications.langgraph_container_repository_name
 }
 
 output "n8n_container_repository_name" {
   description = "OCIR repository name for the n8n hosted workflow image."
-  value       = var.hosted_applications_local_exec_enabled ? module.hosted_agentic_applications[0].n8n_container_repository_name : "enterprise-ai-demo/hosted-n8n-${var.resource_suffix}"
+  value       = module.hosted_agentic_applications.n8n_container_repository_name
 }
 
 output "langfuse_container_repository_name" {
   description = "OCIR repository name for the Langfuse hosted observability image."
-  value       = var.hosted_applications_local_exec_enabled ? module.hosted_agentic_applications[0].langfuse_container_repository_name : "enterprise-ai-demo/hosted-langfuse-${var.resource_suffix}"
+  value       = module.hosted_agentic_applications.langfuse_container_repository_name
 }
 
 output "openclaw_container_repository_name" {
   description = "OCIR repository name for the OpenClaw hosted gateway image."
-  value       = var.hosted_applications_local_exec_enabled ? module.hosted_agentic_applications[0].openclaw_container_repository_name : "enterprise-ai-demo/hosted-openclaw-${var.resource_suffix}"
+  value       = module.hosted_agentic_applications.openclaw_container_repository_name
 }
 
 output "llamaindex_container_repository_name" {
   description = "OCIR repository name for the LlamaIndex control tower image."
-  value       = var.hosted_applications_local_exec_enabled ? module.hosted_agentic_applications[0].llamaindex_container_repository_name : "enterprise-ai-demo/hosted-llamaindex-control-tower-${var.resource_suffix}"
+  value       = module.hosted_agentic_applications.llamaindex_container_repository_name
 }
 
 output "devops_hosted_image_build_pipeline_id" {
@@ -115,27 +115,27 @@ output "portal_code_interpreter_container_id" {
 
 output "langfuse_postgres_private_endpoint" {
   description = "Private PostgreSQL endpoint used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications[0].langfuse_postgres_private_endpoint, "")
+  value       = try(module.hosted_agentic_applications.langfuse_postgres_private_endpoint, "")
 }
 
 output "langfuse_clickhouse_url" {
   description = "Private ClickHouse HTTP endpoint used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications[0].langfuse_clickhouse_url, "")
+  value       = try(module.hosted_agentic_applications.langfuse_clickhouse_url, "")
 }
 
 output "langfuse_redis_endpoint" {
   description = "Private Redis endpoint used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications[0].langfuse_redis_endpoint, "")
+  value       = try(module.hosted_agentic_applications.langfuse_redis_endpoint, "")
 }
 
 output "langfuse_object_storage_bucket" {
   description = "OCI Object Storage bucket used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications[0].langfuse_object_storage_bucket, "")
+  value       = try(module.hosted_agentic_applications.langfuse_object_storage_bucket, "")
 }
 
 output "langfuse_networking_config_json" {
   description = "Hosted application private networking configuration used by Langfuse."
-  value       = try(module.hosted_agentic_applications[0].langfuse_networking_config_json, "")
+  value       = try(module.hosted_agentic_applications.langfuse_networking_config_json, "")
 }
 
 output "portal_runtime_note" {

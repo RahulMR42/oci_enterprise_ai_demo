@@ -179,6 +179,7 @@ resource "oci_container_instances_container_instance" "portal" {
       OCI_HOSTED_OPENCLAW_URL              = local.hosted_deployment_exports.OPENCLAW_URL
       PORT                                 = tostring(var.portal_container_port)
       OCI_PORTAL_PASSWORD                  = local.portal_auth_password
+      OCI_RESOURCE_SUFFIX                  = var.resource_suffix
     }
 
     health_checks {

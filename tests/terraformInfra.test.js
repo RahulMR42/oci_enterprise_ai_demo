@@ -418,6 +418,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /manage repos in compartment id/);
   assert.match(terraform, /module "hosted_agentic_applications"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/hosted-agentic-applications"/);
+  assert.doesNotMatch(terraform, /count\s+=\s+var\.hosted_applications_local_exec_enabled\s+\?\s+1\s+:\s+0/);
+  assert.match(terraform, /hosted_cli_deployments_enabled\s+=\s+var\.hosted_applications_local_exec_enabled/);
   assert.match(terraform, /resource_suffix\s+=\s+var\.resource_suffix/);
   assert.match(terraform, /push_image\s+=\s+var\.hosted_app_push_image/);
   assert.equal((hostedAppTerraform.match(/hosted_image_build_run_id\s+=\s+var\.hosted_image_build_run_id/g) || []).length, 6);
@@ -509,6 +511,30 @@ test("infrastructure tab renders all generated OCI runtime components", () => {
   assert.match(main, /function applyInfrastructureComponentFilters/);
   assert.match(styles, /\.infra-filter-bar/);
   assert.match(styles, /\.component-row\[hidden\]/);
+});
+
+test("server refresh discovers hosted runtime metadata when generated files are absent", () => {
+  const server = read("server.mjs");
+  const portalTerraform = read("infra/resource-manager-demo/portal_container.tf");
+
+  assert.match(server, /function resolveHostedRuntimeResourceSuffix/);
+  assert.match(server, /async function discoverGeneratedHostedRuntimeState/);
+  assert.match(server, /structured-search/);
+  assert.match(server, /enterprise-ai-demo-langfuse-\$\{resourceSuffix\}/);
+  assert.match(server, /langfuse_hosted_observability\.json/);
+  assert.match(server, /process\.env\.OCI_HOSTED_LANGFUSE_URL/);
+  assert.match(server, /discoverGeneratedHostedRuntimeState/);
+  assert.match(portalTerraform, /OCI_RESOURCE_SUFFIX\s+=\s+var\.resource_suffix/);
+});
+
+test("DevOps hosted deployment replaces old hosted apps instead of accumulating duplicates", () => {
+  const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml");
+
+  assert.match(buildSpec, /previous_app_ids/);
+  assert.match(buildSpec, /delete_old_hosted_resources/);
+  assert.match(buildSpec, /hosted-application delete/);
+  assert.match(buildSpec, /hosted-deployment delete/);
+  assert.match(buildSpec, /"\$old_app_id" != "\$new_app_id"/);
 });
 
 test("run dialog renders user-facing demo brief", () => {

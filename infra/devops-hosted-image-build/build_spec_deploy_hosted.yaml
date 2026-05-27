@@ -60,6 +60,57 @@ steps:
         printf '%s\n' "${image_uri%:*}"
       }
 
+      resource_ids_by_display_name() {
+        local display_name="$1"
+        local resource_kind="$2"
+        local query_text="query all resources where displayName = '${display_name}'"
+        oci search resource structured-search \
+          --query-text "$query_text" \
+          --auth resource_principal \
+          --region "$OCI_REGION" \
+          --output json | python3 -c 'import json, sys
+display_name = sys.argv[1]
+resource_kind = sys.argv[2].lower()
+payload = json.load(sys.stdin)
+items = (payload.get("data") or {}).get("items") or payload.get("items") or []
+for item in items:
+    item_name = item.get("display-name") or item.get("displayName") or ""
+    resource_type = (item.get("resource-type") or item.get("resourceType") or "").lower()
+    lifecycle_state = (item.get("lifecycle-state") or item.get("lifecycleState") or "").lower()
+    identifier = item.get("identifier") or ""
+    if item_name == display_name and resource_kind in resource_type and identifier and lifecycle_state not in {"deleted", "deleting"}:
+        print(identifier)' "$display_name" "$resource_kind"
+      }
+
+      delete_old_hosted_resources() {
+        local new_app_id="$1"
+        local new_dep_id="$2"
+        shift 2
+        local old_dep_id old_app_id
+
+        for old_dep_id in "$@"; do
+          if [ -n "$old_dep_id" ] && [ "$old_dep_id" != "$new_dep_id" ]; then
+            oci generative-ai hosted-deployment delete \
+              --hosted-deployment-id "$old_dep_id" \
+              --force \
+              --auth resource_principal \
+              --region "$OCI_REGION" \
+              --wait-for-state SUCCEEDED || true
+          fi
+        done
+
+        for old_app_id in "${previous_app_ids[@]}"; do
+          if [ -n "$old_app_id" ] && [ "$old_app_id" != "$new_app_id" ]; then
+            oci generative-ai hosted-application delete \
+              --hosted-application-id "$old_app_id" \
+              --force \
+              --auth resource_principal \
+              --region "$OCI_REGION" \
+              --wait-for-state SUCCEEDED || true
+          fi
+        done
+      }
+
       inbound_auth_config="$(python3 -c 'import json, os; print(json.dumps({"inboundAuthConfigType":"IDCS_AUTH_CONFIG","idcsConfig":{"domainUrl":os.environ["IDCS_DOMAIN_URL"],"audience":os.environ["IDCS_AUDIENCE"],"scope":os.environ["IDCS_SCOPE"]}}))')"
 
       create_hosted() {
@@ -72,6 +123,11 @@ steps:
         local networking_json="${7:-}"
         local app_file="/tmp/${key}_hosted_application.json"
         local dep_file="/tmp/${key}_hosted_deployment.json"
+        local previous_app_ids=()
+        local previous_dep_ids=()
+
+        mapfile -t previous_app_ids < <(resource_ids_by_display_name "$display" "hostedapplication" || true)
+        mapfile -t previous_dep_ids < <(resource_ids_by_display_name "$deployment_display" "hosteddeployment" || true)
 
         env_args=()
         if [ -n "$env_json" ] && [ "$env_json" != "[]" ]; then
@@ -129,6 +185,8 @@ steps:
           { [ "$dep_state" = "ACTIVE" ] || [ "$dep_state" = "FAILED" ]; } && break
           sleep 10
         done
+
+        delete_old_hosted_resources "$app_id" "$dep_id" "${previous_dep_ids[@]}"
 
         export "${key}_URL=$(invoke_url "$app_id")"
         export "${key}_DEPLOYMENT_ID=$dep_id"
