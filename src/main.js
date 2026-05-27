@@ -38,7 +38,6 @@ const infraState = {
 };
 
 let activeDemoId = "responses-api";
-let latestAdministrationRuns = [];
 const demoRatingsStorageKey = "enterprise-ai-demo-ratings-v1";
 const demoRunCountsStorageKey = "enterprise-ai-demo-run-counts-v1";
 const minInitialRunCount = 20;
@@ -1122,7 +1121,7 @@ function renderPortal() {
           </div>
           <div class="nav-actions">
             <a class="nav-link" href="#catalog">Catalog</a>
-            <a class="nav-link" href="#administration">Administration</a>
+            <a class="nav-link" href="/admin.html" target="_blank" rel="noreferrer">Administration</a>
             <form method="post" action="/logout">
               <button class="nav-link logout-button" type="submit">Logout</button>
             </form>
@@ -1195,42 +1194,6 @@ function renderPortal() {
         </div>
         <div class="results-count" id="results-count" aria-live="polite"></div>
         <div class="feature-grid" id="feature-grid"></div>
-      </section>
-      <section class="admin-section" id="administration" aria-labelledby="administration-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Administration</p>
-            <h2 id="administration-title">Demo operations</h2>
-          </div>
-          <p class="section-note">Review demo execution status, server-side logs, and run metrics without exposing deployment internals in the main catalog.</p>
-        </div>
-        <div class="admin-toolbar">
-          <button id="admin-refresh-button" type="button">Refresh</button>
-          <span id="admin-last-updated">Not loaded</span>
-        </div>
-        <div class="admin-metric-grid" id="admin-metric-grid">
-          <div class="admin-metric"><span>Total runs</span><strong>0</strong></div>
-          <div class="admin-metric"><span>Success</span><strong>0</strong></div>
-          <div class="admin-metric"><span>Failed</span><strong>0</strong></div>
-          <div class="admin-metric"><span>Avg duration</span><strong>0 ms</strong></div>
-        </div>
-        <div class="admin-layout">
-          <section class="admin-demo-table" aria-label="Demo run summary">
-            <h3>Demo summary</h3>
-            <div id="admin-demo-summary">
-              <div class="admin-demo-row">
-                <strong>No demo runs yet</strong>
-                <span>Run a demo to populate operations history.</span>
-              </div>
-            </div>
-          </section>
-          <section class="admin-run-log-panel" aria-label="Recent execution logs">
-            <h3>Recent execution logs</h3>
-            <div id="admin-run-logs">
-              <div class="admin-run-log-empty">No execution logs yet.</div>
-            </div>
-          </section>
-        </div>
       </section>
     </main>
     <dialog class="flow-dialog" id="flow-dialog">
@@ -1475,7 +1438,7 @@ function attachCardInteractions() {
   document.querySelectorAll("[data-destroy-demo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      document.getElementById("administration").scrollIntoView({ block: "start" });
+      window.open("/admin.html", "_blank", "noopener");
     });
   });
 }
@@ -2465,94 +2428,6 @@ function syncDemoInfraFields() {
   document.getElementById("responses-project-id-display").value = infraState.projectId;
 }
 
-function renderAdministrationMetrics(summary = {}) {
-  const metrics = summary.metrics || {};
-  const metricGrid = document.getElementById("admin-metric-grid");
-  const demoSummary = document.getElementById("admin-demo-summary");
-  const runLogs = document.getElementById("admin-run-logs");
-  const lastUpdated = document.getElementById("admin-last-updated");
-
-  if (!metricGrid || !demoSummary || !runLogs) {
-    return;
-  }
-
-  latestAdministrationRuns = Array.isArray(summary.runs) ? summary.runs : [];
-  metricGrid.innerHTML = [
-    ["Total runs", metrics.totalRuns || 0],
-    ["Success", metrics.successfulRuns || 0],
-    ["Failed", metrics.failedRuns || 0],
-    ["Avg duration", formatElapsedTime(metrics.averageDurationMs || 0)]
-  ]
-    .map(([label, value]) => `<div class="admin-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
-    .join("");
-
-  const demos = Array.isArray(summary.demos) ? summary.demos : [];
-  demoSummary.innerHTML = demos.length
-    ? demos
-        .map(
-          (demo) => `
-            <div class="admin-demo-row" data-status="${escapeHtml(demo.lastStatus || "unknown")}">
-              <strong>${escapeHtml(demo.featureId)}</strong>
-              <span>${escapeHtml(demo.lastStatus || "unknown")}</span>
-              <span>${escapeHtml(String(demo.runs || 0))} runs</span>
-              <span>${escapeHtml(formatElapsedTime(demo.averageDurationMs || 0))} avg</span>
-              <code>${escapeHtml(demo.lastRunAt || "No runs")}</code>
-            </div>`
-        )
-        .join("")
-    : `<div class="admin-demo-row"><strong>No demo runs yet</strong><span>Run a demo to populate operations history.</span></div>`;
-
-  runLogs.innerHTML = latestAdministrationRuns.length
-    ? latestAdministrationRuns
-        .slice(0, 12)
-        .map(
-          (run) => `
-            <details class="admin-run-log" data-status="${escapeHtml(run.status || "unknown")}">
-              <summary>
-                <strong>${escapeHtml(run.featureId || "unknown")}</strong>
-                <span>${escapeHtml(run.status || "unknown")}</span>
-                <span>${escapeHtml(formatElapsedTime(run.durationMs || 0))}</span>
-                <time>${escapeHtml(run.createdAt || "")}</time>
-              </summary>
-              ${run.error ? `<div class="admin-run-error">${escapeHtml(run.error)}</div>` : ""}
-              <pre>${escapeHtml(JSON.stringify({ stdout: run.stdout || "", stderr: run.stderr || "", logs: run.logs || [], trace: run.trace || [] }, null, 2))}</pre>
-            </details>`
-        )
-        .join("")
-    : `<div class="admin-run-log-empty">No execution logs yet.</div>`;
-
-  if (lastUpdated) {
-    lastUpdated.textContent = metrics.lastRunAt ? `Latest run: ${metrics.lastRunAt}` : "No runs recorded";
-  }
-}
-
-async function loadAdministrationMetrics() {
-  const refreshButton = document.getElementById("admin-refresh-button");
-  if (refreshButton) {
-    refreshButton.disabled = true;
-  }
-  try {
-    const response = await fetch("/api/admin/demo-runs");
-    const result = await response.json();
-    renderAdministrationMetrics(result);
-  } catch (error) {
-    renderAdministrationMetrics({
-      metrics: { totalRuns: 0, successfulRuns: 0, failedRuns: 0, averageDurationMs: 0, lastRunAt: "" },
-      demos: [],
-      runs: [],
-      error: error.message
-    });
-  } finally {
-    if (refreshButton) {
-      refreshButton.disabled = false;
-    }
-  }
-}
-
-function recordClientRunSummary() {
-  loadAdministrationMetrics();
-}
-
 async function loadResponsesInfrastructureState({ refresh = false } = {}) {
   try {
     const response = await fetch(`/api/features/responses-api/state${refresh ? "?refresh=true" : ""}`);
@@ -2588,13 +2463,10 @@ attachCopyControls();
 attachMoreDetailsAccordion();
 renderFeatureGrid();
 loadResponsesInfrastructureState();
-loadAdministrationMetrics();
 
 document.getElementById("feature-search").addEventListener("input", (event) => {
   renderFeatureGrid(event.target.value);
 });
-
-document.getElementById("admin-refresh-button").addEventListener("click", loadAdministrationMetrics);
 
 document.getElementById("responses-minimize-button").addEventListener("click", () => {
   document.getElementById("responses-demo-dialog").classList.toggle("is-minimized");
@@ -2699,7 +2571,6 @@ document.getElementById("responses-run-button").addEventListener("click", async 
       trace: result.trace || [],
       logs: result.logs || []
     });
-    recordClientRunSummary();
   } catch (error) {
     renderDemoOutput(`Error: ${error.message}`);
     renderLiveLogs([
@@ -2714,7 +2585,6 @@ document.getElementById("responses-run-button").addEventListener("click", async 
       trace: error.trace || [],
       logs: error.logs || []
     });
-    recordClientRunSummary();
   } finally {
     if (elapsedTimer) {
       window.clearInterval(elapsedTimer);

@@ -370,11 +370,13 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /source\s+=\s+"\.\.\/devops-hosted-image-build"/);
   assert.match(terraform, /variable "devops_repository_branch"/);
   assert.match(terraform, /variable "deploy_only_app"/);
+  assert.match(terraform, /variable "existing_hosted_deployment_exports_json"/);
   assert.match(terraform, /DEPLOY_ONLY_APP/);
   assert.match(terraform, /variable "devops_source_branch"[\s\S]*default\s+=\s+"oci-rms"/);
   assert.match(terraform, /schemaVersion: 1\.1\.0/);
   assert.match(terraform, /devops_source_branch:[\s\S]*default: oci-rms/);
   assert.match(terraform, /deploy_only_app:[\s\S]*default: false/);
+  assert.match(terraform, /existing_hosted_deployment_exports_json:[\s\S]*type: text/);
   assert.match(terraform, /devops_source_revision:[\s\S]*pattern: "\^\$\|\^\[A-Fa-f0-9\]\{7,40\}\$"/);
   assert.match(terraform, /validation\s+\{[\s\S]*resource_suffix[\s\S]*\^\[a-z0-9\]\{6\}\$/);
   assert.match(terraform, /validation\s+\{[\s\S]*portal_container_port >= 1024/);
@@ -392,6 +394,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
   assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
   assert.match(terraform, /resource "oci_artifacts_container_repository" "portal"/);
+  assert.match(terraform, /resource "oci_objectstorage_bucket" "portal_config"/);
+  assert.match(terraform, /resource "oci_objectstorage_object" "portal_runtime_config"/);
+  assert.match(terraform, /resource "oci_objectstorage_object" "portal_run_history"/);
   assert.match(terraform, /variable "portal_container_repository_id"/);
   assert.match(terraform, /var\.portal_container_repository_id != ""/);
   assert.match(terraform, /try\(oci_artifacts_container_repository\.portal\[0\]\.id, ""\)/);
@@ -419,6 +424,12 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_build_run" "this"/);
   assert.match(terraform, /name\s+=\s+"DEPLOY_ONLY_APP"[\s\S]*value\s+=\s+var\.deploy_only_app \? "true" : "false"/);
   assert.match(terraform, /for build_output in try\(oci_devops_build_run\.this\[0\]\.build_outputs, \[\]\)/);
+  assert.match(terraform, /jsondecode\(var\.existing_hosted_deployment_exports_json\)/);
+  assert.match(terraform, /merge\([\s\S]*local\.default_hosted_deployment_exports[\s\S]*local\.existing_hosted_deployment_exports[\s\S]*module\.devops_hosted_image_build\.hosted_deployment_exports[\s\S]*\)/);
+  assert.match(terraform, /OCI_PORTAL_RUNTIME_CONFIG_BUCKET\s+=\s+oci_objectstorage_bucket\.portal_config\[0\]\.name/);
+  assert.match(terraform, /OCI_PORTAL_RUN_HISTORY_OBJECT\s+=\s+oci_objectstorage_object\.portal_run_history\[0\]\.object/);
+  assert.match(terraform, /content\s+=\s+jsonencode\(local\.portal_runtime_config\)/);
+  assert.match(terraform, /ignore_changes\s+=\s+\[content\]/);
   assert.match(terraform, /timeouts\s+\{[\s\S]*create\s+=\s+"90m"[\s\S]*\}/);
   assert.match(terraform, /resource "oci_ons_notification_topic" "this"/);
   assert.match(terraform, /resource "oci_logging_log_group" "devops"/);
@@ -514,9 +525,11 @@ test("server logs feature run lifecycle to console", () => {
   assert.match(server, /portalSessionCookie/);
 });
 
-test("administration page replaces infrastructure tab while runtime metadata stays available", () => {
+test("administration page is separate while runtime metadata stays available", () => {
   const server = read("server.mjs");
   const main = read("src/main.js");
+  const adminHtml = read("admin.html");
+  const admin = read("src/admin.js");
   const styles = read("src/styles.css");
 
   assert.match(server, /generated\.file_search_vector_store/);
@@ -545,12 +558,21 @@ test("administration page replaces infrastructure tab while runtime metadata sta
   assert.match(server, /n8nHostedUrl/);
   assert.match(server, /langfuseHostedUrl/);
   assert.match(server, /openclawHostedUrl/);
+  assert.match(server, /portalRuntimeHostedValue/);
+  assert.match(server, /readObjectStorageJson/);
+  assert.match(server, /writePersistentDemoRunRecord/);
+  assert.match(server, /OCI_PORTAL_RUN_HISTORY_OBJECT/);
   assert.match(server, /hostedApplicationInvokeUrl/);
   assert.match(server, /application\.generativeai\.\$\{region\}\.oci\.oraclecloud\.com\/20251112\/hostedApplications/);
   assert.doesNotMatch(server, /IDCS_CLIENT_SECRET=.*[0-9a-f-]{30,}/);
-  assert.match(main, /id="administration"/);
-  assert.match(main, /admin-demo-table/);
-  assert.match(main, /admin-run-log-panel/);
+  assert.match(main, /href="\/admin\.html"/);
+  assert.doesNotMatch(main, /id="administration"/);
+  assert.match(adminHtml, /id="administration"/);
+  assert.match(adminHtml, /admin-demo-table/);
+  assert.match(adminHtml, /admin-run-log-panel/);
+  assert.match(admin, /admin-connection-grid/);
+  assert.match(adminHtml, /Hosted application references/);
+  assert.doesNotMatch(admin, /clientSecret|apiKey|password/i);
   assert.match(main, /loadResponsesInfrastructureState/);
   assert.doesNotMatch(main, /id="infra-panel"/);
   assert.doesNotMatch(main, /infra-component-search/);

@@ -26,6 +26,7 @@ variableGroups:
       - devops_hosted_image_build_enabled
       - devops_hosted_image_run_build
       - deploy_only_app
+      - existing_hosted_deployment_exports_json
   - title: Portal Container
     variables:
       - portal_container_enabled
@@ -156,6 +157,12 @@ variables:
     description: When true, build and deliver images but skip hosted application deployment stages; use this for portal-only redeployments that must not touch ClickHouse, Redis, or hosted app deployments.
     type: boolean
     default: false
+  existing_hosted_deployment_exports_json:
+    title: Existing Hosted Deployment Exports
+    description: Non-sensitive JSON object of hosted app deployment IDs and URLs to reuse when DEPLOY_ONLY_APP skips hosted deployment stages.
+    type: text
+    required: false
+    default: "{}"
   portal_container_enabled:
     title: Deploy Portal Container Instance
     type: boolean

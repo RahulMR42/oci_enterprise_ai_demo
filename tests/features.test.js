@@ -164,18 +164,27 @@ test("portal stores star-only ratings and card run counts locally", () => {
   assert.match(styles, /border-radius: 999px/);
 });
 
-test("portal replaces infrastructure panel with administration run history", () => {
+test("portal opens administration as a separate page", () => {
   const main = readFileSync("src/main.js", "utf8");
+  const adminHtml = readFileSync("admin.html", "utf8");
+  const admin = readFileSync("src/admin.js", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
-  assert.match(main, /href="#administration"/);
-  assert.match(main, /id="administration"/);
+  assert.match(main, /href="\/admin\.html"/);
+  assert.match(main, /target="_blank"/);
+  assert.doesNotMatch(main, /id="administration"/);
+  assert.match(adminHtml, /id="administration"/);
+  assert.match(adminHtml, /src="\/src\/admin\.js"/);
+  assert.match(admin, /loadAdministrationDashboard/);
   assert.match(main, /Administration/);
-  assert.match(main, /admin-metric-grid/);
-  assert.match(main, /admin-demo-table/);
-  assert.match(main, /loadAdministrationMetrics/);
-  assert.match(main, /\/api\/admin\/demo-runs/);
-  assert.match(main, /recordClientRunSummary/);
+  assert.match(admin, /admin-metric-grid/);
+  assert.match(admin, /admin-connection-grid/);
+  assert.match(adminHtml, /admin-demo-table/);
+  assert.match(admin, /\/api\/admin\/demo-runs/);
+  assert.match(admin, /\/api\/features\/responses-api\/state/);
+  assert.match(adminHtml, /Hosted application references/);
+  assert.match(adminHtml, /Usage summary/);
+  assert.doesNotMatch(admin, /clientSecret|apiKey|password/i);
   assert.doesNotMatch(main, /id="infra-panel"/);
   assert.doesNotMatch(main, /id="infra-refresh-button"/);
   assert.doesNotMatch(main, /id="infra-action-logs"/);

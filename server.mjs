@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -29,6 +29,20 @@ const demoGeneratedDirs = {
   "hosted-agentic-applications": join(root, "infra/hosted-agentic-applications/.terraform/generated")
 };
 const pythonExecutable = existsSync(join(root, "env/bin/python")) ? join(root, "env/bin/python") : "python3";
+const portalRuntimeConfigObject = {
+  namespace: process.env.OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE || "",
+  bucket: process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
+  object: process.env.OCI_PORTAL_RUNTIME_CONFIG_OBJECT || ""
+};
+const portalRunHistoryObject = {
+  namespace: process.env.OCI_PORTAL_RUN_HISTORY_NAMESPACE || process.env.OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE || "",
+  bucket: process.env.OCI_PORTAL_RUN_HISTORY_BUCKET || process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
+  object: process.env.OCI_PORTAL_RUN_HISTORY_OBJECT || "portal-demo-run-summary.json"
+};
+let portalRuntimeConfigCache = {
+  value: {},
+  expiresAt: 0
+};
 const demoScripts = {
   "responses-api": "responses_api.py",
   "conversation-store": "conversation_store.py",
@@ -108,7 +122,9 @@ function writeDemoLog(featureId, payload = {}) {
   const createdAt = new Date().toISOString();
   const timestamp = createdAt.replace(/[:.]/g, "-");
   const logFile = join(logDir, `${timestamp}-${randomBytes(4).toString("hex")}.json`);
-  writeFileSync(logFile, JSON.stringify(redactForDemoLog({ featureId, createdAt, ...payload }), null, 2));
+  const record = redactForDemoLog({ featureId, createdAt, ...payload });
+  writeFileSync(logFile, JSON.stringify(record, null, 2));
+  writePersistentDemoRunRecord({ ...record, logFile });
   return logFile;
 }
 
@@ -183,11 +199,13 @@ export function summarizeDemoRunHistory(records = []) {
 
 export function readDemoRunHistory() {
   const logRoot = join(root, "logs/demos");
+  const persistentRecords = readPersistentDemoRunRecords();
   if (!existsSync(logRoot)) {
-    return summarizeDemoRunHistory([]);
+    return summarizeDemoRunHistory(persistentRecords);
   }
 
-  const records = [];
+  const records = [...persistentRecords];
+  const seen = new Set(records.map(demoRunKey));
   for (const featureDir of readdirSync(logRoot, { withFileTypes: true })) {
     if (!featureDir.isDirectory()) {
       continue;
@@ -200,12 +218,17 @@ export function readDemoRunHistory() {
       const logPath = join(featurePath, logEntry.name);
       try {
         const payload = JSON.parse(readFileSync(logPath, "utf8"));
-        records.push({
+        const record = {
           ...payload,
           featureId: payload.featureId || featureDir.name,
           createdAt: payload.createdAt || statSync(logPath).mtime.toISOString(),
           logFile: logPath
-        });
+        };
+        const key = demoRunKey(record);
+        if (!seen.has(key)) {
+          records.push(record);
+          seen.add(key);
+        }
       } catch {
         // Ignore malformed log files so one bad record does not break the admin page.
       }
@@ -213,6 +236,127 @@ export function readDemoRunHistory() {
   }
 
   return summarizeDemoRunHistory(records);
+}
+
+function demoRunKey(record = {}) {
+  return [record.featureId || "", record.createdAt || "", record.action || "run", record.status || record.response?.status || ""].join("|");
+}
+
+function hasObjectStorageReference(reference = {}) {
+  return Boolean(reference.namespace && reference.bucket && reference.object);
+}
+
+function readObjectStorageJson(reference = {}) {
+  if (!hasObjectStorageReference(reference)) {
+    return {};
+  }
+
+  const script = `
+import json
+import os
+import sys
+import oci
+
+namespace, bucket, object_name = sys.argv[1:4]
+try:
+    signer = oci.auth.signers.get_resource_principals_signer()
+    client = oci.object_storage.ObjectStorageClient(config={}, signer=signer)
+    response = client.get_object(namespace, bucket, object_name)
+    sys.stdout.write(response.data.content.decode("utf-8"))
+except Exception:
+    sys.stdout.write("{}")
+`;
+  const result = spawnSync(pythonExecutable, ["-c", script, reference.namespace, reference.bucket, reference.object], {
+    encoding: "utf8",
+    env: demoProcessEnv()
+  });
+  if (result.status !== 0 || !result.stdout.trim()) {
+    return {};
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    return {};
+  }
+}
+
+function writeObjectStorageJson(reference = {}, payload = {}) {
+  if (!hasObjectStorageReference(reference)) {
+    return false;
+  }
+
+  const script = `
+import sys
+import oci
+
+namespace, bucket, object_name = sys.argv[1:4]
+content = sys.stdin.read()
+signer = oci.auth.signers.get_resource_principals_signer()
+client = oci.object_storage.ObjectStorageClient(config={}, signer=signer)
+client.put_object(namespace, bucket, object_name, content.encode("utf-8"), content_type="application/json")
+`;
+  const result = spawnSync(pythonExecutable, ["-c", script, reference.namespace, reference.bucket, reference.object], {
+    encoding: "utf8",
+    env: demoProcessEnv(),
+    input: JSON.stringify(payload, null, 2)
+  });
+  return result.status === 0;
+}
+
+function readPortalRuntimeConfig({ refresh = false } = {}) {
+  const now = Date.now();
+  if (!refresh && portalRuntimeConfigCache.expiresAt > now) {
+    return portalRuntimeConfigCache.value;
+  }
+
+  const fileConfigPath = process.env.OCI_PORTAL_RUNTIME_CONFIG_FILE || "";
+  let fileConfig = {};
+  if (fileConfigPath && existsSync(fileConfigPath)) {
+    try {
+      fileConfig = JSON.parse(readFileSync(fileConfigPath, "utf8"));
+    } catch {
+      fileConfig = {};
+    }
+  }
+
+  const objectConfig = readObjectStorageJson(portalRuntimeConfigObject);
+  portalRuntimeConfigCache = {
+    value: {
+      ...objectConfig,
+      ...fileConfig,
+      hosted: {
+        ...(objectConfig.hosted || {}),
+        ...(fileConfig.hosted || {})
+      }
+    },
+    expiresAt: now + 30_000
+  };
+  return portalRuntimeConfigCache.value;
+}
+
+function portalRuntimeHostedValue(key) {
+  const hosted = readPortalRuntimeConfig().hosted || {};
+  return String(hosted[key] || "");
+}
+
+function readPersistentDemoRunRecords() {
+  const payload = readObjectStorageJson(portalRunHistoryObject);
+  return Array.isArray(payload.runs) ? payload.runs : [];
+}
+
+function writePersistentDemoRunRecord(record = {}) {
+  if (!hasObjectStorageReference(portalRunHistoryObject)) {
+    return;
+  }
+
+  const current = readPersistentDemoRunRecords();
+  const seen = new Set(current.map(demoRunKey));
+  const next = seen.has(demoRunKey(record)) ? current : [record, ...current].slice(0, 250);
+  writeObjectStorageJson(portalRunHistoryObject, {
+    updatedAt: new Date().toISOString(),
+    metrics: summarizeDemoRunHistory(next).metrics,
+    runs: next
+  });
 }
 
 function resolvePortalAuthPassword() {
@@ -908,8 +1052,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-hosted-agent-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-hosted-agent-deployment-${resourceSuffix}`,
       runtimeFile: "hosted_agent.json",
-      envUrl: process.env.OCI_HOSTED_AGENT_URL || "",
-      envDeploymentId: process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || "",
+      envUrl: process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL"),
+      envDeploymentId: process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-agent-${resourceSuffix}`
     },
     {
@@ -918,8 +1062,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-langgraph-agent-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-langgraph-agent-deployment-${resourceSuffix}`,
       runtimeFile: "langgraph_hosted_agent.json",
-      envUrl: process.env.OCI_HOSTED_LANGGRAPH_URL || "",
-      envDeploymentId: process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || "",
+      envUrl: process.env.OCI_HOSTED_LANGGRAPH_URL || portalRuntimeHostedValue("LANGGRAPH_URL"),
+      envDeploymentId: process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-langgraph-agent-${resourceSuffix}`
     },
     {
@@ -928,8 +1072,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-langfuse-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-langfuse-deployment-${resourceSuffix}`,
       runtimeFile: "langfuse_hosted_observability.json",
-      envUrl: process.env.OCI_HOSTED_LANGFUSE_URL || "",
-      envDeploymentId: process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || "",
+      envUrl: process.env.OCI_HOSTED_LANGFUSE_URL || portalRuntimeHostedValue("LANGFUSE_URL"),
+      envDeploymentId: process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-langfuse-${resourceSuffix}`
     },
     {
@@ -938,8 +1082,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-openclaw-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-openclaw-deployment-${resourceSuffix}`,
       runtimeFile: "openclaw_hosted_gateway.json",
-      envUrl: process.env.OCI_HOSTED_OPENCLAW_URL || "",
-      envDeploymentId: process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || "",
+      envUrl: process.env.OCI_HOSTED_OPENCLAW_URL || portalRuntimeHostedValue("OPENCLAW_URL"),
+      envDeploymentId: process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || portalRuntimeHostedValue("OPENCLAW_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-openclaw-${resourceSuffix}`
     },
     {
@@ -948,8 +1092,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-llamaindex-control-tower-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-llamaindex-control-tower-deployment-${resourceSuffix}`,
       runtimeFile: "llamaindex_control_tower.json",
-      envUrl: process.env.OCI_HOSTED_LLAMAINDEX_URL || "",
-      envDeploymentId: process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || "",
+      envUrl: process.env.OCI_HOSTED_LLAMAINDEX_URL || portalRuntimeHostedValue("LLAMAINDEX_URL"),
+      envDeploymentId: process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || portalRuntimeHostedValue("LLAMAINDEX_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-llamaindex-control-tower-${resourceSuffix}`
     }
   ].map((definition) => ({
@@ -1206,6 +1350,7 @@ function readN8nLaunchUrl() {
     workflow.url ||
     workflow.endpoint ||
     process.env.OCI_HOSTED_N8N_URL ||
+    portalRuntimeHostedValue("N8N_URL") ||
     hostedApplicationInvokeUrl(workflow.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
   );
 }
@@ -1216,6 +1361,7 @@ function readLangfuseLaunchUrl() {
     observability.url ||
     observability.endpoint ||
     process.env.OCI_HOSTED_LANGFUSE_URL ||
+    portalRuntimeHostedValue("LANGFUSE_URL") ||
     hostedApplicationInvokeUrl(observability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
   );
 }
@@ -1226,6 +1372,7 @@ function readOpenClawLaunchUrl() {
     gateway.url ||
     gateway.endpoint ||
     process.env.OCI_HOSTED_OPENCLAW_URL ||
+    portalRuntimeHostedValue("OPENCLAW_URL") ||
     hostedApplicationInvokeUrl(gateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
   );
 }
@@ -1240,6 +1387,7 @@ function readLlamaIndexControlTowerLaunchUrl() {
     controlTower.url ||
     controlTower.endpoint ||
     process.env.OCI_HOSTED_LLAMAINDEX_URL ||
+    portalRuntimeHostedValue("LLAMAINDEX_URL") ||
     hostedApplicationInvokeUrl(controlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
   );
 }
@@ -1491,7 +1639,7 @@ function forwardedHeaders(sourceHeaders, token) {
   };
 }
 
-function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchUrl(), proxyBase = "/api/n8n/launch/" } = {}) {
+export function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchUrl(), proxyBase = "/api/n8n/launch/" } = {}) {
   const blocked = new Set(["connection", "content-encoding", "content-length", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
   const result = {};
   for (const [name, value] of headers.entries()) {
@@ -1504,7 +1652,7 @@ function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchU
       } else if (value.startsWith(launchUrl)) {
         result[name] = value.replace(launchUrl, proxyBase);
       } else if (proxyBase === "/api/langfuse/launch/" && value.startsWith("/")) {
-        result[name] = value;
+        result[name] = `${proxyBase.replace(/\/$/, "")}${value}`;
       } else {
         result[name] = value;
       }
@@ -1962,18 +2110,18 @@ function demoRuntimeComponents() {
   const langfuseHostedUrl = langfuseObservability.url || langfuseObservability.endpoint || hostedApplicationInvokeUrl(langfuseObservability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const openclawHostedUrl = openclawGateway.url || openclawGateway.endpoint || hostedApplicationInvokeUrl(openclawGateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
   const llamaIndexHostedUrl = llamaIndexControlTower.url || llamaIndexControlTower.endpoint || hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
-  const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || "";
-  const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || "";
-  const langGraphDeploymentIdEnv = process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || "";
-  const langGraphHostedUrlEnv = process.env.OCI_HOSTED_LANGGRAPH_URL || "";
-  const n8nHostedUrlEnv = process.env.OCI_HOSTED_N8N_URL || "";
-  const langfuseHostedUrlEnv = process.env.OCI_HOSTED_LANGFUSE_URL || "";
-  const openclawHostedUrlEnv = process.env.OCI_HOSTED_OPENCLAW_URL || "";
-  const llamaIndexHostedUrlEnv = process.env.OCI_HOSTED_LLAMAINDEX_URL || "";
-  const n8nDeploymentIdEnv = process.env.OCI_HOSTED_N8N_DEPLOYMENT_ID || "";
-  const langfuseDeploymentIdEnv = process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || "";
-  const openclawDeploymentIdEnv = process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || "";
-  const llamaIndexDeploymentIdEnv = process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || "";
+  const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID");
+  const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL");
+  const langGraphDeploymentIdEnv = process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID");
+  const langGraphHostedUrlEnv = process.env.OCI_HOSTED_LANGGRAPH_URL || portalRuntimeHostedValue("LANGGRAPH_URL");
+  const n8nHostedUrlEnv = process.env.OCI_HOSTED_N8N_URL || portalRuntimeHostedValue("N8N_URL");
+  const langfuseHostedUrlEnv = process.env.OCI_HOSTED_LANGFUSE_URL || portalRuntimeHostedValue("LANGFUSE_URL");
+  const openclawHostedUrlEnv = process.env.OCI_HOSTED_OPENCLAW_URL || portalRuntimeHostedValue("OPENCLAW_URL");
+  const llamaIndexHostedUrlEnv = process.env.OCI_HOSTED_LLAMAINDEX_URL || portalRuntimeHostedValue("LLAMAINDEX_URL");
+  const n8nDeploymentIdEnv = process.env.OCI_HOSTED_N8N_DEPLOYMENT_ID || portalRuntimeHostedValue("N8N_DEPLOYMENT_ID");
+  const langfuseDeploymentIdEnv = process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID");
+  const openclawDeploymentIdEnv = process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || portalRuntimeHostedValue("OPENCLAW_DEPLOYMENT_ID");
+  const llamaIndexDeploymentIdEnv = process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || portalRuntimeHostedValue("LLAMAINDEX_DEPLOYMENT_ID");
   const finalHostedAgentDeploymentId = hostedAgent.hostedDeploymentId || hostedAgentDeploymentIdEnv;
   const finalHostedAgentUrl = hostedAgent.endpoint || hostedAgentUrlEnv;
   const finalLangGraphDeploymentId = langGraphAgent.hostedDeploymentId || langGraphDeploymentIdEnv;
@@ -2833,11 +2981,6 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
-  if (isLangfusePassthroughPath(requestPath)) {
-    await proxyLangfuseLaunch(request, response, parsedUrl);
-    return;
-  }
-
   const runMatch = requestPath.match(/^\/api\/features\/([a-z0-9-]+)\/run$/);
   if (request.method === "POST" && runMatch) {
     try {
@@ -2891,6 +3034,11 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
+  if (isLangfusePassthroughPath(requestPath)) {
+    await proxyLangfuseLaunch(request, response, parsedUrl);
+    return;
+  }
+
   const filePath = resolvePath(requestPath);
   const pathToServe = existsSync(filePath) && statSync(filePath).isFile() ? filePath : join(root, "index.html");
   const extension = extname(pathToServe);
@@ -2916,7 +3064,7 @@ server.on("error", (error) => {
   throw error;
 });
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   server.listen(port, host, () => {
     console.log(`Enterprise AI demo portal is running at http://localhost:${port}`);
     console.log(`Portal login username: ${portalAuthUser}`);

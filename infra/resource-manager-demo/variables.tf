@@ -104,6 +104,17 @@ variable "deploy_only_app" {
   default     = false
 }
 
+variable "existing_hosted_deployment_exports_json" {
+  description = "Non-sensitive JSON map of existing hosted application deployment IDs and URLs used by deploy_only_app portal-only redeployments."
+  type        = string
+  default     = "{}"
+
+  validation {
+    condition     = can(jsondecode(var.existing_hosted_deployment_exports_json))
+    error_message = "existing_hosted_deployment_exports_json must be valid JSON."
+  }
+}
+
 variable "devops_source_repo_url" {
   description = "Git repository URL containing this demo source and the DevOps build spec."
   type        = string
