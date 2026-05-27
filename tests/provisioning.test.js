@@ -24,6 +24,7 @@ import {
   n8nPushStreamFallbackPayload,
   rewriteN8nLaunchJson,
   rewriteN8nLaunchHtml,
+  proxyResponseHeaders,
   summarizeDemoRunHistory
 } from "../server.mjs";
 
@@ -114,6 +115,26 @@ test("server exposes redacted administration demo run history", () => {
   assert.match(server, /writePersistentDemoRunRecord/);
   assert.match(server, /portalRunHistoryObject/);
   assert.match(server, /OCI_PORTAL_RUN_HISTORY_OBJECT/);
+});
+
+test("portal admin route is handled before Langfuse passthrough routes", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const adminRouteIndex = server.indexOf('requestPath === "/api/admin/demo-runs"');
+  const langfusePassthroughIndex = server.indexOf("isLangfusePassthroughPath(requestPath)");
+
+  assert.ok(adminRouteIndex > 0);
+  assert.ok(langfusePassthroughIndex > 0);
+  assert.ok(adminRouteIndex < langfusePassthroughIndex);
+});
+
+test("Langfuse root-relative redirects stay inside the launch proxy", () => {
+  const headers = new Headers({ Location: "/" });
+  const rewritten = proxyResponseHeaders(headers, "/api/langfuse/launch/api/auth/signin", {
+    launchUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/",
+    proxyBase: "/api/langfuse/launch/"
+  });
+
+  assert.equal(rewritten.location, "/api/langfuse/launch/");
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {

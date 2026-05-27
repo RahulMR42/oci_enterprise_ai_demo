@@ -1639,7 +1639,7 @@ function forwardedHeaders(sourceHeaders, token) {
   };
 }
 
-function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchUrl(), proxyBase = "/api/n8n/launch/" } = {}) {
+export function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchUrl(), proxyBase = "/api/n8n/launch/" } = {}) {
   const blocked = new Set(["connection", "content-encoding", "content-length", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
   const result = {};
   for (const [name, value] of headers.entries()) {
@@ -1652,7 +1652,7 @@ function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8nLaunchU
       } else if (value.startsWith(launchUrl)) {
         result[name] = value.replace(launchUrl, proxyBase);
       } else if (proxyBase === "/api/langfuse/launch/" && value.startsWith("/")) {
-        result[name] = value;
+        result[name] = `${proxyBase.replace(/\/$/, "")}${value}`;
       } else {
         result[name] = value;
       }
@@ -2981,11 +2981,6 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
-  if (isLangfusePassthroughPath(requestPath)) {
-    await proxyLangfuseLaunch(request, response, parsedUrl);
-    return;
-  }
-
   const runMatch = requestPath.match(/^\/api\/features\/([a-z0-9-]+)\/run$/);
   if (request.method === "POST" && runMatch) {
     try {
@@ -3036,6 +3031,11 @@ export const server = createServer(async (request, response) => {
         error: error.message
       });
     }
+    return;
+  }
+
+  if (isLangfusePassthroughPath(requestPath)) {
+    await proxyLangfuseLaunch(request, response, parsedUrl);
     return;
   }
 
