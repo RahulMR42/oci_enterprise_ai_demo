@@ -334,6 +334,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/devops-hosted-image-build/locals.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
     read("infra/devops-hosted-image-build/outputs.tf"),
+    read("infra/devops-hosted-image-build/build_spec_images.yaml"),
     read("infra/devops-hosted-image-build/build_spec_image_hosted.yaml"),
     read("infra/devops-hosted-image-build/build_spec_image_langgraph.yaml"),
     read("infra/devops-hosted-image-build/build_spec_image_langfuse.yaml"),
@@ -378,6 +379,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /variable "devops_repository_branch"/);
   assert.match(terraform, /variable "deploy_only_app"/);
   assert.match(terraform, /variable "existing_hosted_deployment_exports_json"/);
+  assert.match(terraform, /file_search_local_exec_enabled:[\s\S]*Enable this on first-time deployments to create the Vector Store/);
+  assert.match(terraform, /code_interpreter_local_exec_enabled:[\s\S]*Enable this on first-time deployments to create the Code Interpreter container/);
   assert.match(terraform, /DEPLOY_ONLY_APP/);
   assert.match(terraform, /variable "devops_source_branch"[\s\S]*default\s+=\s+"oci-rms"/);
   assert.match(terraform, /schemaVersion: 1\.1\.0/);
@@ -393,6 +396,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_project" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build"/);
+  assert.match(terraform, /display_name\s+=\s+"build-hosted-images"/);
+  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
+  assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build_image"/);
   assert.match(terraform, /resource "oci_devops_deploy_artifact" "image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deliver_image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_hosted"/);
@@ -417,6 +423,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_image_portal\.yaml"/);
+  assert.match(terraform, /Legacy build stage retained for OCI DevOps state compatibility/);
   assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
   assert.match(terraform, /resource "oci_artifacts_container_repository" "portal"/);
   assert.match(terraform, /resource "oci_objectstorage_bucket" "portal_config"/);
@@ -433,6 +440,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /hosted_application_deployments\s+=\s+\{/);
   assert.match(terraform, /build_spec_file\s+=\s+each\.value\.build_spec_file/);
   assert.match(terraform, /display_name\s+=\s+each\.value\.stage_name/);
+  assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.build_image\[each\.key\]\.id/);
   assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.deliver_image\[each\.key\]\.id/);
   assert.match(terraform, /build_spec_deploy_hosted\.yaml/);
   assert.match(terraform, /build_spec_deploy_langgraph\.yaml/);
@@ -521,6 +529,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(deployDocs, /`devops_source_branch` \| `oci-rms`/);
   assert.match(deployDocs, /`devops_source_revision=<commit SHA on oci-rms>`/);
   assert.match(deployDocs, /deploy-langfuse/);
+  assert.match(deployDocs, /Set `file_search_local_exec_enabled=true` on first-time deployments/);
+  assert.match(deployDocs, /Set `code_interpreter_local_exec_enabled=true` on first-time deployments/);
   assert.match(releaseWorkflow, /infra\/resource-manager-demo\/schema\.yaml/);
 });
 

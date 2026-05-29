@@ -302,10 +302,12 @@ variables:
     default: false
   file_search_local_exec_enabled:
     title: Enable File Search Local-Exec
+    description: Enable this on first-time deployments to create the Vector Store and inject OCI_GENAI_VECTOR_STORE_ID into the portal runtime config.
     type: boolean
     default: false
   code_interpreter_local_exec_enabled:
     title: Enable Code Interpreter Local-Exec
+    description: Enable this on first-time deployments to create the Code Interpreter container and inject OCI_GENAI_CODE_INTERPRETER_CONTAINER into the portal runtime config.
     type: boolean
     default: false
   hosted_app_push_image:

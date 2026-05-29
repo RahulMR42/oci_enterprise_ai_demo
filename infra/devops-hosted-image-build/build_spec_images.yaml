@@ -1,0 +1,14 @@
+version: 0.1
+component: build
+timeoutInSeconds: 300
+shell: bash
+failImmediatelyOnError: true
+
+steps:
+  - type: Command
+    name: legacy-build-placeholder
+    timeoutInSeconds: 300
+    command: |
+      set -euo pipefail
+      echo "Legacy build stage retained for OCI DevOps state compatibility."
+      echo "Selected image builds run in the per-image build stages."

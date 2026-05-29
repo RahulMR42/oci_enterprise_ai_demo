@@ -266,6 +266,45 @@ resource "oci_devops_build_pipeline" "this" {
 }
 
 resource "oci_devops_build_pipeline_stage" "build" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "build-hosted-images"
+  description                        = "Builds demo container images without pushing them."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_images.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 7200
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline.this[0].id
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 2
+    memory_in_gbs     = 16
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [terraform_data.seed_devops_repository]
+}
+
+resource "oci_devops_build_pipeline_stage" "build_image" {
   for_each = var.enabled ? local.selected_image_artifacts : {}
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
@@ -330,7 +369,7 @@ resource "oci_devops_build_pipeline_stage" "deliver_image" {
 
   build_pipeline_stage_predecessor_collection {
     items {
-      id = oci_devops_build_pipeline_stage.build[each.key].id
+      id = oci_devops_build_pipeline_stage.build_image[each.key].id
     }
   }
 
@@ -531,6 +570,8 @@ resource "oci_devops_build_run" "this" {
   }
 
   depends_on = [
+    oci_devops_build_pipeline_stage.build_image,
+    oci_devops_build_pipeline_stage.deliver_image,
     oci_devops_build_pipeline_stage.deploy_hosted,
     oci_logging_log.devops,
     terraform_data.seed_devops_repository
