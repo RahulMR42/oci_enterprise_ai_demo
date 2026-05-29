@@ -270,9 +270,9 @@ resource "oci_devops_build_pipeline_stage" "build" {
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
-  display_name                       = "build-legacy-placeholder"
-  description                        = "Retained legacy build stage to avoid OCI DevOps predecessor deletion conflicts during selective image builds."
-  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_noop.yaml"
+  display_name                       = "build-hosted-images"
+  description                        = "Builds demo container images without pushing them."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_images.yaml"
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
   is_pass_all_parameters_enabled     = true

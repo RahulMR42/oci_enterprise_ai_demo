@@ -334,6 +334,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/devops-hosted-image-build/locals.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
     read("infra/devops-hosted-image-build/outputs.tf"),
+    read("infra/devops-hosted-image-build/build_spec_images.yaml"),
     read("infra/devops-hosted-image-build/build_spec_image_hosted.yaml"),
     read("infra/devops-hosted-image-build/build_spec_image_langgraph.yaml"),
     read("infra/devops-hosted-image-build/build_spec_image_langfuse.yaml"),
@@ -393,8 +394,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_project" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build"/);
-  assert.match(terraform, /display_name\s+=\s+"build-legacy-placeholder"/);
-  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_noop\.yaml"/);
+  assert.match(terraform, /display_name\s+=\s+"build-hosted-images"/);
+  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "build_image"/);
   assert.match(terraform, /resource "oci_devops_deploy_artifact" "image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deliver_image"/);
@@ -420,6 +421,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_image_portal\.yaml"/);
+  assert.match(terraform, /Legacy build stage retained for OCI DevOps state compatibility/);
   assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
   assert.match(terraform, /resource "oci_artifacts_container_repository" "portal"/);
   assert.match(terraform, /resource "oci_objectstorage_bucket" "portal_config"/);
