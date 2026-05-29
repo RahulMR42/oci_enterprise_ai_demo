@@ -16,13 +16,13 @@ The aggregate stack wires every Terraform-based deployment module used by the po
 - `infra/code-interpreter`: managed Code Interpreter container.
 - `infra/nl2sql-sql-search`: Autonomous Database, Database Tools connections, KMS, and secrets for SQL Search.
 - `infra/hosted-agentic-applications`: OCIR repositories, hosted application metadata, and Langfuse dependencies: VCN, private subnet, NSGs, PostgreSQL, ClickHouse container instance, Redis container instance, and Object Storage.
-- `infra/devops-hosted-image-build`: OCI DevOps project, source repository seeding from GitHub, image build stage, parallel image artifact delivery stages, and final hosted deployment build stage.
+- `infra/devops-hosted-image-build`: OCI DevOps project, source repository seeding from GitHub, selected image build stages, selected image artifact delivery stages, and matching hosted deployment build stages.
 - `infra/conversation-store` and `infra/guardrails`: no-op Terraform roots kept in the aggregate stack so the local-only demos are represented in the same deployment map.
 - `infra/resource-manager-demo/portal_container.tf`: Enterprise AI portal image repository, public VCN/subnet/NSG, and OCI Container Instance.
 
 ## Image and hosted deployment flow
 
-Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, builds the hosted images plus the portal image, and delivers each image to its OCIR repository. Hosted application deployment stages are selected by Resource Manager inputs: leave `APP_DEPLOY` empty and enable the specific `OCI_HA_*_DEPLOY` booleans you need, or set `APP_DEPLOY=all` to deploy every DevOps-built hosted app. Each selected hosted app deploy stage depends only on its matching image delivery stage, so selected deployments can run in parallel as soon as their artifacts are available.
+Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, always builds and delivers the portal image, and only builds, delivers, and deploys hosted app images selected by Resource Manager inputs. Leave `APP_DEPLOY` empty and enable the specific `OCI_HA_*_DEPLOY` booleans you need, or set `APP_DEPLOY=all` to deploy every DevOps-built hosted app. Each selected hosted app deploy stage depends only on its matching image delivery stage, so selected deployments can run in parallel as soon as their artifacts are available.
 
 By default, `OCI_HA_LANGFUSE_DEPLOY=true` and the other `OCI_HA_*_DEPLOY` switches are false. This deploys the Langfuse hosted app and its portal metadata while avoiding unrelated hosted app replacements. Every DevOps build run is passed into the portal container environment, so the Enterprise AI portal container is redeployed after selected hosted deployments and receives the latest exported hosted URLs and deployment IDs.
 

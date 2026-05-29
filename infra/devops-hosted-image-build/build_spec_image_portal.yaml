@@ -1,0 +1,23 @@
+version: 0.1
+component: build
+timeoutInSeconds: 7200
+shell: bash
+failImmediatelyOnError: true
+
+env:
+  variables:
+    PORTAL_CONTEXT: "."
+
+steps:
+  - type: Command
+    name: build-portal-image
+    timeoutInSeconds: 7200
+    command: |
+      set -euo pipefail
+
+      podman build --platform linux/amd64 -t portal-image "$PORTAL_CONTEXT"
+
+outputArtifacts:
+  - name: portal-image
+    type: DOCKER_IMAGE
+    location: portal-image

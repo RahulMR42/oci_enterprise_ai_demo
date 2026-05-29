@@ -1,0 +1,23 @@
+version: 0.1
+component: build
+timeoutInSeconds: 7200
+shell: bash
+failImmediatelyOnError: true
+
+env:
+  variables:
+    LANGGRAPH_CONTEXT: "apps/hosted-langgraph-agent"
+
+steps:
+  - type: Command
+    name: build-langgraph-image
+    timeoutInSeconds: 7200
+    command: |
+      set -euo pipefail
+
+      podman build --platform linux/amd64 -t langgraph-image "$LANGGRAPH_CONTEXT"
+
+outputArtifacts:
+  - name: langgraph-image
+    type: DOCKER_IMAGE
+    location: langgraph-image

@@ -99,7 +99,7 @@ variable "devops_hosted_image_run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, the OCI DevOps pipeline builds and delivers images but skips hosted application deployment stages so only the portal app container is redeployed."
+  description = "When true, the OCI DevOps pipeline builds and delivers only the portal image and skips hosted application image delivery and deployment stages so only the portal app container is redeployed."
   type        = bool
   default     = false
 }

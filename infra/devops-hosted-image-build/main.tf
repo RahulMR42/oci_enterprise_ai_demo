@@ -266,13 +266,13 @@ resource "oci_devops_build_pipeline" "this" {
 }
 
 resource "oci_devops_build_pipeline_stage" "build" {
-  count = var.enabled ? 1 : 0
+  for_each = var.enabled ? local.selected_image_artifacts : {}
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
-  display_name                       = "build-hosted-images"
-  description                        = "Builds demo container images without pushing them."
-  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_images.yaml"
+  display_name                       = "build-${each.value.display_name}-image"
+  description                        = "Builds the Enterprise AI demo ${each.value.display_name} container image without pushing it."
+  build_spec_file                    = each.value.build_spec_file
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
   is_pass_all_parameters_enabled     = true
@@ -305,7 +305,7 @@ resource "oci_devops_build_pipeline_stage" "build" {
 }
 
 resource "oci_devops_deploy_artifact" "image" {
-  for_each = var.enabled ? local.image_artifacts : {}
+  for_each = var.enabled ? local.selected_image_artifacts : {}
 
   project_id                 = oci_devops_project.this[0].id
   display_name               = "enterprise-ai-demo-${each.value.display_name}-${var.resource_suffix}"
@@ -320,7 +320,7 @@ resource "oci_devops_deploy_artifact" "image" {
 }
 
 resource "oci_devops_build_pipeline_stage" "deliver_image" {
-  for_each = var.enabled ? local.image_artifacts : {}
+  for_each = var.enabled ? local.selected_image_artifacts : {}
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "DELIVER_ARTIFACT"
@@ -330,7 +330,7 @@ resource "oci_devops_build_pipeline_stage" "deliver_image" {
 
   build_pipeline_stage_predecessor_collection {
     items {
-      id = oci_devops_build_pipeline_stage.build[0].id
+      id = oci_devops_build_pipeline_stage.build[each.key].id
     }
   }
 

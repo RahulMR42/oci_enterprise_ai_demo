@@ -160,37 +160,37 @@ variables:
     default: true
   deploy_only_app:
     title: DEPLOY_ONLY_APP
-    description: When true, build and deliver images but skip hosted application deployment stages; use this for portal-only redeployments that must not touch ClickHouse, Redis, or hosted app deployments.
+    description: When true, build and deliver only the portal image and skip hosted application image delivery and deployment stages; use this for portal-only redeployments that must not touch ClickHouse, Redis, or hosted app deployments.
     type: boolean
     default: false
   app_deploy:
     title: APP_DEPLOY
-    description: Set to all to deploy every hosted application. Leave empty to use the OCI_HA_* per-application switches.
+    description: Set to all to build, deliver, and deploy every hosted application. Leave empty to use the OCI_HA_* per-application switches; enable the needed switches on the first deployment so those hosted apps are created.
     type: string
     default: ""
   oci_ha_hosted_agent_deploy:
     title: OCI_HA_HOSTED_AGENT_DEPLOY
-    description: When true, deploy the hosted-agent hosted application through OCI DevOps.
+    description: When true, build, deliver, and deploy the hosted-agent hosted application through OCI DevOps. Set true on the first deployment if the hosted-agent app should be created; leave false on later selective runs unless replacing it.
     type: boolean
     default: false
   oci_ha_langgraph_deploy:
     title: OCI_HA_LANGGRAPH_DEPLOY
-    description: When true, deploy the LangGraph hosted application through OCI DevOps.
+    description: When true, build, deliver, and deploy the LangGraph hosted application through OCI DevOps. Set true on the first deployment if the LangGraph app should be created; leave false on later selective runs unless replacing it.
     type: boolean
     default: false
   oci_ha_langfuse_deploy:
     title: OCI_HA_LANGFUSE_DEPLOY
-    description: When true, deploy the Langfuse hosted application through OCI DevOps.
+    description: When true, build, deliver, and deploy the Langfuse hosted application through OCI DevOps. Set true on the first deployment if the Langfuse app should be created; leave false on later selective runs unless replacing it.
     type: boolean
     default: true
   oci_ha_openclaw_deploy:
     title: OCI_HA_OPENCLAW_DEPLOY
-    description: When true, deploy the OpenClaw hosted application through OCI DevOps.
+    description: When true, build, deliver, and deploy the OpenClaw hosted application through OCI DevOps. Set true on the first deployment if the OpenClaw app should be created; leave false on later selective runs unless replacing it.
     type: boolean
     default: false
   oci_ha_llamaindex_deploy:
     title: OCI_HA_LLAMAINDEX_DEPLOY
-    description: When true, deploy the LlamaIndex control tower hosted application through OCI DevOps.
+    description: When true, build, deliver, and deploy the LlamaIndex control tower hosted application through OCI DevOps. Set true on the first deployment if the LlamaIndex app should be created; leave false on later selective runs unless replacing it.
     type: boolean
     default: false
   existing_hosted_deployment_exports_json:

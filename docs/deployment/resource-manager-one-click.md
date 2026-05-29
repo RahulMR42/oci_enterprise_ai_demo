@@ -11,9 +11,9 @@ The Resource Manager root is `infra/resource-manager-demo`. It deploys the share
 The OCI DevOps pipeline created by the stack:
 
 - clones the public GitHub branch into an OCI DevOps code repository,
-- builds the hosted demo container images and the Enterprise AI portal image,
-- uploads each image through parallel OCI DevOps `DELIVER_ARTIFACT` stages,
-- runs one managed hosted-deployment build stage per hosted app, each starting after its matching image delivery stage.
+- always builds and delivers the Enterprise AI portal image,
+- builds and delivers only the hosted demo container images selected by `APP_DEPLOY` or the `OCI_HA_*_DEPLOY` switches,
+- runs one managed hosted-deployment build stage per selected hosted app, each starting after its matching image delivery stage.
 
 The stack package includes `infra/resource-manager-demo/schema.yaml`, so OCI Resource Manager renders grouped inputs for target tenancy/compartment, source branch, DevOps credentials, portal settings, OCI Generative AI runtime values, and hosted application auth. Terraform variable validation enforces OCID shapes, branch names, CIDR syntax, port and size ranges, and the Resource Manager-safe defaults.
 
@@ -78,7 +78,7 @@ For iterative deployments, update both of these values before applying the same 
 
 Keeping the branch and revision current makes Resource Manager seed the exact source into the OCI DevOps repository and starts a new build run without creating a second Resource Manager stack.
 
-Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app replaced. The portal container is redeployed after each DevOps build run so it receives the latest hosted app exports.
+Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal container is redeployed after each DevOps build run so it receives the latest hosted app exports.
 
 ## Validate
 

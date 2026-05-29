@@ -12,28 +12,34 @@ locals {
 
   image_artifacts = {
     hosted_agent = {
-      artifact_name = "hosted-agent-image"
-      display_name  = "hosted-agent"
+      artifact_name   = "hosted-agent-image"
+      build_spec_file = "infra/devops-hosted-image-build/build_spec_image_hosted.yaml"
+      display_name    = "hosted-agent"
     }
     langgraph = {
-      artifact_name = "langgraph-image"
-      display_name  = "langgraph-agent"
+      artifact_name   = "langgraph-image"
+      build_spec_file = "infra/devops-hosted-image-build/build_spec_image_langgraph.yaml"
+      display_name    = "langgraph-agent"
     }
     langfuse = {
-      artifact_name = "langfuse-image"
-      display_name  = "langfuse"
+      artifact_name   = "langfuse-image"
+      build_spec_file = "infra/devops-hosted-image-build/build_spec_image_langfuse.yaml"
+      display_name    = "langfuse"
     }
     openclaw = {
-      artifact_name = "openclaw-image"
-      display_name  = "openclaw"
+      artifact_name   = "openclaw-image"
+      build_spec_file = "infra/devops-hosted-image-build/build_spec_image_openclaw.yaml"
+      display_name    = "openclaw"
     }
     llamaindex = {
-      artifact_name = "llamaindex-image"
-      display_name  = "llamaindex-control-tower"
+      artifact_name   = "llamaindex-image"
+      build_spec_file = "infra/devops-hosted-image-build/build_spec_image_llamaindex.yaml"
+      display_name    = "llamaindex-control-tower"
     }
     portal = {
-      artifact_name = "portal-image"
-      display_name  = "portal"
+      artifact_name   = "portal-image"
+      build_spec_file = "infra/devops-hosted-image-build/build_spec_image_portal.yaml"
+      display_name    = "portal"
     }
   }
 
@@ -77,4 +83,12 @@ locals {
       var.deploy_llamaindex_hosted_application ? "llamaindex" : ""
     ]), key)
   }
+  selected_hosted_image_artifacts = {
+    for key, artifact in local.image_artifacts : key => artifact
+    if key != "portal" && !var.deploy_only_app && contains(keys(local.selected_hosted_application_deployments), key)
+  }
+  selected_image_artifacts = merge(
+    { portal = local.image_artifacts.portal },
+    local.selected_hosted_image_artifacts
+  )
 }

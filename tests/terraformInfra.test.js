@@ -334,7 +334,12 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/devops-hosted-image-build/locals.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
     read("infra/devops-hosted-image-build/outputs.tf"),
-    read("infra/devops-hosted-image-build/build_spec_images.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_image_hosted.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_image_langgraph.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_image_langfuse.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_image_openclaw.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_image_llamaindex.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_image_portal.yaml"),
     read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml"),
     read("infra/devops-hosted-image-build/build_spec_deploy_langgraph.yaml"),
     read("infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml"),
@@ -394,8 +399,11 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /selected_hosted_application_deployments\s+=\s+\{/);
   assert.match(terraform, /deploy_all_hosted_applications\s+=\s+lower\(var\.app_deploy\) == "all"/);
   assert.match(terraform, /app_deploy_pipeline_value\s+=\s+local\.deploy_all_hosted_applications \? "all" : "none"/);
+  assert.match(terraform, /selected_hosted_image_artifacts\s+=\s+\{/);
+  assert.match(terraform, /selected_image_artifacts\s+=\s+merge\(/);
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*default_value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*value = local\.app_deploy_pipeline_value/);
+  assert.match(terraform, /for_each = var\.enabled \? local\.selected_image_artifacts : \{\}/);
   assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.selected_hosted_application_deployments : \{\}/);
   assert.match(terraform, /variable "app_deploy"/);
   assert.match(terraform, /variable "oci_ha_hosted_agent_deploy"/);
@@ -408,6 +416,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID\s+=\s+module\.devops_hosted_image_build\.build_run_id/);
   assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
+  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_image_portal\.yaml"/);
   assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
   assert.match(terraform, /resource "oci_artifacts_container_repository" "portal"/);
   assert.match(terraform, /resource "oci_objectstorage_bucket" "portal_config"/);
@@ -421,7 +430,6 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /deploy_artifact_type\s+=\s+"DOCKER_IMAGE"/);
   assert.match(terraform, /argument_substitution_mode\s+=\s+"NONE"/);
   assert.match(terraform, /artifact_name\s+=\s+each\.value\.artifact_name/);
-  assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_images\.yaml"/);
   assert.match(terraform, /hosted_application_deployments\s+=\s+\{/);
   assert.match(terraform, /build_spec_file\s+=\s+each\.value\.build_spec_file/);
   assert.match(terraform, /display_name\s+=\s+each\.value\.stage_name/);

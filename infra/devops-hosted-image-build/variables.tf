@@ -265,7 +265,7 @@ variable "run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, build and deliver images but skip hosted application deployment stages so only the portal app container is redeployed."
+  description = "When true, build and deliver only the portal image and skip hosted application image delivery and deployment stages so only the portal app container is redeployed."
   type        = bool
   default     = false
 }

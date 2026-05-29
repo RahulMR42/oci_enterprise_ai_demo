@@ -1,0 +1,23 @@
+version: 0.1
+component: build
+timeoutInSeconds: 7200
+shell: bash
+failImmediatelyOnError: true
+
+env:
+  variables:
+    LLAMAINDEX_CONTEXT: "apps/hosted-llamaindex-control-tower"
+
+steps:
+  - type: Command
+    name: build-llamaindex-image
+    timeoutInSeconds: 7200
+    command: |
+      set -euo pipefail
+
+      podman build --platform linux/amd64 -t llamaindex-image "$LLAMAINDEX_CONTEXT"
+
+outputArtifacts:
+  - name: llamaindex-image
+    type: DOCKER_IMAGE
+    location: llamaindex-image

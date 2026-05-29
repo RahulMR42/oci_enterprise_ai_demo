@@ -1,0 +1,23 @@
+version: 0.1
+component: build
+timeoutInSeconds: 7200
+shell: bash
+failImmediatelyOnError: true
+
+env:
+  variables:
+    LANGFUSE_CONTEXT: "apps/hosted-langfuse"
+
+steps:
+  - type: Command
+    name: build-langfuse-image
+    timeoutInSeconds: 7200
+    command: |
+      set -euo pipefail
+
+      podman build --platform linux/amd64 -t langfuse-image "$LANGFUSE_CONTEXT"
+
+outputArtifacts:
+  - name: langfuse-image
+    type: DOCKER_IMAGE
+    location: langfuse-image
