@@ -80,6 +80,10 @@ Keeping the branch and revision current makes Resource Manager seed the exact so
 
 Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal container is redeployed after each DevOps build run so it receives the latest hosted app exports.
 
+Set `file_search_local_exec_enabled=true` on first-time deployments when the File Search demo should work. This creates the OCI Vector Store, uploads the bundled seed documents, and injects the generated Vector Store ID into the portal runtime config.
+
+Set `code_interpreter_local_exec_enabled=true` on first-time deployments when the Code Interpreter demo should work. This creates the managed Code Interpreter container and injects the generated container ID into the portal runtime config.
+
 ## Validate
 
 After apply finishes, check these outputs:

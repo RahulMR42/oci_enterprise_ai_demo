@@ -58,13 +58,13 @@ variable "responses_api_local_exec_enabled" {
 }
 
 variable "file_search_local_exec_enabled" {
-  description = "Enable File Search local-exec vector store provisioning. Keep false in OCI Resource Manager because it depends on generated Responses API credentials."
+  description = "Enable File Search local-exec vector store provisioning. Set true on first-time Resource Manager deployments when oci_genai_project_id and oci_genai_api_key are provided so the portal receives OCI_GENAI_VECTOR_STORE_ID."
   type        = bool
   default     = false
 }
 
 variable "code_interpreter_local_exec_enabled" {
-  description = "Enable Code Interpreter local-exec container provisioning. Keep false in OCI Resource Manager because it depends on generated Responses API credentials."
+  description = "Enable Code Interpreter local-exec container provisioning. Set true on first-time Resource Manager deployments when oci_genai_project_id and oci_genai_api_key are provided so the portal receives OCI_GENAI_CODE_INTERPRETER_CONTAINER."
   type        = bool
   default     = false
 }
