@@ -209,7 +209,7 @@ resource "oci_devops_build_pipeline" "this" {
     }
     items {
       name          = "APP_DEPLOY"
-      default_value = var.app_deploy
+      default_value = local.app_deploy_pipeline_value
       description   = "Hosted application deployment selector. Set to all to deploy every hosted application."
     }
     items {
@@ -430,7 +430,7 @@ resource "oci_devops_build_run" "this" {
     }
     items {
       name  = "APP_DEPLOY"
-      value = var.app_deploy
+      value = local.app_deploy_pipeline_value
     }
     items {
       name  = "OCI_HA_HOSTED_AGENT_DEPLOY"
