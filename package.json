@@ -1,13 +1,14 @@
 {
   "name": "enterprise-ai-demo-portal",
   "private": true,
-  "version": "0.0.12",
+  "version": "0.0.15",
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "build": "node --check src/main.js && node --check server.mjs",
     "generate:wiring-diagrams": "node scripts/generate-wiring-diagrams.mjs",
+    "version:set": "node scripts/set-version.mjs",
     "test": "node --test"
   }
 }
