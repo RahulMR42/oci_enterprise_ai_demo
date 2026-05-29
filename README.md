@@ -117,6 +117,17 @@ npm test
 terraform -chdir=infra/hosted-agentic-applications fmt -check
 ```
 
+## Version Bumps
+
+Use the version helper so the browser-visible app manifest, npm metadata, and lockfile stay in sync:
+
+```bash
+npm run version:set -- 0.0.16
+npm test
+```
+
+The portal reads the displayed version from `src/version.json`. `package.json` still keeps npm's required static `version` field, and `tests/version.test.js` fails if the files drift.
+
 Do not commit local runtime state, generated Terraform directories, tfvars, API keys, portal passwords, logs, Python bytecode, or `backend/data/` demo stores. These are ignored for new files, but already tracked local state should be reviewed before staging.
 
 ## Architecture
