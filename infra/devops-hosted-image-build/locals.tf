@@ -66,6 +66,7 @@ locals {
   }
 
   deploy_all_hosted_applications = lower(var.app_deploy) == "all"
+  app_deploy_pipeline_value      = local.deploy_all_hosted_applications ? "all" : "none"
   selected_hosted_application_deployments = {
     for key, deployment in local.hosted_application_deployments : key => deployment
     if local.deploy_all_hosted_applications || contains(compact([
