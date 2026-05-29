@@ -18,14 +18,6 @@ function formatElapsedTime(milliseconds) {
   return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
 }
 
-function isPublicReference(component = {}) {
-  const name = String(component.name || component.address || "").toLowerCase();
-  return (
-    /hosted|deployment|url|repository|project|vector store|code interpreter/.test(name) &&
-    !/secret|credential|token|api key|client secret/.test(name)
-  );
-}
-
 function renderMetrics(summary = {}) {
   const metrics = summary.metrics || {};
   document.getElementById("admin-metric-grid").innerHTML = [
@@ -62,8 +54,10 @@ function renderUsage(summary = {}) {
 
 function renderRunLogs(summary = {}) {
   const runs = Array.isArray(summary.runs) ? summary.runs : [];
-  document.getElementById("admin-run-logs").innerHTML = runs.length
-    ? runs
+  const statusFilter = document.getElementById("admin-run-status-filter")?.value || "all";
+  const filteredRuns = statusFilter === "all" ? runs : runs.filter((run) => (run.status || "unknown") === statusFilter);
+  document.getElementById("admin-run-logs").innerHTML = filteredRuns.length
+    ? filteredRuns
         .slice(0, 20)
         .map(
           (run) => `
@@ -75,27 +69,20 @@ function renderRunLogs(summary = {}) {
                 <time>${escapeHtml(run.createdAt || "")}</time>
               </summary>
               ${run.error ? `<div class="admin-run-error">${escapeHtml(run.error)}</div>` : ""}
-              <pre>${escapeHtml(JSON.stringify({ stdout: run.stdout || "", stderr: run.stderr || "", logs: run.logs || [], trace: run.trace || [] }, null, 2))}</pre>
+              <pre>${escapeHtml(JSON.stringify({
+                action: run.action || "run",
+                logFile: run.logFile || "",
+                request: run.request || {},
+                upstream: run.upstream || {},
+                stdout: run.stdout || "",
+                stderr: run.stderr || "",
+                logs: run.logs || [],
+                trace: run.trace || []
+              }, null, 2))}</pre>
             </details>`
         )
         .join("")
-    : `<div class="admin-run-log-empty">No execution logs yet.</div>`;
-}
-
-function renderConnections(state = {}) {
-  const components = (Array.isArray(state.components) ? state.components : []).filter(isPublicReference);
-  document.getElementById("admin-connection-grid").innerHTML = components.length
-    ? components
-        .map(
-          (component) => `
-            <div class="admin-demo-row" data-status="${escapeHtml(component.status || "unknown")}">
-              <strong>${escapeHtml(component.name || component.address || "Reference")}</strong>
-              <span>${escapeHtml(component.status || "unknown")}</span>
-              <code>${escapeHtml(component.value || component.address || "-")}</code>
-            </div>`
-        )
-        .join("")
-    : `<div class="admin-demo-row"><strong>No hosted references loaded</strong><span>Refresh to load deployment metadata.</span></div>`;
+    : `<div class="admin-run-log-empty">${runs.length ? "No execution logs match this status." : "No execution logs yet."}</div>`;
 }
 
 async function fetchJson(url) {
@@ -111,14 +98,10 @@ export async function loadAdministrationDashboard() {
   const refreshButton = document.getElementById("admin-refresh-button");
   refreshButton.disabled = true;
   try {
-    const [history, state] = await Promise.all([
-      fetchJson("/api/admin/demo-runs"),
-      fetchJson("/api/features/responses-api/state")
-    ]);
+    const history = await fetchJson("/api/admin/demo-runs");
     renderMetrics(history);
     renderUsage(history);
     renderRunLogs(history);
-    renderConnections(state);
   } catch (error) {
     document.getElementById("admin-last-updated").textContent = `Administration load failed: ${error.message}`;
   } finally {
@@ -127,4 +110,5 @@ export async function loadAdministrationDashboard() {
 }
 
 document.getElementById("admin-refresh-button").addEventListener("click", loadAdministrationDashboard);
+document.getElementById("admin-run-status-filter").addEventListener("change", loadAdministrationDashboard);
 loadAdministrationDashboard();

@@ -771,12 +771,6 @@ h1 {
   line-height: 1;
 }
 
-.admin-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 14px;
-}
-
 .admin-demo-table,
 .admin-run-log-panel {
   min-width: 0;
@@ -830,6 +824,41 @@ h1 {
 
 #admin-connection-grid .admin-demo-row {
   grid-template-columns: minmax(180px, 0.8fr) 96px minmax(180px, 1.6fr);
+}
+
+.admin-run-log-panel {
+  margin-top: 14px;
+}
+
+.admin-run-log-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.admin-run-log-heading h2 {
+  margin: 0;
+}
+
+.admin-run-log-heading label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.admin-run-log-heading select {
+  min-height: 34px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  padding: 0 34px 0 10px;
+  color: #0f172a;
+  background: #ffffff;
+  font-weight: 850;
 }
 
 .admin-run-log {

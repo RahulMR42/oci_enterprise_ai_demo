@@ -23,6 +23,7 @@ import {
   n8nForwardedCookieHeader,
   n8nPushStreamFallbackPayload,
   rewriteLangfuseLaunchJson,
+  rewriteLangfuseLaunchHtml,
   rewriteN8nLaunchJson,
   rewriteN8nLaunchHtml,
   proxyResponseHeaders,
@@ -158,6 +159,31 @@ test("Langfuse NextAuth callback URLs stay inside the launch proxy", () => {
 
   assert.equal(rewritten.url, "http://127.0.0.1:5175/api/langfuse/launch/");
   assert.equal(rewritten.callbackUrl, "http://127.0.0.1:5175/api/langfuse/launch/api/auth/callback/credentials");
+});
+
+test("Langfuse HTML root-relative routes stay inside the launch proxy", () => {
+  const rewritten = rewriteLangfuseLaunchHtml(
+    `<a href="/">Home</a><form action="/api/auth/callback/credentials"></form><script src="/_next/static/app.js"></script><script>window.location.assign("/project/demo")</script>`,
+    "http://127.0.0.1:5175"
+  );
+
+  assert.match(rewritten, /href="\/api\/langfuse\/launch\/"/);
+  assert.match(rewritten, /action="\/api\/langfuse\/launch\/api\/auth\/callback\/credentials"/);
+  assert.match(rewritten, /src="\/api\/langfuse\/launch\/_next\/static\/app\.js"/);
+  assert.match(rewritten, /window\.location\.assign\("\/api\/langfuse\/launch\/project\/demo"\)/);
+});
+
+test("Langfuse JSON root-relative routes stay inside the launch proxy", () => {
+  const rewritten = JSON.parse(
+    rewriteLangfuseLaunchJson(
+      JSON.stringify({ redirect: "/", nested: { project: "/project/demo" }, keep: "https://example.com/" }),
+      "http://127.0.0.1:5175"
+    )
+  );
+
+  assert.equal(rewritten.redirect, "/api/langfuse/launch/");
+  assert.equal(rewritten.nested.project, "/api/langfuse/launch/project/demo");
+  assert.equal(rewritten.keep, "https://example.com/");
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {
