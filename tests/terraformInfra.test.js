@@ -259,6 +259,8 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(langgraphApp, /from langgraph\.graph import END, StateGraph/);
   assert.match(langgraphApp, /\/agent\/langgraph-mcp\/respond/);
   assert.match(llamaIndexApp, /from llama_index\.core\.workflow import Event, StartEvent, StopEvent, Workflow, step/);
+  assert.match(llamaIndexApp, /except ModuleNotFoundError/);
+  assert.match(llamaIndexApp, /deterministic_workflow/);
   assert.match(llamaIndexApp, /\/agent\/control-tower\/respond/);
 });
 
@@ -389,7 +391,18 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_deploy_artifact" "image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deliver_image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_hosted"/);
-  assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.hosted_application_deployments : \{\}/);
+  assert.match(terraform, /selected_hosted_application_deployments\s+=\s+\{/);
+  assert.match(terraform, /deploy_all_hosted_applications\s+=\s+lower\(var\.app_deploy\) == "all"/);
+  assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.selected_hosted_application_deployments : \{\}/);
+  assert.match(terraform, /variable "app_deploy"/);
+  assert.match(terraform, /variable "oci_ha_hosted_agent_deploy"/);
+  assert.match(terraform, /variable "oci_ha_langgraph_deploy"/);
+  assert.match(terraform, /variable "oci_ha_langfuse_deploy"[\s\S]*default\s+=\s+true/);
+  assert.match(terraform, /variable "oci_ha_openclaw_deploy"/);
+  assert.match(terraform, /variable "oci_ha_llamaindex_deploy"/);
+  assert.match(terraform, /app_deploy:[\s\S]*title: APP_DEPLOY/);
+  assert.match(terraform, /oci_ha_langfuse_deploy:[\s\S]*default: true/);
+  assert.match(terraform, /OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID\s+=\s+module\.devops_hosted_image_build\.build_run_id/);
   assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
   assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
@@ -677,7 +690,7 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /launchExternalDemo\(activeDemoId\)/);
   assert.match(main, /window\.open\(config\.launchUrl/);
   assert.match(main, /\/api\/openclaw\/launch\//);
-  assert.match(main, /\/auth\/sign-in/);
+  assert.match(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
   assert.match(server, /async function proxyN8nLaunch/);
   assert.match(server, /async function proxyLangfuseLaunch/);
   assert.match(server, /isLangfusePassthroughPath/);

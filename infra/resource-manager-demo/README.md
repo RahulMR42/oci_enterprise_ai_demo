@@ -22,7 +22,9 @@ The aggregate stack wires every Terraform-based deployment module used by the po
 
 ## Image and hosted deployment flow
 
-Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, builds the hosted images plus the portal image, delivers each image to its OCIR repository, then runs one hosted application deployment stage per hosted app with resource principal auth. Each hosted app deploy stage depends only on its matching image delivery stage, so deployments can run in parallel as soon as their artifacts are available.
+Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, builds the hosted images plus the portal image, and delivers each image to its OCIR repository. Hosted application deployment stages are selected by Resource Manager inputs: leave `APP_DEPLOY` empty and enable the specific `OCI_HA_*_DEPLOY` booleans you need, or set `APP_DEPLOY=all` to deploy every DevOps-built hosted app. Each selected hosted app deploy stage depends only on its matching image delivery stage, so selected deployments can run in parallel as soon as their artifacts are available.
+
+By default, `OCI_HA_LANGFUSE_DEPLOY=true` and the other `OCI_HA_*_DEPLOY` switches are false. This deploys the Langfuse hosted app and its portal metadata while avoiding unrelated hosted app replacements. Every DevOps build run is passed into the portal container environment, so the Enterprise AI portal container is redeployed after selected hosted deployments and receives the latest exported hosted URLs and deployment IDs.
 
 Before creating a hosted app replacement, the deployment script deletes older hosted deployments and hosted applications with the same display names. This intentionally uses delete-then-create semantics on reruns to avoid duplicate hosted apps for the same demo name.
 

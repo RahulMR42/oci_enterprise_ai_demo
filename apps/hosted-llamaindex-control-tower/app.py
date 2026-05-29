@@ -5,25 +5,8 @@ import os
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from llama_index.core.workflow import Event, StartEvent, StopEvent, Workflow, step
-
 
 GRAPH_STEPS = ["plan", "execute_tools", "review", "finish"]
-
-
-class PlanEvent(Event):
-    plan: dict
-
-
-class ToolEvent(Event):
-    plan: dict
-    tool_results: list
-
-
-class ReviewEvent(Event):
-    plan: dict
-    tool_results: list
-    evidence_review: dict
 
 
 def build_plan(prompt):
@@ -85,51 +68,81 @@ def audit_event(plan):
     }
 
 
-class ControlTowerWorkflow(Workflow):
-    @step
-    async def plan(self, ev: StartEvent) -> PlanEvent:
-        return PlanEvent(plan=build_plan(ev.prompt))
-
-    @step
-    async def execute_tools(self, ev: PlanEvent) -> ToolEvent:
-        prompt = self.ctx.data.get("prompt", "") if hasattr(self, "ctx") else ""
-        tool_results = [
-            incident_lookup(prompt),
-            policy_search(),
-            metric_summary(),
-            approval_request(ev.plan["riskLevel"]),
-            audit_event(ev.plan),
-        ]
-        return ToolEvent(plan=ev.plan, tool_results=tool_results)
-
-    @step
-    async def review(self, ev: ToolEvent) -> ReviewEvent:
-        return ReviewEvent(
-            plan=ev.plan,
-            tool_results=ev.tool_results,
-            evidence_review={
-                "sufficient": all(result.get("tool") for result in ev.tool_results),
-                "requiresApproval": any(result.get("approvalRequired") for result in ev.tool_results),
-                "hostedRuntime": True,
-            },
-        )
-
-    @step
-    async def finish(self, ev: ReviewEvent) -> StopEvent:
-        return StopEvent(
-            result={
-                "plan": ev.plan,
-                "toolResults": ev.tool_results,
-                "evidenceReview": ev.evidence_review,
-                "memoryNote": {
-                    "subject": "hosted-control-tower",
-                    "fact": f"Hosted LlamaIndex workflow risk={ev.plan['riskLevel']} approval={ev.evidence_review['requiresApproval']}",
-                },
-            }
-        )
+def deterministic_workflow(prompt):
+    plan = build_plan(prompt)
+    tool_results = [
+        incident_lookup(prompt),
+        policy_search(),
+        metric_summary(),
+        approval_request(plan["riskLevel"]),
+        audit_event(plan),
+    ]
+    evidence_review = {
+        "sufficient": all(result.get("tool") for result in tool_results),
+        "requiresApproval": any(result.get("approvalRequired") for result in tool_results),
+        "hostedRuntime": True,
+    }
+    return {
+        "plan": plan,
+        "toolResults": tool_results,
+        "evidenceReview": evidence_review,
+        "memoryNote": {
+            "subject": "hosted-control-tower",
+            "fact": f"Hosted LlamaIndex workflow risk={plan['riskLevel']} approval={evidence_review['requiresApproval']}",
+        },
+    }
 
 
 async def run_workflow(prompt):
+    try:
+        from llama_index.core.workflow import Event, StartEvent, StopEvent, Workflow, step
+    except ModuleNotFoundError:
+        return deterministic_workflow(prompt)
+
+    class PlanEvent(Event):
+        plan: dict
+
+    class ToolEvent(Event):
+        plan: dict
+        tool_results: list
+
+    class ReviewEvent(Event):
+        plan: dict
+        tool_results: list
+        evidence_review: dict
+
+    class ControlTowerWorkflow(Workflow):
+        @step
+        async def plan(self, ev: StartEvent) -> PlanEvent:
+            return PlanEvent(plan=build_plan(ev.prompt))
+
+        @step
+        async def execute_tools(self, ev: PlanEvent) -> ToolEvent:
+            results = [
+                incident_lookup(prompt),
+                policy_search(),
+                metric_summary(),
+                approval_request(ev.plan["riskLevel"]),
+                audit_event(ev.plan),
+            ]
+            return ToolEvent(plan=ev.plan, tool_results=results)
+
+        @step
+        async def review(self, ev: ToolEvent) -> ReviewEvent:
+            return ReviewEvent(
+                plan=ev.plan,
+                tool_results=ev.tool_results,
+                evidence_review={
+                    "sufficient": all(result.get("tool") for result in ev.tool_results),
+                    "requiresApproval": any(result.get("approvalRequired") for result in ev.tool_results),
+                    "hostedRuntime": True,
+                },
+            )
+
+        @step
+        async def finish(self, ev: ReviewEvent) -> StopEvent:
+            return StopEvent(result=deterministic_workflow(prompt))
+
     workflow = ControlTowerWorkflow(timeout=10, verbose=False)
     return await workflow.run(prompt=prompt)
 

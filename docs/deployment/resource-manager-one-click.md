@@ -46,6 +46,12 @@ Keep these defaults for Resource Manager:
 | `hosted_app_push_image` | `false` |
 | `devops_hosted_image_build_enabled` | `true` |
 | `devops_hosted_image_run_build` | `true` |
+| `APP_DEPLOY` | empty |
+| `OCI_HA_LANGFUSE_DEPLOY` | `true` |
+| `OCI_HA_HOSTED_AGENT_DEPLOY` | `false` |
+| `OCI_HA_LANGGRAPH_DEPLOY` | `false` |
+| `OCI_HA_OPENCLAW_DEPLOY` | `false` |
+| `OCI_HA_LLAMAINDEX_DEPLOY` | `false` |
 | `devops_create_repository` | `true` |
 | `devops_source_connection_type` | `DEVOPS_CODE_REPOSITORY` |
 | `devops_source_repo_url` | `https://github.com/RahulMR42/oci_enterprise_ai_demo.git` |
@@ -71,6 +77,8 @@ For iterative deployments, update both of these values before applying the same 
 - `devops_source_revision=<commit SHA on oci-rms>`
 
 Keeping the branch and revision current makes Resource Manager seed the exact source into the OCI DevOps repository and starts a new build run without creating a second Resource Manager stack.
+
+Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app replaced. The portal container is redeployed after each DevOps build run so it receives the latest hosted app exports.
 
 ## Validate
 

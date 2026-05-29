@@ -104,6 +104,47 @@ variable "deploy_only_app" {
   default     = false
 }
 
+variable "oci_ha_langfuse_deploy" {
+  description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted app deployment stages stay disabled."
+  type        = bool
+  default     = true
+}
+
+variable "app_deploy" {
+  description = "Hosted application deployment selector. Use all to deploy every hosted application, or leave empty to use the per-application switches."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = contains(["", "all"], lower(var.app_deploy))
+    error_message = "app_deploy must be empty or all."
+  }
+}
+
+variable "oci_ha_hosted_agent_deploy" {
+  description = "When true, the OCI DevOps pipeline deploys the hosted-agent hosted application stage."
+  type        = bool
+  default     = false
+}
+
+variable "oci_ha_langgraph_deploy" {
+  description = "When true, the OCI DevOps pipeline deploys the LangGraph hosted application stage."
+  type        = bool
+  default     = false
+}
+
+variable "oci_ha_openclaw_deploy" {
+  description = "When true, the OCI DevOps pipeline deploys the OpenClaw hosted application stage."
+  type        = bool
+  default     = false
+}
+
+variable "oci_ha_llamaindex_deploy" {
+  description = "When true, the OCI DevOps pipeline deploys the LlamaIndex control tower hosted application stage."
+  type        = bool
+  default     = false
+}
+
 variable "existing_hosted_deployment_exports_json" {
   description = "Non-sensitive JSON map of existing hosted application deployment IDs and URLs used by deploy_only_app portal-only redeployments."
   type        = string

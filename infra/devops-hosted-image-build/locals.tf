@@ -64,4 +64,16 @@ locals {
       stage_name      = "deploy-llamaindex-control-tower"
     }
   }
+
+  deploy_all_hosted_applications = lower(var.app_deploy) == "all"
+  selected_hosted_application_deployments = {
+    for key, deployment in local.hosted_application_deployments : key => deployment
+    if local.deploy_all_hosted_applications || contains(compact([
+      var.deploy_hosted_agent_hosted_application ? "hosted_agent" : "",
+      var.deploy_langgraph_hosted_application ? "langgraph" : "",
+      var.deploy_langfuse_hosted_application ? "langfuse" : "",
+      var.deploy_openclaw_hosted_application ? "openclaw" : "",
+      var.deploy_llamaindex_hosted_application ? "llamaindex" : ""
+    ]), key)
+  }
 }

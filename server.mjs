@@ -1648,7 +1648,7 @@ export function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8n
     }
     if (name.toLowerCase() === "location") {
       if (proxyBase === "/api/langfuse/launch/" && value.startsWith("http://0.0.0.0:3000")) {
-        result[name] = value.replace("http://0.0.0.0:3000", "");
+        result[name] = value.replace("http://0.0.0.0:3000", proxyBase.replace(/\/$/, ""));
       } else if (value.startsWith(launchUrl)) {
         result[name] = value.replace(launchUrl, proxyBase);
       } else if (proxyBase === "/api/langfuse/launch/" && value.startsWith("/")) {
@@ -1949,11 +1949,15 @@ export function rewriteLangfuseLaunchHtml(html) {
   return String(html);
 }
 
+function langfuseProxyBaseUrl(proxyOrigin = "") {
+  return proxyOrigin ? `${String(proxyOrigin).replace(/\/+$/, "")}/api/langfuse/launch` : "";
+}
+
 export function rewriteLangfuseLaunchJson(jsonText, proxyOrigin = "") {
   if (!proxyOrigin || !String(jsonText).includes("http://0.0.0.0:3000")) {
     return jsonText;
   }
-  return String(jsonText).replaceAll("http://0.0.0.0:3000", proxyOrigin);
+  return String(jsonText).replaceAll("http://0.0.0.0:3000", langfuseProxyBaseUrl(proxyOrigin));
 }
 
 export async function proxyLangfuseLaunch(request, response, parsedUrl) {
