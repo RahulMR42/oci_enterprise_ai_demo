@@ -2599,7 +2599,7 @@ function launchExternalDemo(featureId) {
     "langfuse-hosted-observability": {
       label: "Langfuse Hosted Observability",
       shortLabel: "Langfuse",
-      launchUrl: "/auth/sign-in",
+      launchUrl: "/api/langfuse/launch/auth/sign-in",
       hostedUrl: infraState.langfuseHostedUrl,
       hostedDeploymentId: infraState.langfuseHostedDeploymentId,
       hostedDeploymentStatus: infraState.langfuseHostedDeploymentStatus,

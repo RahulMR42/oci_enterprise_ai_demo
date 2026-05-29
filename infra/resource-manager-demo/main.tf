@@ -108,9 +108,15 @@ module "devops_hosted_image_build" {
     ? var.portal_container_repository_id
     : try(oci_artifacts_container_repository.portal[0].id, "")
   )
-  shared_policy_id = module.shared_demo_security.policy_id
-  run_build        = var.devops_hosted_image_run_build
-  deploy_only_app  = var.deploy_only_app
+  shared_policy_id                       = module.shared_demo_security.policy_id
+  run_build                              = var.devops_hosted_image_run_build
+  deploy_only_app                        = var.deploy_only_app
+  app_deploy                             = var.app_deploy
+  deploy_hosted_agent_hosted_application = var.oci_ha_hosted_agent_deploy
+  deploy_langgraph_hosted_application    = var.oci_ha_langgraph_deploy
+  deploy_langfuse_hosted_application     = var.oci_ha_langfuse_deploy
+  deploy_openclaw_hosted_application     = var.oci_ha_openclaw_deploy
+  deploy_llamaindex_hosted_application   = var.oci_ha_llamaindex_deploy
 }
 
 module "hosted_agentic_applications" {

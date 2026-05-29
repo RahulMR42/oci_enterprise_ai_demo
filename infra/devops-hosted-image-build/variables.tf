@@ -269,3 +269,44 @@ variable "deploy_only_app" {
   type        = bool
   default     = false
 }
+
+variable "deploy_langfuse_hosted_application" {
+  description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted application stages remain disabled."
+  type        = bool
+  default     = true
+}
+
+variable "app_deploy" {
+  description = "Hosted application deployment selector. Use all to deploy every hosted application, or leave empty to use the per-application switches."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = contains(["", "all"], lower(var.app_deploy))
+    error_message = "app_deploy must be empty or all."
+  }
+}
+
+variable "deploy_hosted_agent_hosted_application" {
+  description = "When true, the OCI DevOps pipeline deploys the hosted-agent hosted application stage."
+  type        = bool
+  default     = false
+}
+
+variable "deploy_langgraph_hosted_application" {
+  description = "When true, the OCI DevOps pipeline deploys the LangGraph hosted application stage."
+  type        = bool
+  default     = false
+}
+
+variable "deploy_openclaw_hosted_application" {
+  description = "When true, the OCI DevOps pipeline deploys the OpenClaw hosted application stage."
+  type        = bool
+  default     = false
+}
+
+variable "deploy_llamaindex_hosted_application" {
+  description = "When true, the OCI DevOps pipeline deploys the LlamaIndex control tower hosted application stage."
+  type        = bool
+  default     = false
+}

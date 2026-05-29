@@ -26,6 +26,12 @@ variableGroups:
       - devops_hosted_image_build_enabled
       - devops_hosted_image_run_build
       - deploy_only_app
+      - app_deploy
+      - oci_ha_hosted_agent_deploy
+      - oci_ha_langgraph_deploy
+      - oci_ha_langfuse_deploy
+      - oci_ha_openclaw_deploy
+      - oci_ha_llamaindex_deploy
       - existing_hosted_deployment_exports_json
   - title: Portal Container
     variables:
@@ -155,6 +161,36 @@ variables:
   deploy_only_app:
     title: DEPLOY_ONLY_APP
     description: When true, build and deliver images but skip hosted application deployment stages; use this for portal-only redeployments that must not touch ClickHouse, Redis, or hosted app deployments.
+    type: boolean
+    default: false
+  app_deploy:
+    title: APP_DEPLOY
+    description: Set to all to deploy every hosted application. Leave empty to use the OCI_HA_* per-application switches.
+    type: string
+    default: ""
+  oci_ha_hosted_agent_deploy:
+    title: OCI_HA_HOSTED_AGENT_DEPLOY
+    description: When true, deploy the hosted-agent hosted application through OCI DevOps.
+    type: boolean
+    default: false
+  oci_ha_langgraph_deploy:
+    title: OCI_HA_LANGGRAPH_DEPLOY
+    description: When true, deploy the LangGraph hosted application through OCI DevOps.
+    type: boolean
+    default: false
+  oci_ha_langfuse_deploy:
+    title: OCI_HA_LANGFUSE_DEPLOY
+    description: When true, deploy the Langfuse hosted application through OCI DevOps.
+    type: boolean
+    default: true
+  oci_ha_openclaw_deploy:
+    title: OCI_HA_OPENCLAW_DEPLOY
+    description: When true, deploy the OpenClaw hosted application through OCI DevOps.
+    type: boolean
+    default: false
+  oci_ha_llamaindex_deploy:
+    title: OCI_HA_LLAMAINDEX_DEPLOY
+    description: When true, deploy the LlamaIndex control tower hosted application through OCI DevOps.
     type: boolean
     default: false
   existing_hosted_deployment_exports_json:

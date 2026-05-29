@@ -108,7 +108,32 @@ def build_plan(prompt):
 
 
 async def run_llamaindex_control_tower(prompt, idcs_posture):
-    Event, StartEvent, StopEvent, Workflow, step = load_llamaindex_workflow()
+    try:
+        Event, StartEvent, StopEvent, Workflow, step = load_llamaindex_workflow()
+    except RuntimeError:
+        plan = build_plan(prompt)
+        tool_results = [
+            incident_lookup(prompt),
+            policy_search(prompt),
+            sql_metric_summary(prompt),
+            approval_request(plan["riskLevel"]),
+            audit_event(plan),
+        ]
+        evidence_review = {
+            "sufficient": all(result.get("tool") for result in tool_results),
+            "requiresApproval": any(result.get("approvalRequired") for result in tool_results),
+            "idcsConfigured": idcs_posture["configured"],
+        }
+        return {
+            "plan": plan,
+            "toolResults": tool_results,
+            "evidenceReview": evidence_review,
+            "memoryNote": {
+                "subject": "operations-control-tower",
+                "fact": f"Latest risk level is {plan['riskLevel']} with approval={evidence_review['requiresApproval']}",
+            },
+            "runtime": "deterministic-fallback",
+        }
 
     class PlanEvent(Event):
         plan: dict

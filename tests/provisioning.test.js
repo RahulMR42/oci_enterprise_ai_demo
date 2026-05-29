@@ -22,6 +22,7 @@ import {
   n8nExecutionListFallbackPayload,
   n8nForwardedCookieHeader,
   n8nPushStreamFallbackPayload,
+  rewriteLangfuseLaunchJson,
   rewriteN8nLaunchJson,
   rewriteN8nLaunchHtml,
   proxyResponseHeaders,
@@ -135,6 +136,28 @@ test("Langfuse root-relative redirects stay inside the launch proxy", () => {
   });
 
   assert.equal(rewritten.location, "/api/langfuse/launch/");
+});
+
+test("Langfuse internal absolute redirects stay inside the launch proxy", () => {
+  const headers = new Headers({ Location: "http://0.0.0.0:3000/api/auth/error?error=Invalid%20credentials" });
+  const rewritten = proxyResponseHeaders(headers, "/api/langfuse/launch/api/auth/callback/credentials", {
+    launchUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/",
+    proxyBase: "/api/langfuse/launch/"
+  });
+
+  assert.equal(rewritten.location, "/api/langfuse/launch/api/auth/error?error=Invalid%20credentials");
+});
+
+test("Langfuse NextAuth callback URLs stay inside the launch proxy", () => {
+  const rewritten = JSON.parse(
+    rewriteLangfuseLaunchJson(
+      JSON.stringify({ url: "http://0.0.0.0:3000/", callbackUrl: "http://0.0.0.0:3000/api/auth/callback/credentials" }),
+      "http://127.0.0.1:5175"
+    )
+  );
+
+  assert.equal(rewritten.url, "http://127.0.0.1:5175/api/langfuse/launch/");
+  assert.equal(rewritten.callbackUrl, "http://127.0.0.1:5175/api/langfuse/launch/api/auth/callback/credentials");
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {

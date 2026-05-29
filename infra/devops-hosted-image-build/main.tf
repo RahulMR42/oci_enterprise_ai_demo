@@ -203,6 +203,36 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "When true, hosted app deployment stages are skipped and only the portal app container redeploys."
     }
     items {
+      name          = "OCI_HA_LANGFUSE_DEPLOY"
+      default_value = var.deploy_langfuse_hosted_application ? "true" : "false"
+      description   = "When true, deploy the Langfuse hosted application stage."
+    }
+    items {
+      name          = "APP_DEPLOY"
+      default_value = var.app_deploy
+      description   = "Hosted application deployment selector. Set to all to deploy every hosted application."
+    }
+    items {
+      name          = "OCI_HA_HOSTED_AGENT_DEPLOY"
+      default_value = var.deploy_hosted_agent_hosted_application ? "true" : "false"
+      description   = "When true, deploy the hosted-agent hosted application stage."
+    }
+    items {
+      name          = "OCI_HA_LANGGRAPH_DEPLOY"
+      default_value = var.deploy_langgraph_hosted_application ? "true" : "false"
+      description   = "When true, deploy the LangGraph hosted application stage."
+    }
+    items {
+      name          = "OCI_HA_OPENCLAW_DEPLOY"
+      default_value = var.deploy_openclaw_hosted_application ? "true" : "false"
+      description   = "When true, deploy the OpenClaw hosted application stage."
+    }
+    items {
+      name          = "OCI_HA_LLAMAINDEX_DEPLOY"
+      default_value = var.deploy_llamaindex_hosted_application ? "true" : "false"
+      description   = "When true, deploy the LlamaIndex hosted application stage."
+    }
+    items {
       name          = "PORTAL_CONTAINER_REPOSITORY_ID"
       default_value = var.portal_container_repository_id
       description   = "Portal OCIR repository dependency marker."
@@ -313,7 +343,7 @@ resource "oci_devops_build_pipeline_stage" "deliver_image" {
 }
 
 resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
-  for_each = var.enabled && !var.deploy_only_app ? local.hosted_application_deployments : {}
+  for_each = var.enabled && !var.deploy_only_app ? local.selected_hosted_application_deployments : {}
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
@@ -393,6 +423,30 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "DEPLOY_ONLY_APP"
       value = var.deploy_only_app ? "true" : "false"
+    }
+    items {
+      name  = "OCI_HA_LANGFUSE_DEPLOY"
+      value = var.deploy_langfuse_hosted_application ? "true" : "false"
+    }
+    items {
+      name  = "APP_DEPLOY"
+      value = var.app_deploy
+    }
+    items {
+      name  = "OCI_HA_HOSTED_AGENT_DEPLOY"
+      value = var.deploy_hosted_agent_hosted_application ? "true" : "false"
+    }
+    items {
+      name  = "OCI_HA_LANGGRAPH_DEPLOY"
+      value = var.deploy_langgraph_hosted_application ? "true" : "false"
+    }
+    items {
+      name  = "OCI_HA_OPENCLAW_DEPLOY"
+      value = var.deploy_openclaw_hosted_application ? "true" : "false"
+    }
+    items {
+      name  = "OCI_HA_LLAMAINDEX_DEPLOY"
+      value = var.deploy_llamaindex_hosted_application ? "true" : "false"
     }
     items {
       name  = "PORTAL_CONTAINER_REPOSITORY_ID"

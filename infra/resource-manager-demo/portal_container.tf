@@ -196,6 +196,7 @@ resource "oci_container_instances_container_instance" "portal" {
 
     environment_variables = {
       HOST                                 = "0.0.0.0"
+      OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID = module.devops_hosted_image_build.build_run_id
       OCI_GENAI_API_KEY                    = var.oci_genai_api_key
       OCI_GENAI_CODE_INTERPRETER_CONTAINER = local.portal_code_interpreter_container_id
       OCI_GENAI_PROJECT_ID                 = var.oci_genai_project_id
