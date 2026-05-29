@@ -38,16 +38,6 @@
         </div>
 
         <div class="admin-layout">
-          <section class="admin-demo-table" aria-label="Hosted application references">
-            <h2>Hosted application references</h2>
-            <div class="admin-connection-grid" id="admin-connection-grid">
-              <div class="admin-demo-row">
-                <strong>No hosted references loaded</strong>
-                <span>Refresh to load deployment metadata.</span>
-              </div>
-            </div>
-          </section>
-
           <section class="admin-demo-table" aria-label="Usage summary">
             <h2>Usage summary</h2>
             <div id="admin-demo-summary">
@@ -60,7 +50,19 @@
         </div>
 
         <section class="admin-run-log-panel" aria-label="Recent execution logs">
-          <h2>Recent execution logs</h2>
+          <div class="admin-run-log-heading">
+            <h2>Recent execution logs</h2>
+            <label>
+              <span>Status</span>
+              <select id="admin-run-status-filter" aria-label="Filter execution logs by status">
+                <option value="all">All</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+                <option value="started">Started</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </label>
+          </div>
           <div id="admin-run-logs">
             <div class="admin-run-log-empty">No execution logs yet.</div>
           </div>

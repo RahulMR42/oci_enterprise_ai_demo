@@ -594,8 +594,13 @@ test("administration page is separate while runtime metadata stays available", (
   assert.match(adminHtml, /id="administration"/);
   assert.match(adminHtml, /admin-demo-table/);
   assert.match(adminHtml, /admin-run-log-panel/);
-  assert.match(admin, /admin-connection-grid/);
-  assert.match(adminHtml, /Hosted application references/);
+  assert.doesNotMatch(admin, /admin-connection-grid/);
+  assert.doesNotMatch(adminHtml, /Hosted application references/);
+  assert.match(adminHtml, /admin-run-status-filter/);
+  assert.match(admin, /admin-run-status-filter/);
+  assert.match(admin, /run\.status \|\| "unknown"/);
+  assert.match(admin, /request: run\.request \|\| \{\}/);
+  assert.match(admin, /upstream: run\.upstream \|\| \{\}/);
   assert.doesNotMatch(admin, /clientSecret|apiKey|password/i);
   assert.match(main, /loadResponsesInfrastructureState/);
   assert.doesNotMatch(main, /id="infra-panel"/);
@@ -709,6 +714,9 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(server, /\/_next\//);
   assert.match(server, /\/assets\//);
   assert.match(server, /rewriteLangfuseLaunchHtml/);
+  assert.match(server, /rewriteLangfuseRootRelativeUrl/);
+  assert.match(server, /rewrittenLocation/);
+  assert.match(server, /rewroteBody/);
   assert.match(server, /\/favicon\.ico/);
   assert.match(server, /\/icon\.svg/);
   assert.match(server, /rewriteLangfuseLaunchJson/);

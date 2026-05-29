@@ -132,6 +132,10 @@ function demoLogPreview(value = "") {
   return String(value || "").slice(0, 4000);
 }
 
+function demoLogObjectPreview(value = {}) {
+  return redactForDemoLog(value && typeof value === "object" ? value : {});
+}
+
 export function summarizeDemoRunHistory(records = []) {
   const sortedRuns = records
     .map((record) => redactForDemoLog(record || {}))
@@ -146,8 +150,10 @@ export function summarizeDemoRunHistory(records = []) {
       logFile: record.logFile || "",
       stdout: demoLogPreview(record.stdout),
       stderr: demoLogPreview(record.stderr),
-      logs: Array.isArray(record.response?.logs) ? record.response.logs.slice(0, 5) : Array.isArray(record.logs) ? record.logs.slice(0, 5) : [],
-      trace: Array.isArray(record.response?.trace) ? record.response.trace.slice(0, 5) : Array.isArray(record.trace) ? record.trace.slice(0, 5) : []
+      request: demoLogObjectPreview(record.request),
+      upstream: demoLogObjectPreview(record.upstream),
+      logs: Array.isArray(record.response?.logs) ? record.response.logs.slice(0, 20) : Array.isArray(record.logs) ? record.logs.slice(0, 20) : [],
+      trace: Array.isArray(record.response?.trace) ? record.response.trace.slice(0, 20) : Array.isArray(record.trace) ? record.trace.slice(0, 20) : []
     }));
 
   const totalDuration = sortedRuns.reduce((sum, run) => sum + (Number.isFinite(run.durationMs) ? run.durationMs : 0), 0);
@@ -1658,6 +1664,10 @@ export function proxyResponseHeaders(headers, requestPath, { launchUrl = readN8n
       }
       continue;
     }
+    if (proxyBase === "/api/langfuse/launch/" && name.toLowerCase() === "set-cookie") {
+      result[name] = String(value).replaceAll(/Path=\//gi, `Path=${proxyBase.replace(/\/$/, "")}/`);
+      continue;
+    }
     result[name] = value;
   }
   result["Cache-Control"] = requestPath === proxyBase ? "no-store" : result["Cache-Control"] || "no-store";
@@ -1945,19 +1955,55 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
   }
 }
 
-export function rewriteLangfuseLaunchHtml(html) {
-  return String(html);
-}
-
 function langfuseProxyBaseUrl(proxyOrigin = "") {
   return proxyOrigin ? `${String(proxyOrigin).replace(/\/+$/, "")}/api/langfuse/launch` : "";
 }
 
-export function rewriteLangfuseLaunchJson(jsonText, proxyOrigin = "") {
-  if (!proxyOrigin || !String(jsonText).includes("http://0.0.0.0:3000")) {
-    return jsonText;
+function langfuseRootProxyPath() {
+  return "/api/langfuse/launch/";
+}
+
+function rewriteLangfuseAbsoluteUrl(value = "", proxyOrigin = "") {
+  const proxyBase = proxyOrigin ? langfuseProxyBaseUrl(proxyOrigin) : langfuseRootProxyPath().replace(/\/$/, "");
+  return String(value)
+    .replaceAll("http://0.0.0.0:3000", proxyBase)
+    .replaceAll("http://127.0.0.1:3000", proxyBase)
+    .replaceAll("http://localhost:3000", proxyBase);
+}
+
+function rewriteLangfuseRootRelativeUrl(value = "") {
+  if (!value || value.startsWith("//") || value.startsWith("/api/langfuse/launch")) {
+    return value;
   }
-  return String(jsonText).replaceAll("http://0.0.0.0:3000", langfuseProxyBaseUrl(proxyOrigin));
+  return value.startsWith("/") ? `${langfuseRootProxyPath().replace(/\/$/, "")}${value}` : value;
+}
+
+export function rewriteLangfuseLaunchHtml(html, proxyOrigin = "") {
+  return rewriteLangfuseAbsoluteUrl(String(html), proxyOrigin)
+    .replace(/\b(href|src|action)=["']\/(?!\/)([^"']*)["']/g, (_match, attribute, path) => `${attribute}="${langfuseRootProxyPath()}${path}"`)
+    .replace(/\b(url|callbackUrl|redirectTo):\s*["']\/(?!\/)([^"']*)["']/g, (_match, key, path) => `${key}:"${langfuseRootProxyPath()}${path}"`)
+    .replace(/window\.location\.(?:href|assign|replace)\(["']\/(?!\/)([^"']*)["']\)/g, (_match, path) => `window.location.assign("${langfuseRootProxyPath()}${path}")`);
+}
+
+function rewriteLangfuseJsonValue(value, proxyOrigin = "") {
+  if (typeof value === "string") {
+    return rewriteLangfuseRootRelativeUrl(rewriteLangfuseAbsoluteUrl(value, proxyOrigin));
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => rewriteLangfuseJsonValue(item, proxyOrigin));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewriteLangfuseJsonValue(item, proxyOrigin)]));
+  }
+  return value;
+}
+
+export function rewriteLangfuseLaunchJson(jsonText, proxyOrigin = "") {
+  try {
+    return JSON.stringify(rewriteLangfuseJsonValue(JSON.parse(jsonText), proxyOrigin));
+  } catch {
+    return rewriteLangfuseAbsoluteUrl(String(jsonText), proxyOrigin);
+  }
 }
 
 export async function proxyLangfuseLaunch(request, response, parsedUrl) {
@@ -1976,11 +2022,16 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
     const contentType = upstream.headers.get("content-type") || "";
     const arrayBuffer = request.method === "HEAD" ? new ArrayBuffer(0) : await upstream.arrayBuffer();
     const upstreamBody = Buffer.from(arrayBuffer);
+    const proxyOrigin = langfuseProxyOrigin(request);
     const responseBody = contentType.includes("text/html")
-      ? Buffer.from(rewriteLangfuseLaunchHtml(upstreamBody.toString("utf8")))
+      ? Buffer.from(rewriteLangfuseLaunchHtml(upstreamBody.toString("utf8"), proxyOrigin))
       : contentType.includes("application/json")
-        ? Buffer.from(rewriteLangfuseLaunchJson(upstreamBody.toString("utf8"), langfuseProxyOrigin(request)))
+        ? Buffer.from(rewriteLangfuseLaunchJson(upstreamBody.toString("utf8"), proxyOrigin))
         : upstreamBody;
+    const responseHeaders = proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
+      launchUrl: readLangfuseLaunchUrl(),
+      proxyBase: "/api/langfuse/launch/"
+    });
     const logFile = writeDemoLog(featureId, {
       action: "launch",
       status: upstream.ok ? "success" : "failed",
@@ -1994,15 +2045,17 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
         statusText: upstream.statusText,
         contentType,
         opcRequestId: upstream.headers.get("opc-request-id") || "",
+        location: upstream.headers.get("location") || "",
+        rewrittenLocation: responseHeaders.location || responseHeaders.Location || "",
+        setCookieCount: upstream.headers.has("set-cookie") ? 1 : 0,
         target: `${targetUrl.origin}${targetUrl.pathname}`,
+        proxyOrigin,
+        rewroteBody: !upstreamBody.equals(responseBody),
         bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
       }
     });
     response.writeHead(upstream.status, {
-      ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
-        launchUrl: readLangfuseLaunchUrl(),
-        proxyBase: "/api/langfuse/launch/"
-      }),
+      ...responseHeaders,
       "X-Demo-Log-File": logFile
     });
     response.end(responseBody);
