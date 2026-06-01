@@ -47,15 +47,19 @@ import os
 import sys
 
 shape_file, vnics_file, containers_file = sys.argv[1:4]
+
+def env_value(name, default=""):
+    return os.environ.get(name, default).strip()
+
 env = {
     "HOST": "0.0.0.0",
     "PORT": os.environ.get("PORTAL_CONTAINER_PORT", "5173"),
     "OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID": os.environ.get("BUILD_RUN_ID", ""),
     "OCI_GENAI_API_KEY": os.environ.get("OCI_GENAI_API_KEY", ""),
-    "OCI_GENAI_CODE_INTERPRETER_CONTAINER": os.environ.get("PORTAL_CODE_INTERPRETER_CONTAINER_ID", ""),
+    "OCI_GENAI_CODE_INTERPRETER_CONTAINER": env_value("PORTAL_CODE_INTERPRETER_CONTAINER_ID"),
     "OCI_GENAI_PROJECT_ID": os.environ.get("OCI_GENAI_PROJECT_ID", ""),
     "OCI_GENAI_REGION": os.environ["OCI_REGION"],
-    "OCI_GENAI_VECTOR_STORE_ID": os.environ.get("PORTAL_VECTOR_STORE_ID", ""),
+    "OCI_GENAI_VECTOR_STORE_ID": env_value("PORTAL_VECTOR_STORE_ID"),
     "OCI_HOSTED_APP_IDCS_AUDIENCE": os.environ.get("IDCS_AUDIENCE", ""),
     "OCI_HOSTED_APP_IDCS_CLIENT_ID": os.environ.get("OCI_HOSTED_APP_IDCS_CLIENT_ID", ""),
     "OCI_HOSTED_APP_IDCS_CLIENT_SECRET": os.environ.get("OCI_HOSTED_APP_IDCS_CLIENT_SECRET", ""),

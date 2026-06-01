@@ -528,8 +528,11 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /oci_genai_project_id\s+=\s+var\.oci_genai_project_id/);
   assert.match(terraform, /oci_genai_api_key\s+=\s+var\.oci_genai_api_key/);
   assert.match(terraform, /"OCI_GENAI_REGION": os\.environ\["OCI_REGION"\]/);
-  assert.match(terraform, /"OCI_GENAI_VECTOR_STORE_ID": os\.environ\.get\("PORTAL_VECTOR_STORE_ID", ""\)/);
-  assert.match(terraform, /"OCI_GENAI_CODE_INTERPRETER_CONTAINER": os\.environ\.get\("PORTAL_CODE_INTERPRETER_CONTAINER_ID", ""\)/);
+  assert.match(terraform, /value = var\.portal_vector_store_id != null && var\.portal_vector_store_id != "" \? var\.portal_vector_store_id : " "/);
+  assert.match(terraform, /value = var\.portal_code_interpreter_container_id != null && var\.portal_code_interpreter_container_id != "" \? var\.portal_code_interpreter_container_id : " "/);
+  assert.match(terraform, /def env_value\(name, default=""\):/);
+  assert.match(terraform, /"OCI_GENAI_VECTOR_STORE_ID": env_value\("PORTAL_VECTOR_STORE_ID"\)/);
+  assert.match(terraform, /"OCI_GENAI_CODE_INTERPRETER_CONTAINER": env_value\("PORTAL_CODE_INTERPRETER_CONTAINER_ID"\)/);
   assert.match(terraform, /data "local_file" "file_search_vector_store"/);
   assert.match(terraform, /data "local_file" "code_interpreter_container"/);
   assert.match(terraform, /fileexists\(local\.file_search_vector_store_generated_file\)/);
