@@ -83,6 +83,58 @@ for item in (payload.get("data") or {}).get("items", []):
         print(identifier)'
 }
 
+wait_for_hosted_deployment_deleted() {
+  local dep_id="$1"
+  local state
+  local dep_file="/tmp/hosted_deployment_${dep_id##*.}.json"
+
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    if ! oci generative-ai hosted-deployment get \
+      --hosted-deployment-id "$dep_id" \
+      --auth resource_principal \
+      --region "$OCI_REGION" \
+      --output json >"$dep_file" 2>/tmp/hosted_deployment_get.err; then
+      echo "Hosted deployment ${dep_id} is no longer returned by OCI."
+      return 0
+    fi
+    state="$(python3 -c 'import json, sys; print((json.load(open(sys.argv[1])).get("data", {}).get("lifecycle-state") or "").upper())' "$dep_file")"
+    if [ "$state" = "DELETED" ]; then
+      echo "Hosted deployment ${dep_id} is deleted."
+      return 0
+    fi
+    sleep 20
+  done
+
+  echo "Timed out waiting for hosted deployment ${dep_id} to delete." >&2
+  return 1
+}
+
+wait_for_hosted_application_deleted() {
+  local app_id="$1"
+  local state
+  local app_file="/tmp/hosted_application_${app_id##*.}.json"
+
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    if ! oci generative-ai hosted-application get \
+      --hosted-application-id "$app_id" \
+      --auth resource_principal \
+      --region "$OCI_REGION" \
+      --output json >"$app_file" 2>/tmp/hosted_application_get.err; then
+      echo "Hosted application ${app_id} is no longer returned by OCI."
+      return 0
+    fi
+    state="$(python3 -c 'import json, sys; print((json.load(open(sys.argv[1])).get("data", {}).get("lifecycle-state") or "").upper())' "$app_file")"
+    if [ "$state" = "DELETED" ]; then
+      echo "Hosted application ${app_id} is deleted."
+      return 0
+    fi
+    sleep 20
+  done
+
+  echo "Timed out waiting for hosted application ${app_id} to delete." >&2
+  return 1
+}
+
 delete_existing_hosted_resources() {
   local deployment_display="$1"
   local app_display="$2"
@@ -103,7 +155,8 @@ delete_existing_hosted_resources() {
           --force \
           --auth resource_principal \
           --region "$OCI_REGION" \
-          --wait-for-state SUCCEEDED || true
+          --output json >/tmp/hosted_deployment_delete.json || true
+        wait_for_hosted_deployment_deleted "$old_dep_id"
       fi
     done
   done
@@ -116,7 +169,8 @@ delete_existing_hosted_resources() {
         --force \
         --auth resource_principal \
         --region "$OCI_REGION" \
-        --wait-for-state SUCCEEDED || true
+        --output json >/tmp/hosted_application_delete.json || true
+      wait_for_hosted_application_deleted "$old_app_id"
     fi
   done
 }
