@@ -12,8 +12,18 @@ test("file search terraform owns vector store provisioning contract", () => {
   assert.match(terraform, /resource "terraform_data" "file_search_vector_store"/);
   assert.match(terraform, /resource "terraform_data" "file_search_seed_documents"/);
   assert.match(terraform, /from openai import OpenAI/);
+  assert.match(terraform, /from oci_openai import OciOpenAI/);
+  assert.match(terraform, /OciResourcePrincipalAuth/);
+  assert.match(terraform, /OciSessionAuth/);
+  assert.match(terraform, /OciUserPrincipalAuth/);
   assert.match(terraform, /shared_api_key_file/);
   assert.match(terraform, /shared_project_file/);
+  assert.match(terraform, /service_endpoint="\$\{self\.input\.control_plane_base_url\}"/);
+  assert.match(terraform, /compartment_id="\$\{self\.input\.compartment_id\}"/);
+  assert.match(terraform, /profile_name = "\$\{self\.input\.profile\}" or "DEFAULT"/);
+  assert.match(terraform, /profile_name=profile_name/);
+  assert.match(terraform, /"status": "skipped"/);
+  assert.match(terraform, /Vector store metadata does not contain an id/);
   assert.match(terraform, /base_url="\$\{self\.input\.openai_base_url\}"/);
   assert.match(terraform, /vector_stores\.create/);
   assert.match(terraform, /client\.files\.create/);
@@ -493,6 +503,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /OCI_GENAI_CODE_INTERPRETER_CONTAINER\s+=\s+local\.portal_code_interpreter_container_id/);
   assert.match(terraform, /data "local_file" "file_search_vector_store"/);
   assert.match(terraform, /data "local_file" "code_interpreter_container"/);
+  assert.match(terraform, /fileexists\(local\.file_search_vector_store_generated_file\)/);
+  assert.match(terraform, /fileexists\(local\.code_interpreter_container_generated_file\)/);
   assert.match(terraform, /output "portal_vector_store_id"/);
   assert.match(terraform, /output "portal_code_interpreter_container_id"/);
   assert.match(terraform, /environment\s+=\s+\{[\s\S]*OCI_GENAI_API_KEY\s+=\s+var\.oci_genai_api_key/);
@@ -651,12 +663,17 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
   assert.match(deployScript, /create_hosted LLAMAINDEX/);
   assert.match(deployScript, /write_exported_variables "\$HOSTED_APP_KEY"/);
   assert.match(deployScript, /previous_app_ids/);
+  assert.match(deployScript, /hosted-application-collection list-hosted-applications/);
+  assert.match(deployScript, /hosted-deployment-collection list-hosted-deployments/);
+  assert.match(deployScript, /--display-name "\$display_name"/);
+  assert.match(deployScript, /--application-id "\$app_id"/);
+  assert.doesNotMatch(deployScript, /raw-request/);
   assert.match(deployScript, /delete_existing_hosted_resources/);
   assert.match(deployScript, /hosted-application delete/);
   assert.match(deployScript, /hosted-deployment delete/);
   assert.doesNotMatch(deployScript, /"\$old_app_id" != "\$new_app_id"/);
   assert.doesNotMatch(deployScript, /"\$old_dep_id" != "\$new_dep_id"/);
-  assert.match(deployScript, /^display_name = sys\.argv\[1\]$/m);
+  assert.doesNotMatch(deployScript, /^display_name = sys\.argv\[1\]$/m);
 });
 
 test("run dialog renders user-facing demo brief", () => {

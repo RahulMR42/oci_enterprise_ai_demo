@@ -39,26 +39,40 @@ image_repo() {
   printf '%s\n' "${image_uri%:*}"
 }
 
-resource_ids_by_display_name() {
+hosted_app_ids_by_display_name() {
   local display_name="$1"
-  local resource_kind="$2"
-  local query_text="query all resources where displayName = '${display_name}'"
-  oci search resource structured-search \
-    --query-text "$query_text" \
+  oci generative-ai hosted-application-collection list-hosted-applications \
+    --compartment-id "$COMPARTMENT_ID" \
+    --display-name "$display_name" \
+    --all \
     --auth resource_principal \
     --region "$OCI_REGION" \
-    --output json | python3 -c 'import json, sys
-display_name = sys.argv[1]
-resource_kind = sys.argv[2].lower()
+    --output json |
+    python3 -c 'import json, sys
 payload = json.load(sys.stdin)
-items = (payload.get("data") or {}).get("items") or payload.get("items") or []
-for item in items:
-    item_name = item.get("display-name") or item.get("displayName") or ""
-    resource_type = (item.get("resource-type") or item.get("resourceType") or "").lower()
-    lifecycle_state = (item.get("lifecycle-state") or item.get("lifecycleState") or "").lower()
-    identifier = item.get("identifier") or ""
-    if item_name == display_name and resource_kind in resource_type and identifier and lifecycle_state not in {"deleted", "deleting"}:
-        print(identifier)' "$display_name" "$resource_kind"
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state not in {"DELETED", "DELETING"}:
+        print(identifier)'
+}
+
+hosted_deployment_ids_by_app_id() {
+  local app_id="$1"
+  oci generative-ai hosted-deployment-collection list-hosted-deployments \
+    --compartment-id "$COMPARTMENT_ID" \
+    --application-id "$app_id" \
+    --all \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json |
+    python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state not in {"DELETED", "DELETING"}:
+        print(identifier)'
 }
 
 delete_existing_hosted_resources() {
@@ -68,22 +82,27 @@ delete_existing_hosted_resources() {
   local previous_app_ids=()
   local previous_dep_ids=()
 
-  mapfile -t previous_app_ids < <(resource_ids_by_display_name "$app_display" "hostedapplication" || true)
-  mapfile -t previous_dep_ids < <(resource_ids_by_display_name "$deployment_display" "hosteddeployment" || true)
+  mapfile -t previous_app_ids < <(hosted_app_ids_by_display_name "$app_display" || true)
 
-  for old_dep_id in "${previous_dep_ids[@]}"; do
-    if [ -n "$old_dep_id" ]; then
-      oci generative-ai hosted-deployment delete \
-        --hosted-deployment-id "$old_dep_id" \
-        --force \
-        --auth resource_principal \
-        --region "$OCI_REGION" \
-        --wait-for-state SUCCEEDED || true
-    fi
+  for old_app_id in "${previous_app_ids[@]}"; do
+    [ -z "$old_app_id" ] && continue
+    mapfile -t previous_dep_ids < <(hosted_deployment_ids_by_app_id "$old_app_id" || true)
+    for old_dep_id in "${previous_dep_ids[@]}"; do
+      if [ -n "$old_dep_id" ]; then
+        echo "Deleting existing hosted deployment ${old_dep_id} for ${app_display} before replacement."
+        oci generative-ai hosted-deployment delete \
+          --hosted-deployment-id "$old_dep_id" \
+          --force \
+          --auth resource_principal \
+          --region "$OCI_REGION" \
+          --wait-for-state SUCCEEDED || true
+      fi
+    done
   done
 
   for old_app_id in "${previous_app_ids[@]}"; do
     if [ -n "$old_app_id" ]; then
+      echo "Deleting existing hosted application ${old_app_id} (${app_display}) before replacement."
       oci generative-ai hosted-application delete \
         --hosted-application-id "$old_app_id" \
         --force \

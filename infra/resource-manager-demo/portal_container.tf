@@ -118,17 +118,17 @@ resource "oci_core_network_security_group_security_rule" "portal_egress" {
 }
 
 data "local_file" "file_search_vector_store" {
-  count = var.portal_container_enabled && var.file_search_local_exec_enabled ? 1 : 0
+  count = var.portal_container_enabled && var.file_search_local_exec_enabled && fileexists(local.file_search_vector_store_generated_file) ? 1 : 0
 
-  filename = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"
+  filename = local.file_search_vector_store_generated_file
 
   depends_on = [module.file_search_vector_store_rag]
 }
 
 data "local_file" "code_interpreter_container" {
-  count = var.portal_container_enabled && var.code_interpreter_local_exec_enabled ? 1 : 0
+  count = var.portal_container_enabled && var.code_interpreter_local_exec_enabled && fileexists(local.code_interpreter_container_generated_file) ? 1 : 0
 
-  filename = "${path.module}/../code-interpreter/.terraform/generated/container.json"
+  filename = local.code_interpreter_container_generated_file
 
   depends_on = [module.code_interpreter]
 }
@@ -280,7 +280,9 @@ locals {
     var.portal_container_repository_name,
     var.portal_container_image_tag
   )
-  portal_auth_password = var.portal_auth_password != "" ? var.portal_auth_password : random_password.portal_auth[0].result
+  portal_auth_password                      = var.portal_auth_password != "" ? var.portal_auth_password : random_password.portal_auth[0].result
+  file_search_vector_store_generated_file   = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"
+  code_interpreter_container_generated_file = "${path.module}/../code-interpreter/.terraform/generated/container.json"
   portal_vector_store_id = (
     var.file_search_local_exec_enabled
     ? try(jsondecode(data.local_file.file_search_vector_store[0].content).id, "")
