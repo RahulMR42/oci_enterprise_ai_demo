@@ -48,7 +48,7 @@ Keep these defaults for Resource Manager:
 | `devops_hosted_image_build_enabled` | `true` |
 | `devops_hosted_image_run_build` | `true` |
 | `APP_DEPLOY` | empty |
-| `OCI_HA_LANGFUSE_DEPLOY` | `true` |
+| `OCI_HA_LANGFUSE_DEPLOY` | `false` |
 | `OCI_HA_HOSTED_AGENT_DEPLOY` | `false` |
 | `OCI_HA_LANGGRAPH_DEPLOY` | `false` |
 | `OCI_HA_OPENCLAW_DEPLOY` | `false` |
@@ -72,6 +72,8 @@ Keep these defaults for Resource Manager:
 
 The apply can run for more than 20 minutes because the DevOps build compiles images, publishes artifacts, creates hosted deployments, and rolls the portal container through the load balancer. The Terraform build-run resource waits up to 90 minutes.
 
+OCI code links in the portal are generated from `devops_source_repo_url` and `devops_source_branch`. Keep `devops_source_branch=oci-rms` for this Resource Manager deployment path, and set `devops_source_repo_url` to the customer fork when the portal should open source actions against their repository. The portal shows source buttons on demand in each demo's OCI feature code panel instead of displaying raw repository URLs.
+
 For iterative deployments, update both of these values before applying the same stack again:
 
 - `devops_source_branch=oci-rms`
@@ -79,7 +81,7 @@ For iterative deployments, update both of these values before applying the same 
 
 Keeping the branch and revision current makes Resource Manager seed the exact source into the OCI DevOps repository and starts a new build run without creating a second Resource Manager stack.
 
-Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal container is rolled after each DevOps build run; the rollout keeps the old backend available until the new backend passes load balancer health and public smoke tests.
+Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. Langfuse is disabled by default; set `OCI_HA_LANGFUSE_DEPLOY=true` only when the Langfuse hosted observability demo should be built and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal container is rolled after each DevOps build run; the rollout keeps the old backend available until the new backend passes load balancer health and public smoke tests.
 
 Set `file_search_local_exec_enabled=true` on first-time deployments when the File Search demo should work. This creates the OCI Vector Store, uploads the bundled seed documents, and injects the generated Vector Store ID into the portal runtime config.
 

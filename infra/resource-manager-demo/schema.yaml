@@ -183,7 +183,7 @@ variables:
     title: OCI_HA_LANGFUSE_DEPLOY
     description: When true, build, deliver, and deploy the Langfuse hosted application through OCI DevOps. Set true on the first deployment if the Langfuse app should be created; leave false on later selective runs unless replacing it.
     type: boolean
-    default: true
+    default: false
   oci_ha_openclaw_deploy:
     title: OCI_HA_OPENCLAW_DEPLOY
     description: When true, build, deliver, and deploy the OpenClaw hosted application through OCI DevOps. Set true on the first deployment if the OpenClaw app should be created; leave false on later selective runs unless replacing it.

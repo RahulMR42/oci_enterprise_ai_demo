@@ -15,13 +15,17 @@ const defaultProvisionConfig = {
   region: "us-chicago-1",
   profile: "DEFAULT",
   resourceSuffix: "",
-  projectDisplayName: "enterprise-ai-demo-responses-api"
+  projectDisplayName: "enterprise-ai-demo-responses-api",
+  sourceRepoUrl: "https://github.com/RahulMR42/oci_enterprise_ai_demo.git",
+  sourceBranch: "oci-rms"
 };
 
 const infraState = {
   status: "not-created",
   projectId: "",
   projectDisplayName: defaultProvisionConfig.projectDisplayName,
+  sourceRepoUrl: defaultProvisionConfig.sourceRepoUrl,
+  sourceBranch: defaultProvisionConfig.sourceBranch,
   resourceSuffix: "",
   apiKeyAvailable: false,
   vectorStoreId: "",
@@ -57,6 +61,19 @@ function escapeHtml(value = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function normalizeSourceRepoUrl(url = "") {
+  return String(url || defaultProvisionConfig.sourceRepoUrl)
+    .replace(/\/$/, "")
+    .replace(/\.git$/, "");
+}
+
+function buildSourceLink(path, repoUrl = infraState.sourceRepoUrl, branch = infraState.sourceBranch) {
+  const repo = normalizeSourceRepoUrl(repoUrl);
+  const cleanPath = String(path || "").replace(/^\/+/, "");
+  const cleanBranch = encodeURIComponent(branch || defaultProvisionConfig.sourceBranch).replaceAll("%2F", "/");
+  return repo && cleanPath ? `${repo}/blob/${cleanBranch}/${cleanPath}` : "";
 }
 
 function readDemoRatings() {
@@ -1066,6 +1083,65 @@ workflow_state = run_tool_or_approval_step(workflow_state)
 audit.persist(workflow_state)`
 };
 
+const defaultFeatureSourceFiles = [
+  { label: "Portal UI", path: "src/main.js" },
+  { label: "Portal API", path: "server.mjs" }
+];
+
+const ociFeatureSourceFiles = {
+  "responses-api": [{ label: "Backend demo", path: "backend/demos/responses_api.py" }],
+  "conversation-store": [{ label: "Backend demo", path: "backend/demos/conversation_store.py" }],
+  guardrails: [{ label: "Backend demo", path: "backend/demos/guardrails.py" }],
+  "file-search-vector-store-rag": [
+    { label: "Backend demo", path: "backend/demos/file_search_vector_store_rag.py" },
+    { label: "Terraform", path: "infra/file-search-vector-store-rag/vector_store.tf" }
+  ],
+  "code-interpreter": [
+    { label: "Backend demo", path: "backend/demos/code_interpreter.py" },
+    { label: "Terraform", path: "infra/code-interpreter/container.tf" }
+  ],
+  "function-calling": [{ label: "Backend demo", path: "backend/demos/function_calling.py" }],
+  "remote-mcp-calling": [{ label: "Backend demo", path: "backend/demos/remote_mcp_calling.py" }],
+  "nl2sql-sql-search": [{ label: "Backend demo", path: "backend/demos/nl2sql_sql_search.py" }],
+  "long-term-memory": [{ label: "Backend demo", path: "backend/demos/long_term_memory.py" }],
+  "multi-model-routing": [{ label: "Backend demo", path: "backend/demos/multi_model_routing.py" }],
+  "hosted-agentic-applications": [
+    { label: "Backend demo", path: "backend/demos/hosted_agentic_applications.py" },
+    { label: "Hosted app", path: "apps/hosted-agent/app.py" },
+    { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml" }
+  ],
+  "langgraph-hosted-agent-mcp": [
+    { label: "Backend demo", path: "backend/demos/langgraph_hosted_agent_mcp.py" },
+    { label: "Hosted app", path: "apps/hosted-langgraph-agent/app.py" },
+    { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langgraph.yaml" }
+  ],
+  "a2a-agent-collaboration": [{ label: "Backend demo", path: "backend/demos/a2a_agent_collaboration.py" }],
+  "n8n-hosted-workflow-automation": [
+    { label: "Hosted image", path: "apps/hosted-n8n/Dockerfile" },
+    { label: "Hosted Terraform", path: "infra/hosted-agentic-applications/n8n_hosted_application.tf" }
+  ],
+  "langfuse-hosted-observability": [
+    { label: "Hosted image", path: "apps/hosted-langfuse/Dockerfile" },
+    { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml" },
+    { label: "Hosted Terraform", path: "infra/hosted-agentic-applications/langfuse_hosted_application.tf" }
+  ],
+  "openclaw-hosted-agent-gateway": [
+    { label: "Hosted image", path: "apps/hosted-openclaw/Dockerfile" },
+    { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_openclaw.yaml" },
+    { label: "Hosted Terraform", path: "infra/hosted-agentic-applications/openclaw_hosted_application.tf" }
+  ],
+  "agentic-control-tower": [{ label: "Backend demo", path: "backend/demos/agentic_control_tower.py" }],
+  "agentic-rag-planner": [{ label: "Backend demo", path: "backend/demos/agentic_rag_planner.py" }],
+  "locus-sdk-agentic-workflows": [{ label: "Backend demo", path: "backend/demos/locus_sdk_agentic_workflows.py" }],
+  "human-approval-agent": [{ label: "Backend demo", path: "backend/demos/human_approval_agent.py" }],
+  "governance-center": [{ label: "Backend demo", path: "backend/demos/governance_center.py" }],
+  "document-understanding-genai": [{ label: "Backend demo", path: "backend/demos/document_understanding_genai.py" }],
+  "batch-inference": [{ label: "Backend demo", path: "backend/demos/batch_inference.py" }],
+  "model-evaluation": [{ label: "Backend demo", path: "backend/demos/model_evaluation.py" }],
+  "multimodal-vision": [{ label: "Backend demo", path: "backend/demos/multimodal_vision.py" }],
+  "ai-workflow-orchestration": [{ label: "Backend demo", path: "backend/demos/ai_workflow_orchestration.py" }]
+};
+
 function featureCard(feature, index) {
   const hasFlowDiagram = Boolean(flowDiagrams[feature.id]);
 
@@ -1454,9 +1530,19 @@ function renderFeatureSnippet(featureId) {
   const snippets = []
     .concat(ociFeatureCodeSnippets[featureId] || ociFeatureCodeSnippets["responses-api"])
     .filter(Boolean);
+  const sourceFiles = (ociFeatureSourceFiles[featureId] || defaultFeatureSourceFiles).filter((file) => file.path);
+  const sourceActions = sourceFiles
+    .map((file) => {
+      const href = buildSourceLink(file.path);
+      return href
+        ? `<a class="oci-source-link" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${escapeHtml(file.label)}</a>`
+        : "";
+    })
+    .filter(Boolean)
+    .join("");
   const target = document.getElementById("responses-feature-snippet");
   if (target) {
-    target.innerHTML = snippets
+    const snippetMarkup = snippets
       .map(
         (snippet, index) => `
           <article class="oci-code-card">
@@ -1465,6 +1551,14 @@ function renderFeatureSnippet(featureId) {
           </article>`
       )
       .join("");
+    target.innerHTML = `${snippetMarkup}${
+      sourceActions
+        ? `<div class="oci-source-actions" aria-label="OCI code links">
+            <span>Source</span>
+            ${sourceActions}
+          </div>`
+        : ""
+    }`;
   }
 }
 
@@ -2404,6 +2498,8 @@ function applyProvisionedValues(result) {
 
   infraState.projectId = projectId;
   infraState.projectDisplayName = projectDisplayName;
+  infraState.sourceRepoUrl = values.codeSourceRepoUrl || config.codeSourceRepoUrl || infraState.sourceRepoUrl;
+  infraState.sourceBranch = values.codeSourceBranch || config.codeSourceBranch || infraState.sourceBranch;
   infraState.resourceSuffix = values.resourceSuffix || suffixComponent?.value || projectDisplayName.split("-").pop() || infraState.resourceSuffix;
   infraState.apiKeyAvailable = Boolean(values.apiKeyAvailable);
   infraState.vectorStoreId = values.vectorStoreId || vectorStoreComponent?.value || infraState.vectorStoreId;

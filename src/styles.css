@@ -1941,6 +1941,32 @@ h1 {
   font-size: 0.76rem;
 }
 
+.oci-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.oci-source-actions span {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.oci-source-link {
+  min-height: 28px;
+  padding: 6px 9px;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 8px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .live-run-logs {
   display: grid;
   gap: 6px;

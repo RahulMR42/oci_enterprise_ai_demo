@@ -2583,6 +2583,7 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
   const refreshLogs = refresh
     ? [await runCommand(buildHostedTerraformRefreshCommand()), ...(await refreshGeneratedRuntimeState())]
     : [];
+  const portalRuntimeConfig = readPortalRuntimeConfig({ refresh });
   const currentState = await readAllTerraformStates();
   const provisionedDetails = readProvisionedDetails();
   const runtimeComponents = [
@@ -2613,7 +2614,9 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
       openclawHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "OpenClaw OCI Hosted Deployment")?.status || "",
       llamaIndexHostedUrl: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted URL")?.value || "",
       llamaIndexHostedDeploymentId: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted Deployment")?.value || "",
-      llamaIndexHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted Deployment")?.status || ""
+      llamaIndexHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted Deployment")?.status || "",
+      codeSourceRepoUrl: portalRuntimeConfig.codeSourceRepoUrl || process.env.OCI_CODE_SOURCE_REPO_URL || "",
+      codeSourceBranch: portalRuntimeConfig.codeSourceBranch || process.env.OCI_CODE_SOURCE_BRANCH || ""
     },
     logs: [...refreshLogs, ...currentState.logs]
   };

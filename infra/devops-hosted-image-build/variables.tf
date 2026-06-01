@@ -408,7 +408,7 @@ variable "deploy_only_app" {
 variable "deploy_langfuse_hosted_application" {
   description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted application stages remain disabled."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "app_deploy" {

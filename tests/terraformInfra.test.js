@@ -341,6 +341,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/file-search-vector-store-rag/vector_store.tf"),
     read("infra/code-interpreter/variables.tf"),
     read("infra/code-interpreter/container.tf"),
+    read("infra/devops-hosted-image-build/variables.tf"),
     read("infra/devops-hosted-image-build/locals.tf"),
     read("infra/devops-hosted-image-build/main.tf"),
     read("infra/devops-hosted-image-build/outputs.tf"),
@@ -426,11 +427,14 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /variable "app_deploy"/);
   assert.match(terraform, /variable "oci_ha_hosted_agent_deploy"/);
   assert.match(terraform, /variable "oci_ha_langgraph_deploy"/);
-  assert.match(terraform, /variable "oci_ha_langfuse_deploy"[\s\S]*default\s+=\s+true/);
+  assert.match(terraform, /variable "oci_ha_langfuse_deploy"[\s\S]*default\s+=\s+false/);
+  assert.match(terraform, /variable "deploy_langfuse_hosted_application"[\s\S]*default\s+=\s+false/);
   assert.match(terraform, /variable "oci_ha_openclaw_deploy"/);
   assert.match(terraform, /variable "oci_ha_llamaindex_deploy"/);
   assert.match(terraform, /app_deploy:[\s\S]*title: APP_DEPLOY/);
-  assert.match(terraform, /oci_ha_langfuse_deploy:[\s\S]*default: true/);
+  assert.match(terraform, /oci_ha_langfuse_deploy:[\s\S]*default: false/);
+  assert.match(terraform, /codeSourceRepoUrl\s+=\s+var\.devops_source_repo_url/);
+  assert.match(terraform, /codeSourceBranch\s+=\s+var\.devops_source_branch/);
   assert.match(terraform, /OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID/);
   assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
@@ -565,6 +569,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(readme, /default source branch is `oci-rms`/);
   assert.match(readme, /delete-then-create semantics/);
   assert.match(deployDocs, /`devops_source_branch` \| `oci-rms`/);
+  assert.match(deployDocs, /OCI code links/);
   assert.match(deployDocs, /`devops_source_revision=<commit SHA on oci-rms>`/);
   assert.match(deployDocs, /deploy-langfuse/);
   assert.match(deployDocs, /Set `file_search_local_exec_enabled=true` on first-time deployments/);
@@ -770,6 +775,10 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /Logs/);
   assert.match(main, /OCI feature code/);
   assert.match(main, /const ociFeatureCodeSnippets/);
+  assert.match(main, /const ociFeatureSourceFiles/);
+  assert.match(main, /function buildSourceLink/);
+  assert.match(main, /sourceRepoUrl/);
+  assert.match(main, /sourceBranch/);
   assert.match(main, /function renderMarkdown/);
   assert.match(main, /OCI Enterprise AI architecture canvas/);
   assert.match(main, /Tip: why this OCI AI feature matters/);

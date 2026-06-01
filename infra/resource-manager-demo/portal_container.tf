@@ -350,6 +350,8 @@ locals {
     resourceSuffix               = var.resource_suffix
     region                       = var.region
     sourceRevision               = var.devops_source_revision
+    codeSourceRepoUrl            = var.devops_source_repo_url
+    codeSourceBranch             = var.devops_source_branch
     projectId                    = var.oci_genai_project_id
     vectorStoreId                = local.portal_vector_store_id
     codeInterpreterContainerId   = local.portal_code_interpreter_container_id

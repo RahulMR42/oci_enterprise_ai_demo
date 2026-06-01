@@ -24,7 +24,9 @@ The aggregate stack wires every Terraform-based deployment module used by the po
 
 Resource Manager starts an OCI DevOps build run instead of building images locally. The build run clones the selected GitHub branch, pushes it into an OCI DevOps repository, always builds and delivers the portal image, and only builds, delivers, and deploys hosted app images selected by Resource Manager inputs. Leave `APP_DEPLOY` empty and enable the specific `OCI_HA_*_DEPLOY` booleans you need, or set `APP_DEPLOY=all` to deploy every DevOps-built hosted app. Each selected hosted app deploy stage depends only on its matching image delivery stage, so selected deployments can run in parallel as soon as their artifacts are available.
 
-By default, `OCI_HA_LANGFUSE_DEPLOY=true` and the other `OCI_HA_*_DEPLOY` switches are false. This deploys the Langfuse hosted app and its portal metadata while avoiding unrelated hosted app replacements. Every DevOps build run rolls a replacement Enterprise AI portal container behind the load balancer after selected hosted deployments complete.
+By default, all `OCI_HA_*_DEPLOY` switches are false, including `OCI_HA_LANGFUSE_DEPLOY=false`. Enable only the hosted app that should be built and replaced for the run, or set `APP_DEPLOY=all` when every hosted application should be rebuilt. Every DevOps build run rolls a replacement Enterprise AI portal container behind the load balancer after selected hosted deployments complete.
+
+OCI code links in the portal are generated from `devops_source_repo_url` and `devops_source_branch`. Keep `devops_source_branch=oci-rms` for this Resource Manager deployment path, and set `devops_source_repo_url` to a customer fork when source actions should open that repository. The portal keeps the raw URL out of the page and exposes source buttons from each demo's OCI feature code panel.
 
 Before creating a hosted app replacement, the deployment script deletes older hosted deployments and hosted applications with the same display names. This intentionally uses delete-then-create semantics on reruns to avoid duplicate hosted apps for the same demo name.
 
