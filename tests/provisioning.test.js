@@ -27,6 +27,7 @@ import {
   rewriteN8nLaunchJson,
   rewriteN8nLaunchHtml,
   proxyResponseHeaders,
+  selectHostedRuntimeCandidate,
   summarizeDemoRunHistory
 } from "../server.mjs";
 
@@ -216,6 +217,53 @@ test("Langfuse JSON root-relative routes stay inside the launch proxy", () => {
   assert.equal(rewritten.redirect, "/api/langfuse/launch/");
   assert.equal(rewritten.nested.project, "/api/langfuse/launch/project/demo");
   assert.equal(rewritten.keep, "https://example.com/");
+});
+
+test("hosted runtime discovery ignores deleted exported applications", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.deleted",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+      url: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/"
+    },
+    envUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/",
+    envDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+    applicationResource: null,
+    deploymentResource: null,
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "");
+  assert.equal(selected.hostedDeploymentId, "");
+  assert.equal(selected.endpoint, "");
+});
+
+test("hosted runtime discovery prefers newest active application over stale exports", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.deleted",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.deleted"
+    },
+    envUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/",
+    envDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+    applicationResource: {
+      identifier: "ocid1.generativeaihostedapplication.active",
+      "lifecycle-state": "ACTIVE"
+    },
+    deploymentResource: {
+      identifier: "ocid1.generativeaihosteddeployment.active",
+      "lifecycle-state": "ACTIVE"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.active");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.active");
+  assert.equal(selected.endpoint.includes("ocid1.generativeaihostedapplication.active"), true);
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {

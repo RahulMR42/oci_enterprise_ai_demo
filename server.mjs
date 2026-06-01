@@ -1165,6 +1165,35 @@ async function discoverHostedResource({ label, displayName, resourceKind }) {
   }
 }
 
+export function selectHostedRuntimeCandidate({
+  current = {},
+  envUrl = "",
+  envDeploymentId = "",
+  applicationResource = null,
+  deploymentResource = null,
+  applicationDiscoverySucceeded = false,
+  deploymentDiscoverySucceeded = false,
+  region = "us-chicago-1"
+} = {}) {
+  const applicationLifecycleState = applicationResource?.["lifecycle-state"] || applicationResource?.lifecycleState || "";
+  const deploymentLifecycleState = deploymentResource?.["lifecycle-state"] || deploymentResource?.lifecycleState || "";
+  const hostedApplicationId = applicationResource?.identifier || (applicationDiscoverySucceeded ? "" : current.hostedApplicationId || "");
+  const hostedDeploymentId = deploymentResource?.identifier || (deploymentDiscoverySucceeded ? "" : current.hostedDeploymentId || envDeploymentId || "");
+  const endpoint = hostedApplicationId
+    ? hostedApplicationInvokeUrl(hostedApplicationId, region)
+    : applicationDiscoverySucceeded
+      ? ""
+      : current.url || current.endpoint || envUrl || "";
+
+  return {
+    hostedApplicationId,
+    hostedApplicationLifecycleState: applicationLifecycleState || (applicationDiscoverySucceeded ? "" : current.hostedApplicationLifecycleState || ""),
+    hostedDeploymentId,
+    hostedDeploymentLifecycleState: deploymentLifecycleState || (deploymentDiscoverySucceeded ? "" : current.hostedDeploymentLifecycleState || ""),
+    endpoint
+  };
+}
+
 async function discoverGeneratedHostedRuntimeState() {
   const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
   mkdirSync(hostedDir, { recursive: true });
@@ -1191,11 +1220,18 @@ async function discoverGeneratedHostedRuntimeState() {
     });
     logs.push(deploymentDiscovery.result);
 
-    const hostedApplicationId = current.hostedApplicationId || applicationDiscovery.resource?.identifier || "";
-    const hostedDeploymentId = current.hostedDeploymentId || definition.envDeploymentId || deploymentDiscovery.resource?.identifier || "";
-    const endpoint = current.url || current.endpoint || definition.envUrl || hostedApplicationInvokeUrl(hostedApplicationId, definition.region);
+    const selected = selectHostedRuntimeCandidate({
+      current,
+      envUrl: definition.envUrl,
+      envDeploymentId: definition.envDeploymentId,
+      applicationResource: applicationDiscovery.resource,
+      deploymentResource: deploymentDiscovery.resource,
+      applicationDiscoverySucceeded: applicationDiscovery.result?.status === "success",
+      deploymentDiscoverySucceeded: deploymentDiscovery.result?.status === "success",
+      region: definition.region
+    });
 
-    if (hostedApplicationId || hostedDeploymentId || endpoint) {
+    if (selected.hostedApplicationId || selected.hostedDeploymentId || selected.endpoint || current.hostedApplicationId || current.hostedDeploymentId || current.url || current.endpoint || definition.envUrl || definition.envDeploymentId) {
       writeFileSync(
         targetFile,
         JSON.stringify(
@@ -1203,22 +1239,14 @@ async function discoverGeneratedHostedRuntimeState() {
             ...current,
             runtime: current.runtime || definition.runtime,
             repositoryName: current.repositoryName || definition.repositoryName,
-            hostedApplicationId,
+            hostedApplicationId: selected.hostedApplicationId,
             hostedApplicationDisplayName: definition.applicationDisplayName,
-            hostedApplicationLifecycleState:
-              current.hostedApplicationLifecycleState ||
-              applicationDiscovery.resource?.["lifecycle-state"] ||
-              applicationDiscovery.resource?.lifecycleState ||
-              "",
-            hostedDeploymentId,
+            hostedApplicationLifecycleState: selected.hostedApplicationLifecycleState,
+            hostedDeploymentId: selected.hostedDeploymentId,
             hostedDeploymentDisplayName: definition.deploymentDisplayName,
-            hostedDeploymentLifecycleState:
-              current.hostedDeploymentLifecycleState ||
-              deploymentDiscovery.resource?.["lifecycle-state"] ||
-              deploymentDiscovery.resource?.lifecycleState ||
-              "",
-            endpoint,
-            url: endpoint
+            hostedDeploymentLifecycleState: selected.hostedDeploymentLifecycleState,
+            endpoint: selected.endpoint,
+            url: selected.endpoint
           },
           null,
           2
