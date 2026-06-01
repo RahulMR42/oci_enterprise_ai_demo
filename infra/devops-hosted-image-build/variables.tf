@@ -171,17 +171,52 @@ variable "portal_auth_password" {
   default     = ""
 }
 
-variable "portal_runtime_config_json" {
-  description = "JSON runtime config injected into DevOps-created portal container instances."
+variable "portal_runtime_config_namespace" {
+  description = "Object Storage namespace for the portal runtime config object."
   type        = string
-  sensitive   = true
-  default     = "{}"
+  default     = ""
+}
+
+variable "portal_runtime_config_bucket" {
+  description = "Object Storage bucket for the portal runtime config object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_runtime_config_object" {
+  description = "Object Storage object name for the portal runtime config object."
+  type        = string
+  default     = "portal-runtime-config.json"
+}
+
+variable "portal_run_history_namespace" {
+  description = "Object Storage namespace for the portal run history object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_run_history_bucket" {
+  description = "Object Storage bucket for the portal run history object."
+  type        = string
+  default     = ""
 }
 
 variable "portal_run_history_object" {
   description = "Object Storage object name used by the portal to persist demo run history."
   type        = string
   default     = "portal-demo-run-summary.json"
+}
+
+variable "portal_vector_store_id" {
+  description = "File Search vector store ID injected into DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_code_interpreter_container_id" {
+  description = "Code Interpreter container ID injected into DevOps-created portal container instances."
+  type        = string
+  default     = ""
 }
 
 variable "shared_policy_id" {

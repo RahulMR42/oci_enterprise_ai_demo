@@ -36,30 +36,6 @@ new_container_id=""
 new_backend_name=""
 old_backend_names=()
 
-json_value() {
-  local path="$1"
-  local default_value="${2:-}"
-  python3 - "$path" "$default_value" <<'PY'
-import json
-import os
-import sys
-
-path = sys.argv[1].split(".")
-default = sys.argv[2]
-try:
-    payload = json.loads(os.environ.get("PORTAL_RUNTIME_CONFIG_JSON") or "{}")
-except Exception:
-    payload = {}
-value = payload
-for part in path:
-    if not isinstance(value, dict) or part not in value:
-        print(default)
-        raise SystemExit
-    value = value[part]
-print("" if value is None else value)
-PY
-}
-
 write_container_inputs() {
   local shape_file="$1"
   local vnics_file="$2"
@@ -71,42 +47,40 @@ import os
 import sys
 
 shape_file, vnics_file, containers_file = sys.argv[1:4]
-runtime = json.loads(os.environ.get("PORTAL_RUNTIME_CONFIG_JSON") or "{}")
-hosted = runtime.get("hosted") or {}
 env = {
     "HOST": "0.0.0.0",
     "PORT": os.environ.get("PORTAL_CONTAINER_PORT", "5173"),
     "OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID": os.environ.get("BUILD_RUN_ID", ""),
     "OCI_GENAI_API_KEY": os.environ.get("OCI_GENAI_API_KEY", ""),
-    "OCI_GENAI_CODE_INTERPRETER_CONTAINER": str(runtime.get("codeInterpreterContainerId") or ""),
-    "OCI_GENAI_PROJECT_ID": str(runtime.get("projectId") or ""),
+    "OCI_GENAI_CODE_INTERPRETER_CONTAINER": os.environ.get("PORTAL_CODE_INTERPRETER_CONTAINER_ID", ""),
+    "OCI_GENAI_PROJECT_ID": os.environ.get("OCI_GENAI_PROJECT_ID", ""),
     "OCI_GENAI_REGION": os.environ["OCI_REGION"],
-    "OCI_GENAI_VECTOR_STORE_ID": str(runtime.get("vectorStoreId") or ""),
+    "OCI_GENAI_VECTOR_STORE_ID": os.environ.get("PORTAL_VECTOR_STORE_ID", ""),
     "OCI_HOSTED_APP_IDCS_AUDIENCE": os.environ.get("IDCS_AUDIENCE", ""),
     "OCI_HOSTED_APP_IDCS_CLIENT_ID": os.environ.get("OCI_HOSTED_APP_IDCS_CLIENT_ID", ""),
     "OCI_HOSTED_APP_IDCS_CLIENT_SECRET": os.environ.get("OCI_HOSTED_APP_IDCS_CLIENT_SECRET", ""),
     "OCI_HOSTED_APP_IDCS_DOMAIN_URL": os.environ.get("IDCS_DOMAIN_URL", ""),
     "OCI_HOSTED_APP_IDCS_SCOPE": os.environ.get("IDCS_SCOPE", ""),
     "OCI_HOSTED_APP_IDCS_TOKEN_URL": (os.environ.get("IDCS_DOMAIN_URL", "").rstrip("/") + "/oauth2/v1/token") if os.environ.get("IDCS_DOMAIN_URL") else "",
-    "OCI_HOSTED_AGENT_DEPLOYMENT_ID": hosted.get("HOSTED_AGENT_DEPLOYMENT_ID", ""),
-    "OCI_HOSTED_AGENT_URL": hosted.get("HOSTED_AGENT_URL", ""),
-    "OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID": hosted.get("LANGFUSE_DEPLOYMENT_ID", ""),
-    "OCI_HOSTED_LANGFUSE_URL": hosted.get("LANGFUSE_URL", ""),
-    "OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID": hosted.get("LANGGRAPH_DEPLOYMENT_ID", ""),
-    "OCI_HOSTED_LANGGRAPH_URL": hosted.get("LANGGRAPH_URL", ""),
-    "OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID": hosted.get("LLAMAINDEX_DEPLOYMENT_ID", ""),
-    "OCI_HOSTED_LLAMAINDEX_URL": hosted.get("LLAMAINDEX_URL", ""),
-    "OCI_HOSTED_N8N_DEPLOYMENT_ID": hosted.get("N8N_DEPLOYMENT_ID", ""),
-    "OCI_HOSTED_N8N_URL": hosted.get("N8N_URL", ""),
-    "OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID": hosted.get("OPENCLAW_DEPLOYMENT_ID", ""),
-    "OCI_HOSTED_OPENCLAW_URL": hosted.get("OPENCLAW_URL", ""),
+    "OCI_HOSTED_AGENT_DEPLOYMENT_ID": "",
+    "OCI_HOSTED_AGENT_URL": "",
+    "OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID": "",
+    "OCI_HOSTED_LANGFUSE_URL": "",
+    "OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID": "",
+    "OCI_HOSTED_LANGGRAPH_URL": "",
+    "OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID": "",
+    "OCI_HOSTED_LLAMAINDEX_URL": "",
+    "OCI_HOSTED_N8N_DEPLOYMENT_ID": "",
+    "OCI_HOSTED_N8N_URL": "",
+    "OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID": "",
+    "OCI_HOSTED_OPENCLAW_URL": "",
     "OCI_PORTAL_PASSWORD": os.environ["PORTAL_AUTH_PASSWORD"],
-    "OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE": str(runtime.get("runtimeConfigObjectNamespace") or runtime.get("runHistoryObjectNamespace") or ""),
-    "OCI_PORTAL_RUNTIME_CONFIG_BUCKET": str(runtime.get("runtimeConfigObjectBucket") or runtime.get("runHistoryObjectBucket") or ""),
-    "OCI_PORTAL_RUNTIME_CONFIG_OBJECT": str(runtime.get("runtimeConfigObjectName") or "portal-runtime-config.json"),
-    "OCI_PORTAL_RUN_HISTORY_NAMESPACE": str(runtime.get("runHistoryObjectNamespace") or runtime.get("runtimeConfigObjectNamespace") or ""),
-    "OCI_PORTAL_RUN_HISTORY_BUCKET": str(runtime.get("runHistoryObjectBucket") or runtime.get("runtimeConfigObjectBucket") or ""),
-    "OCI_PORTAL_RUN_HISTORY_OBJECT": os.environ.get("PORTAL_RUN_HISTORY_OBJECT", "") or str(runtime.get("runHistoryObjectName") or "portal-demo-run-summary.json"),
+    "OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE": os.environ.get("PORTAL_RUNTIME_CONFIG_NAMESPACE", ""),
+    "OCI_PORTAL_RUNTIME_CONFIG_BUCKET": os.environ.get("PORTAL_RUNTIME_CONFIG_BUCKET", ""),
+    "OCI_PORTAL_RUNTIME_CONFIG_OBJECT": os.environ.get("PORTAL_RUNTIME_CONFIG_OBJECT", "portal-runtime-config.json"),
+    "OCI_PORTAL_RUN_HISTORY_NAMESPACE": os.environ.get("PORTAL_RUN_HISTORY_NAMESPACE", ""),
+    "OCI_PORTAL_RUN_HISTORY_BUCKET": os.environ.get("PORTAL_RUN_HISTORY_BUCKET", ""),
+    "OCI_PORTAL_RUN_HISTORY_OBJECT": os.environ.get("PORTAL_RUN_HISTORY_OBJECT", "portal-demo-run-summary.json"),
     "OCI_RESOURCE_SUFFIX": os.environ["RESOURCE_SUFFIX"],
 }
 env = {k: str(v) for k, v in env.items()}

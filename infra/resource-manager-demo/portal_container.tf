@@ -346,21 +346,6 @@ locals {
     local.existing_hosted_deployment_exports,
     module.devops_hosted_image_build.hosted_deployment_exports
   )
-  portal_rollout_runtime_config = {
-    resourceSuffix               = var.resource_suffix
-    region                       = var.region
-    sourceRevision               = var.devops_source_revision
-    projectId                    = var.oci_genai_project_id
-    vectorStoreId                = local.portal_vector_store_id
-    codeInterpreterContainerId   = local.portal_code_interpreter_container_id
-    hosted                       = merge(local.default_hosted_deployment_exports, local.existing_hosted_deployment_exports)
-    runHistoryObjectNamespace    = data.oci_objectstorage_namespace.portal.namespace
-    runHistoryObjectBucket       = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
-    runHistoryObjectName         = "portal-demo-run-summary.json"
-    runtimeConfigObjectNamespace = data.oci_objectstorage_namespace.portal.namespace
-    runtimeConfigObjectBucket    = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
-    runtimeConfigObjectName      = "portal-runtime-config.json"
-  }
   portal_runtime_config = {
     resourceSuffix               = var.resource_suffix
     region                       = var.region

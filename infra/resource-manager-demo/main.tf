@@ -122,8 +122,14 @@ module "devops_hosted_image_build" {
   portal_container_ocpus                 = var.portal_container_ocpus
   portal_container_memory_gbs            = var.portal_container_memory_gbs
   portal_auth_password                   = local.portal_auth_password
-  portal_runtime_config_json             = jsonencode(local.portal_rollout_runtime_config)
-  portal_run_history_object              = oci_objectstorage_object.portal_run_history[0].object
+  portal_runtime_config_namespace        = data.oci_objectstorage_namespace.portal.namespace
+  portal_runtime_config_bucket           = oci_objectstorage_bucket.portal_config[0].name
+  portal_runtime_config_object           = "portal-runtime-config.json"
+  portal_run_history_namespace           = data.oci_objectstorage_namespace.portal.namespace
+  portal_run_history_bucket              = oci_objectstorage_bucket.portal_config[0].name
+  portal_run_history_object              = "portal-demo-run-summary.json"
+  portal_vector_store_id                 = local.portal_vector_store_id
+  portal_code_interpreter_container_id   = local.portal_code_interpreter_container_id
   shared_policy_id                       = module.shared_demo_security.policy_id
   run_build                              = var.devops_hosted_image_run_build
   deploy_only_app                        = var.deploy_only_app

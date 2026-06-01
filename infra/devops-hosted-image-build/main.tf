@@ -603,12 +603,36 @@ resource "oci_devops_build_run" "this" {
       value = var.portal_auth_password
     }
     items {
-      name  = "PORTAL_RUNTIME_CONFIG_JSON"
-      value = var.portal_runtime_config_json
+      name  = "PORTAL_RUNTIME_CONFIG_NAMESPACE"
+      value = var.portal_runtime_config_namespace
+    }
+    items {
+      name  = "PORTAL_RUNTIME_CONFIG_BUCKET"
+      value = var.portal_runtime_config_bucket
+    }
+    items {
+      name  = "PORTAL_RUNTIME_CONFIG_OBJECT"
+      value = var.portal_runtime_config_object
+    }
+    items {
+      name  = "PORTAL_RUN_HISTORY_NAMESPACE"
+      value = var.portal_run_history_namespace
+    }
+    items {
+      name  = "PORTAL_RUN_HISTORY_BUCKET"
+      value = var.portal_run_history_bucket
     }
     items {
       name  = "PORTAL_RUN_HISTORY_OBJECT"
       value = var.portal_run_history_object
+    }
+    items {
+      name  = "PORTAL_VECTOR_STORE_ID"
+      value = var.portal_vector_store_id
+    }
+    items {
+      name  = "PORTAL_CODE_INTERPRETER_CONTAINER_ID"
+      value = var.portal_code_interpreter_container_id
     }
     items {
       name  = "SHARED_POLICY_ID"
