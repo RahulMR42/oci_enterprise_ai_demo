@@ -250,106 +250,6 @@ resource "oci_objectstorage_object" "portal_run_history" {
   }
 }
 
-resource "oci_container_instances_container_instance" "portal" {
-  count = var.portal_container_enabled ? 1 : 0
-
-  availability_domain = data.oci_identity_availability_domains.portal.availability_domains[0].name
-  compartment_id      = var.compartment_id
-  display_name        = local.portal_display_name
-  shape               = var.portal_container_shape
-  freeform_tags       = local.portal_tags
-
-  shape_config {
-    ocpus         = var.portal_container_ocpus
-    memory_in_gbs = var.portal_container_memory_gbs
-  }
-
-  vnics {
-    display_name           = "${local.portal_display_name}-vnic"
-    hostname_label         = "portal"
-    is_public_ip_assigned  = false
-    nsg_ids                = [oci_core_network_security_group.portal[0].id]
-    subnet_id              = oci_core_subnet.portal_private[0].id
-    skip_source_dest_check = false
-  }
-
-  containers {
-    display_name = "portal"
-    image_url    = local.portal_container_image_uri
-
-    environment_variables = {
-      HOST                                 = "0.0.0.0"
-      OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID = module.devops_hosted_image_build.build_run_id
-      OCI_GENAI_API_KEY                    = var.oci_genai_api_key
-      OCI_GENAI_CODE_INTERPRETER_CONTAINER = local.portal_code_interpreter_container_id
-      OCI_GENAI_PROJECT_ID                 = var.oci_genai_project_id
-      OCI_GENAI_REGION                     = var.region
-      OCI_GENAI_VECTOR_STORE_ID            = local.portal_vector_store_id
-      OCI_HOSTED_APP_IDCS_AUDIENCE         = var.idcs_audience
-      OCI_HOSTED_APP_IDCS_CLIENT_ID        = module.hosted_agentic_applications.n8n_idcs_launch_client_id
-      OCI_HOSTED_APP_IDCS_CLIENT_SECRET    = module.hosted_agentic_applications.n8n_idcs_launch_client_secret
-      OCI_HOSTED_APP_IDCS_DOMAIN_URL       = var.idcs_domain_url
-      OCI_HOSTED_APP_IDCS_SCOPE            = var.idcs_scope
-      OCI_HOSTED_APP_IDCS_TOKEN_URL        = "${trimsuffix(var.idcs_domain_url, "/")}/oauth2/v1/token"
-      OCI_HOSTED_AGENT_DEPLOYMENT_ID       = local.hosted_deployment_exports.HOSTED_AGENT_DEPLOYMENT_ID
-      OCI_HOSTED_AGENT_URL                 = local.hosted_deployment_exports.HOSTED_AGENT_URL
-      OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID    = local.hosted_deployment_exports.LANGFUSE_DEPLOYMENT_ID
-      OCI_HOSTED_LANGFUSE_URL              = local.hosted_deployment_exports.LANGFUSE_URL
-      OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID   = local.hosted_deployment_exports.LANGGRAPH_DEPLOYMENT_ID
-      OCI_HOSTED_LANGGRAPH_URL             = local.hosted_deployment_exports.LANGGRAPH_URL
-      OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID  = local.hosted_deployment_exports.LLAMAINDEX_DEPLOYMENT_ID
-      OCI_HOSTED_LLAMAINDEX_URL            = local.hosted_deployment_exports.LLAMAINDEX_URL
-      OCI_HOSTED_N8N_DEPLOYMENT_ID         = local.hosted_deployment_exports.N8N_DEPLOYMENT_ID
-      OCI_HOSTED_N8N_URL                   = local.hosted_deployment_exports.N8N_URL
-      OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID    = local.hosted_deployment_exports.OPENCLAW_DEPLOYMENT_ID
-      OCI_HOSTED_OPENCLAW_URL              = local.hosted_deployment_exports.OPENCLAW_URL
-      PORT                                 = tostring(var.portal_container_port)
-      OCI_PORTAL_PASSWORD                  = local.portal_auth_password
-      OCI_PORTAL_RUNTIME_CONFIG_BUCKET     = oci_objectstorage_bucket.portal_config[0].name
-      OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE  = data.oci_objectstorage_namespace.portal.namespace
-      OCI_PORTAL_RUNTIME_CONFIG_OBJECT     = oci_objectstorage_object.portal_runtime_config[0].object
-      OCI_PORTAL_RUN_HISTORY_BUCKET        = oci_objectstorage_bucket.portal_config[0].name
-      OCI_PORTAL_RUN_HISTORY_NAMESPACE     = data.oci_objectstorage_namespace.portal.namespace
-      OCI_PORTAL_RUN_HISTORY_OBJECT        = oci_objectstorage_object.portal_run_history[0].object
-      OCI_RESOURCE_SUFFIX                  = var.resource_suffix
-    }
-
-    health_checks {
-      health_check_type        = "HTTP"
-      name                     = "portal-http"
-      path                     = "/"
-      port                     = var.portal_container_port
-      initial_delay_in_seconds = 60
-      interval_in_seconds      = 30
-      timeout_in_seconds       = 5
-      failure_threshold        = 5
-      success_threshold        = 1
-      failure_action           = "KILL"
-    }
-
-    resource_config {
-      memory_limit_in_gbs = var.portal_container_memory_gbs
-      vcpus_limit         = var.portal_container_ocpus
-    }
-  }
-
-  depends_on = [
-    oci_artifacts_container_repository.portal,
-    module.shared_demo_security,
-    module.file_search_vector_store_rag,
-    module.code_interpreter,
-    module.devops_hosted_image_build,
-    oci_objectstorage_object.portal_runtime_config,
-    oci_objectstorage_object.portal_run_history
-  ]
-}
-
-data "oci_core_vnic" "portal" {
-  count = var.portal_container_enabled ? 1 : 0
-
-  vnic_id = oci_container_instances_container_instance.portal[0].vnics[0].vnic_id
-}
-
 resource "oci_load_balancer_load_balancer" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -385,19 +285,6 @@ resource "oci_load_balancer_backend_set" "portal" {
   }
 }
 
-resource "oci_load_balancer_backend" "portal" {
-  count = var.portal_container_enabled ? 1 : 0
-
-  load_balancer_id = oci_load_balancer_load_balancer.portal[0].id
-  backendset_name  = oci_load_balancer_backend_set.portal[0].name
-  ip_address       = data.oci_core_vnic.portal[0].private_ip_address
-  port             = var.portal_container_port
-  backup           = false
-  drain            = false
-  offline          = false
-  weight           = 1
-}
-
 resource "oci_load_balancer_listener" "portal_http" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -410,6 +297,7 @@ resource "oci_load_balancer_listener" "portal_http" {
 
 locals {
   portal_display_name = "enterprise-ai-demo-portal-${var.resource_suffix}"
+  portal_url          = var.portal_container_enabled ? "http://${oci_load_balancer_load_balancer.portal[0].ip_address_details[0].ip_address}" : ""
   portal_tags = {
     "enterprise-ai-demo" = "true"
     "demo"               = "portal"
@@ -458,6 +346,21 @@ locals {
     local.existing_hosted_deployment_exports,
     module.devops_hosted_image_build.hosted_deployment_exports
   )
+  portal_rollout_runtime_config = {
+    resourceSuffix               = var.resource_suffix
+    region                       = var.region
+    sourceRevision               = var.devops_source_revision
+    projectId                    = var.oci_genai_project_id
+    vectorStoreId                = local.portal_vector_store_id
+    codeInterpreterContainerId   = local.portal_code_interpreter_container_id
+    hosted                       = merge(local.default_hosted_deployment_exports, local.existing_hosted_deployment_exports)
+    runHistoryObjectNamespace    = data.oci_objectstorage_namespace.portal.namespace
+    runHistoryObjectBucket       = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runHistoryObjectName         = "portal-demo-run-summary.json"
+    runtimeConfigObjectNamespace = data.oci_objectstorage_namespace.portal.namespace
+    runtimeConfigObjectBucket    = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runtimeConfigObjectName      = "portal-runtime-config.json"
+  }
   portal_runtime_config = {
     resourceSuffix               = var.resource_suffix
     region                       = var.region

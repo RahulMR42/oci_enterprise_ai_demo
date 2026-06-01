@@ -110,6 +110,80 @@ variable "portal_container_repository_id" {
   default     = ""
 }
 
+variable "portal_private_subnet_id" {
+  description = "Private subnet OCID where the DevOps portal rollout creates replacement container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_network_security_group_id" {
+  description = "Network security group OCID assigned to DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_load_balancer_id" {
+  description = "Load balancer OCID whose backend set receives DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_backend_set_name" {
+  description = "Load balancer backend set name used for rolling portal container cutovers."
+  type        = string
+  default     = ""
+}
+
+variable "portal_public_url" {
+  description = "Public portal URL used by the DevOps rollout smoke tests after backend cutover."
+  type        = string
+  default     = ""
+}
+
+variable "portal_container_port" {
+  description = "TCP port exposed by the portal container."
+  type        = number
+  default     = 5173
+}
+
+variable "portal_container_shape" {
+  description = "OCI Container Instance shape used by the DevOps portal rollout."
+  type        = string
+  default     = "CI.Standard.E4.Flex"
+}
+
+variable "portal_container_ocpus" {
+  description = "OCPUs assigned to DevOps-created portal container instances."
+  type        = number
+  default     = 1
+}
+
+variable "portal_container_memory_gbs" {
+  description = "Memory assigned to DevOps-created portal container instances."
+  type        = number
+  default     = 4
+}
+
+variable "portal_auth_password" {
+  description = "Portal basic-auth password injected into DevOps-created portal container instances and smoke tests."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "portal_runtime_config_json" {
+  description = "JSON runtime config injected into DevOps-created portal container instances."
+  type        = string
+  sensitive   = true
+  default     = "{}"
+}
+
+variable "portal_run_history_object" {
+  description = "Object Storage object name used by the portal to persist demo run history."
+  type        = string
+  default     = "portal-demo-run-summary.json"
+}
+
 variable "shared_policy_id" {
   description = "Optional shared IAM policy OCID. Used to order the DevOps build after policy creation."
   type        = string
@@ -144,6 +218,32 @@ variable "idcs_audience" {
 variable "idcs_scope" {
   description = "Existing identity domain OAuth scope for hosted application inbound authentication."
   type        = string
+  default     = ""
+}
+
+variable "hosted_app_idcs_client_id" {
+  description = "IDCS OAuth client id used by the portal hosted UI launch proxy."
+  type        = string
+  default     = ""
+}
+
+variable "hosted_app_idcs_client_secret" {
+  description = "IDCS OAuth client secret used by the portal hosted UI launch proxy."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "oci_genai_project_id" {
+  description = "OCI Generative AI project OCID injected into the portal container."
+  type        = string
+  default     = ""
+}
+
+variable "oci_genai_api_key" {
+  description = "OCI Generative AI API key injected into the portal container."
+  type        = string
+  sensitive   = true
   default     = ""
 }
 

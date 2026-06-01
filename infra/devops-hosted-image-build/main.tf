@@ -238,6 +238,26 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Portal OCIR repository dependency marker."
     }
     items {
+      name          = "PORTAL_PRIVATE_SUBNET_ID"
+      default_value = var.portal_private_subnet_id
+      description   = "Private subnet used by the rolling portal deployment stage."
+    }
+    items {
+      name          = "PORTAL_NETWORK_SECURITY_GROUP_ID"
+      default_value = var.portal_network_security_group_id
+      description   = "NSG assigned to rolling portal container instances."
+    }
+    items {
+      name          = "PORTAL_LOAD_BALANCER_ID"
+      default_value = var.portal_load_balancer_id
+      description   = "Load balancer updated by the rolling portal deployment stage."
+    }
+    items {
+      name          = "PORTAL_BACKEND_SET_NAME"
+      default_value = var.portal_backend_set_name
+      description   = "Load balancer backend set updated by the rolling portal deployment stage."
+    }
+    items {
       name          = "SHARED_POLICY_ID"
       default_value = var.shared_policy_id
       description   = "Shared IAM policy dependency marker."
@@ -256,6 +276,11 @@ resource "oci_devops_build_pipeline" "this" {
       name          = "IDCS_SCOPE"
       default_value = var.idcs_scope
       description   = "Identity domain OAuth scope used by hosted app inbound auth."
+    }
+    items {
+      name          = "OCI_HOSTED_APP_IDCS_CLIENT_ID"
+      default_value = var.hosted_app_idcs_client_id
+      description   = "Identity domain OAuth client id used by portal hosted UI launch proxy."
     }
     items {
       name          = "LANGFUSE_CLICKHOUSE_USER"
@@ -420,6 +445,52 @@ resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
   depends_on = [oci_devops_build_pipeline_stage.deliver_image]
 }
 
+resource "oci_devops_build_pipeline_stage" "deploy_portal" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "deploy-portal-container"
+  description                        = "Creates a replacement portal container instance, smoke-tests it, switches the load balancer, and removes old portal instances."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_deploy_portal.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 3600
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
+    }
+    dynamic "items" {
+      for_each = oci_devops_build_pipeline_stage.deploy_hosted
+
+      content {
+        id = items.value.id
+      }
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 1
+    memory_in_gbs     = 8
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [oci_devops_build_pipeline_stage.deliver_image]
+}
+
 resource "oci_devops_build_run" "this" {
   count = var.enabled && var.run_build ? 1 : 0
 
@@ -492,6 +563,54 @@ resource "oci_devops_build_run" "this" {
       value = var.portal_container_repository_id
     }
     items {
+      name  = "PORTAL_PRIVATE_SUBNET_ID"
+      value = var.portal_private_subnet_id
+    }
+    items {
+      name  = "PORTAL_NETWORK_SECURITY_GROUP_ID"
+      value = var.portal_network_security_group_id
+    }
+    items {
+      name  = "PORTAL_LOAD_BALANCER_ID"
+      value = var.portal_load_balancer_id
+    }
+    items {
+      name  = "PORTAL_BACKEND_SET_NAME"
+      value = var.portal_backend_set_name
+    }
+    items {
+      name  = "PORTAL_PUBLIC_URL"
+      value = var.portal_public_url
+    }
+    items {
+      name  = "PORTAL_CONTAINER_PORT"
+      value = tostring(var.portal_container_port)
+    }
+    items {
+      name  = "PORTAL_CONTAINER_SHAPE"
+      value = var.portal_container_shape
+    }
+    items {
+      name  = "PORTAL_CONTAINER_OCPUS"
+      value = tostring(var.portal_container_ocpus)
+    }
+    items {
+      name  = "PORTAL_CONTAINER_MEMORY_GBS"
+      value = tostring(var.portal_container_memory_gbs)
+    }
+    items {
+      name  = "PORTAL_AUTH_PASSWORD"
+      value = var.portal_auth_password
+    }
+    items {
+      name  = "PORTAL_RUNTIME_CONFIG_JSON"
+      value = var.portal_runtime_config_json
+    }
+    items {
+      name  = "PORTAL_RUN_HISTORY_OBJECT"
+      value = var.portal_run_history_object
+    }
+    items {
       name  = "SHARED_POLICY_ID"
       value = var.shared_policy_id
     }
@@ -506,6 +625,22 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "IDCS_SCOPE"
       value = var.idcs_scope
+    }
+    items {
+      name  = "OCI_HOSTED_APP_IDCS_CLIENT_ID"
+      value = var.hosted_app_idcs_client_id
+    }
+    items {
+      name  = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET"
+      value = var.hosted_app_idcs_client_secret
+    }
+    items {
+      name  = "OCI_GENAI_PROJECT_ID"
+      value = var.oci_genai_project_id
+    }
+    items {
+      name  = "OCI_GENAI_API_KEY"
+      value = var.oci_genai_api_key
     }
     items {
       name  = "OPENCLAW_GATEWAY_TOKEN"
@@ -573,6 +708,7 @@ resource "oci_devops_build_run" "this" {
     oci_devops_build_pipeline_stage.build_image,
     oci_devops_build_pipeline_stage.deliver_image,
     oci_devops_build_pipeline_stage.deploy_hosted,
+    oci_devops_build_pipeline_stage.deploy_portal,
     oci_logging_log.devops,
     terraform_data.seed_devops_repository
   ]

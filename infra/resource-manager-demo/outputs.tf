@@ -64,8 +64,8 @@ output "devops_hosted_deployment_exports" {
 }
 
 output "portal_container_instance_id" {
-  description = "OCI Container Instance OCID for the demo portal."
-  value       = var.portal_container_enabled ? oci_container_instances_container_instance.portal[0].id : ""
+  description = "OCI Container Instance OCID for the demo portal. DevOps creates and rotates this resource during rollout, so Terraform does not own a stable value."
+  value       = ""
 }
 
 output "portal_container_image_uri" {
@@ -104,7 +104,7 @@ output "portal_public_ip" {
 
 output "portal_url" {
   description = "Public URL for the demo portal load balancer."
-  value       = var.portal_container_enabled ? "http://${oci_load_balancer_load_balancer.portal[0].ip_address_details[0].ip_address}" : ""
+  value       = local.portal_url
 }
 
 output "portal_login_user" {
@@ -155,5 +155,5 @@ output "langfuse_networking_config_json" {
 
 output "portal_runtime_note" {
   description = "How the local portal consumes Resource Manager-created runtime metadata."
-  value       = "Resource Manager deploys the OCI Container Instance portal directly. Local Node development can still read generated runtime JSON from each Terraform module path after apply."
+  value       = "Resource Manager creates the stable portal load balancer and runtime config. OCI DevOps rolls portal container instances behind the load balancer and runs smoke tests before switching traffic."
 }
