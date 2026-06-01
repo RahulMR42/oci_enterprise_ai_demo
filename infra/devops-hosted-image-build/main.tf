@@ -427,8 +427,8 @@ resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
 
   build_runner_shape_config {
     build_runner_type = "CUSTOM"
-    ocpus             = 1
-    memory_in_gbs     = 8
+    ocpus             = 2
+    memory_in_gbs     = 16
   }
 
   build_source_collection {
@@ -473,8 +473,8 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
 
   build_runner_shape_config {
     build_runner_type = "CUSTOM"
-    ocpus             = 1
-    memory_in_gbs     = 8
+    ocpus             = 2
+    memory_in_gbs     = 16
   }
 
   build_source_collection {
