@@ -429,7 +429,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /for_each = var\.enabled \? local\.selected_image_artifacts : \{\}/);
   assert.match(terraform, /for_each = var\.enabled \? local\.hosted_application_deployments : \{\}/);
-  assert.match(terraform, /id = var\.deploy_only_app \|\| !contains\(keys\(oci_devops_build_pipeline_stage\.deliver_image\), each\.key\) \? oci_devops_build_pipeline\.this\[0\]\.id : oci_devops_build_pipeline_stage\.deliver_image\[each\.key\]\.id/);
+  assert.match(terraform, /id = var\.deploy_only_app \? oci_devops_build_pipeline_stage\.deliver_image\["portal"\]\.id : \(!contains\(keys\(oci_devops_build_pipeline_stage\.deliver_image\), each\.key\) \? oci_devops_build_pipeline\.this\[0\]\.id : oci_devops_build_pipeline_stage\.deliver_image\[each\.key\]\.id\)/);
   assert.match(terraform, /for_each = var\.deploy_only_app \? \{\} : oci_devops_build_pipeline_stage\.deploy_hosted/);
   assert.match(terraform, /variable "app_deploy"/);
   assert.match(terraform, /variable "oci_ha_hosted_agent_deploy"/);
@@ -468,7 +468,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /build_spec_file\s+=\s+each\.value\.build_spec_file/);
   assert.match(terraform, /display_name\s+=\s+each\.value\.stage_name/);
   assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.build_image\[each\.key\]\.id/);
-  assert.match(terraform, /id\s+=\s+var\.deploy_only_app \|\| !contains\(keys\(oci_devops_build_pipeline_stage\.deliver_image\), each\.key\)/);
+  assert.match(terraform, /id\s+=\s+var\.deploy_only_app \? oci_devops_build_pipeline_stage\.deliver_image\["portal"\]\.id/);
   assert.match(terraform, /build_spec_deploy_hosted\.yaml/);
   assert.match(terraform, /build_spec_deploy_langgraph\.yaml/);
   assert.match(terraform, /build_spec_deploy_langfuse\.yaml/);
