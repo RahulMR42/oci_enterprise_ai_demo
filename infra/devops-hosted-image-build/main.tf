@@ -628,11 +628,11 @@ resource "oci_devops_build_run" "this" {
     }
     items {
       name  = "PORTAL_VECTOR_STORE_ID"
-      value = var.portal_vector_store_id
+      value = coalesce(var.portal_vector_store_id, "")
     }
     items {
       name  = "PORTAL_CODE_INTERPRETER_CONTAINER_ID"
-      value = var.portal_code_interpreter_container_id
+      value = coalesce(var.portal_code_interpreter_container_id, "")
     }
     items {
       name  = "SHARED_POLICY_ID"
