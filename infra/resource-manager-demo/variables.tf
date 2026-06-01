@@ -390,13 +390,24 @@ variable "portal_vcn_cidr" {
 }
 
 variable "portal_subnet_cidr" {
-  description = "Public subnet CIDR block for the demo portal container instance."
+  description = "Public subnet CIDR block for the demo portal load balancer."
   type        = string
   default     = "10.42.1.0/24"
 
   validation {
     condition     = can(cidrhost(var.portal_subnet_cidr, 1))
     error_message = "portal_subnet_cidr must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "portal_private_subnet_cidr" {
+  description = "Private subnet CIDR block for the demo portal container instance."
+  type        = string
+  default     = "10.42.2.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.portal_private_subnet_cidr, 1))
+    error_message = "portal_private_subnet_cidr must be a valid IPv4 CIDR block."
   }
 }
 

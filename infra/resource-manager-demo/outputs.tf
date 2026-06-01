@@ -98,13 +98,13 @@ output "portal_run_history_object" {
 }
 
 output "portal_public_ip" {
-  description = "Public IP address assigned to the demo portal container instance."
-  value       = var.portal_container_enabled ? data.oci_core_vnic.portal[0].public_ip_address : ""
+  description = "Public IP address assigned to the demo portal load balancer."
+  value       = var.portal_container_enabled ? oci_load_balancer_load_balancer.portal[0].ip_address_details[0].ip_address : ""
 }
 
 output "portal_url" {
-  description = "Public URL for the demo portal container instance."
-  value       = var.portal_container_enabled ? "http://${data.oci_core_vnic.portal[0].public_ip_address}:${var.portal_container_port}" : ""
+  description = "Public URL for the demo portal load balancer."
+  value       = var.portal_container_enabled ? "http://${oci_load_balancer_load_balancer.portal[0].ip_address_details[0].ip_address}" : ""
 }
 
 output "portal_login_user" {

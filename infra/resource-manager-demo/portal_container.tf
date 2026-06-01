@@ -50,6 +50,15 @@ resource "oci_core_internet_gateway" "portal" {
   freeform_tags  = local.portal_tags
 }
 
+resource "oci_core_nat_gateway" "portal" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.portal[0].id
+  display_name   = "enterprise-ai-demo-portal-${var.resource_suffix}-nat"
+  freeform_tags  = local.portal_tags
+}
+
 resource "oci_core_route_table" "portal_public" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -62,6 +71,21 @@ resource "oci_core_route_table" "portal_public" {
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
     network_entity_id = oci_core_internet_gateway.portal[0].id
+  }
+}
+
+resource "oci_core_route_table" "portal_private" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.portal[0].id
+  display_name   = "enterprise-ai-demo-portal-${var.resource_suffix}-private-routes"
+  freeform_tags  = local.portal_tags
+
+  route_rules {
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+    network_entity_id = oci_core_nat_gateway.portal[0].id
   }
 }
 
@@ -79,6 +103,20 @@ resource "oci_core_subnet" "portal_public" {
   freeform_tags              = local.portal_tags
 }
 
+resource "oci_core_subnet" "portal_private" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id             = var.compartment_id
+  vcn_id                     = oci_core_vcn.portal[0].id
+  cidr_block                 = var.portal_private_subnet_cidr
+  display_name               = "enterprise-ai-demo-portal-${var.resource_suffix}-private-subnet"
+  dns_label                  = "portalp"
+  prohibit_internet_ingress  = true
+  prohibit_public_ip_on_vnic = true
+  route_table_id             = oci_core_route_table.portal_private[0].id
+  freeform_tags              = local.portal_tags
+}
+
 resource "oci_core_network_security_group" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -88,15 +126,24 @@ resource "oci_core_network_security_group" "portal" {
   freeform_tags  = local.portal_tags
 }
 
+resource "oci_core_network_security_group" "portal_lb" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.portal[0].id
+  display_name   = "enterprise-ai-demo-portal-${var.resource_suffix}-lb-nsg"
+  freeform_tags  = local.portal_tags
+}
+
 resource "oci_core_network_security_group_security_rule" "portal_ingress" {
   count = var.portal_container_enabled ? 1 : 0
 
   network_security_group_id = oci_core_network_security_group.portal[0].id
   direction                 = "INGRESS"
   protocol                  = "6"
-  source                    = "0.0.0.0/0"
+  source                    = var.portal_subnet_cidr
   source_type               = "CIDR_BLOCK"
-  description               = "Allow public HTTP access to the demo portal."
+  description               = "Allow the portal load balancer to reach the demo portal container."
 
   tcp_options {
     destination_port_range {
@@ -115,6 +162,42 @@ resource "oci_core_network_security_group_security_rule" "portal_egress" {
   destination               = "0.0.0.0/0"
   destination_type          = "CIDR_BLOCK"
   description               = "Allow the demo portal to reach OCI APIs and external dependencies."
+}
+
+resource "oci_core_network_security_group_security_rule" "portal_lb_ingress" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  network_security_group_id = oci_core_network_security_group.portal_lb[0].id
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  source                    = "0.0.0.0/0"
+  source_type               = "CIDR_BLOCK"
+  description               = "Allow public HTTP access to the portal load balancer."
+
+  tcp_options {
+    destination_port_range {
+      min = 80
+      max = 80
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "portal_lb_egress" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  network_security_group_id = oci_core_network_security_group.portal_lb[0].id
+  direction                 = "EGRESS"
+  protocol                  = "6"
+  destination               = var.portal_private_subnet_cidr
+  destination_type          = "CIDR_BLOCK"
+  description               = "Allow the portal load balancer to reach the portal container backend."
+
+  tcp_options {
+    destination_port_range {
+      min = var.portal_container_port
+      max = var.portal_container_port
+    }
+  }
 }
 
 data "local_file" "file_search_vector_store" {
@@ -184,9 +267,9 @@ resource "oci_container_instances_container_instance" "portal" {
   vnics {
     display_name           = "${local.portal_display_name}-vnic"
     hostname_label         = "portal"
-    is_public_ip_assigned  = true
+    is_public_ip_assigned  = false
     nsg_ids                = [oci_core_network_security_group.portal[0].id]
-    subnet_id              = oci_core_subnet.portal_public[0].id
+    subnet_id              = oci_core_subnet.portal_private[0].id
     skip_source_dest_check = false
   }
 
@@ -265,6 +348,64 @@ data "oci_core_vnic" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
   vnic_id = oci_container_instances_container_instance.portal[0].vnics[0].vnic_id
+}
+
+resource "oci_load_balancer_load_balancer" "portal" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id             = var.compartment_id
+  display_name               = "enterprise-ai-demo-portal-${var.resource_suffix}-lb"
+  shape                      = "flexible"
+  subnet_ids                 = [oci_core_subnet.portal_public[0].id]
+  is_private                 = false
+  network_security_group_ids = [oci_core_network_security_group.portal_lb[0].id]
+  freeform_tags              = local.portal_tags
+
+  shape_details {
+    minimum_bandwidth_in_mbps = 10
+    maximum_bandwidth_in_mbps = 10
+  }
+}
+
+resource "oci_load_balancer_backend_set" "portal" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  load_balancer_id = oci_load_balancer_load_balancer.portal[0].id
+  name             = "portal-backend"
+  policy           = "ROUND_ROBIN"
+
+  health_checker {
+    protocol          = "HTTP"
+    port              = var.portal_container_port
+    url_path          = "/login"
+    return_code       = 200
+    interval_ms       = 10000
+    retries           = 3
+    timeout_in_millis = 3000
+  }
+}
+
+resource "oci_load_balancer_backend" "portal" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  load_balancer_id = oci_load_balancer_load_balancer.portal[0].id
+  backendset_name  = oci_load_balancer_backend_set.portal[0].name
+  ip_address       = data.oci_core_vnic.portal[0].private_ip_address
+  port             = var.portal_container_port
+  backup           = false
+  drain            = false
+  offline          = false
+  weight           = 1
+}
+
+resource "oci_load_balancer_listener" "portal_http" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  load_balancer_id         = oci_load_balancer_load_balancer.portal[0].id
+  name                     = "portal-http"
+  default_backend_set_name = oci_load_balancer_backend_set.portal[0].name
+  port                     = 80
+  protocol                 = "HTTP"
 }
 
 locals {

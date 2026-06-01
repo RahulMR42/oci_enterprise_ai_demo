@@ -136,6 +136,16 @@ function demoLogObjectPreview(value = {}) {
   return redactForDemoLog(value && typeof value === "object" ? value : {});
 }
 
+function errorLogDetails(error) {
+  return redactForDemoLog({
+    name: error?.name || "Error",
+    message: error?.message || String(error),
+    code: error?.code || "",
+    cause: error?.cause?.message || error?.cause || "",
+    stack: demoLogPreview(error?.stack || "")
+  });
+}
+
 export function summarizeDemoRunHistory(records = []) {
   const sortedRuns = records
     .map((record) => redactForDemoLog(record || {}))
@@ -152,6 +162,8 @@ export function summarizeDemoRunHistory(records = []) {
       stderr: demoLogPreview(record.stderr),
       request: demoLogObjectPreview(record.request),
       upstream: demoLogObjectPreview(record.upstream),
+      diagnostics: demoLogObjectPreview(record.diagnostics),
+      stack: demoLogPreview(record.stack),
       logs: Array.isArray(record.response?.logs) ? record.response.logs.slice(0, 20) : Array.isArray(record.logs) ? record.logs.slice(0, 20) : [],
       trace: Array.isArray(record.response?.trace) ? record.response.trace.slice(0, 20) : Array.isArray(record.trace) ? record.trace.slice(0, 20) : []
     }));
@@ -2009,20 +2021,27 @@ export function rewriteLangfuseLaunchJson(jsonText, proxyOrigin = "") {
 export async function proxyLangfuseLaunch(request, response, parsedUrl) {
   const startedAt = Date.now();
   const featureId = "langfuse-hosted-observability";
+  let stage = "resolve-target";
+  let targetUrl = null;
+  let proxyOrigin = "";
   try {
-    const targetUrl = langfuseProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
+    targetUrl = langfuseProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
+    proxyOrigin = langfuseProxyOrigin(request);
+    stage = "idcs-token";
     const token = await getIdcsAccessToken();
+    stage = "read-request";
     const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
+    stage = "upstream-fetch";
     const upstream = await fetch(targetUrl, {
       method: request.method,
       headers: forwardedHeaders(request.headers, token),
       body,
       redirect: "manual"
     });
+    stage = "upstream-response";
     const contentType = upstream.headers.get("content-type") || "";
     const arrayBuffer = request.method === "HEAD" ? new ArrayBuffer(0) : await upstream.arrayBuffer();
     const upstreamBody = Buffer.from(arrayBuffer);
-    const proxyOrigin = langfuseProxyOrigin(request);
     const responseBody = contentType.includes("text/html")
       ? Buffer.from(rewriteLangfuseLaunchHtml(upstreamBody.toString("utf8"), proxyOrigin))
       : contentType.includes("application/json")
@@ -2038,7 +2057,10 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
       durationMs: Date.now() - startedAt,
       request: {
         method: request.method,
-        path: parsedUrl.pathname
+        path: parsedUrl.pathname,
+        search: parsedUrl.search || "",
+        host: request.headers.host || "",
+        userAgent: request.headers["user-agent"] || ""
       },
       upstream: {
         status: upstream.status,
@@ -2052,6 +2074,13 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
         proxyOrigin,
         rewroteBody: !upstreamBody.equals(responseBody),
         bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
+      },
+      diagnostics: {
+        stage,
+        idcs: idcsDemoCredentialPosture(),
+        launchUrlConfigured: Boolean(readLangfuseLaunchUrl()),
+        hostedDeploymentId: portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID") || "",
+        hostedApplicationId: readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json")).hostedApplicationId || ""
       }
     });
     response.writeHead(upstream.status, {
@@ -2066,9 +2095,25 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
       durationMs: Date.now() - startedAt,
       request: {
         method: request.method,
-        path: parsedUrl.pathname
+        path: parsedUrl.pathname,
+        search: parsedUrl.search || "",
+        host: request.headers.host || "",
+        userAgent: request.headers["user-agent"] || ""
       },
-      error: error.message || String(error)
+      upstream: {
+        target: targetUrl ? `${targetUrl.origin}${targetUrl.pathname}` : "",
+        proxyOrigin
+      },
+      diagnostics: {
+        stage,
+        idcs: idcsDemoCredentialPosture(),
+        launchUrlConfigured: Boolean(readLangfuseLaunchUrl()),
+        hostedDeploymentId: portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID") || "",
+        hostedApplicationId: readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json")).hostedApplicationId || ""
+      },
+      error: error.message || String(error),
+      stack: error?.stack || "",
+      errorDetails: errorLogDetails(error)
     });
     response.writeHead(502, {
       "Content-Type": "text/html; charset=utf-8",

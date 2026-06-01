@@ -41,7 +41,7 @@ The n8n demo code remains in the repository for local/demo compatibility, but th
 
 ## Portal deployment
 
-Set `portal_container_enabled=true` to deploy the portal as an OCI Container Instance. The portal container receives the Resource Manager-created demo IDs, hosted deployment URLs, hosted deployment IDs, region, project ID, API key, and portal password through environment variables.
+Set `portal_container_enabled=true` to deploy the portal as an OCI Container Instance behind an OCI public load balancer. The load balancer is in the public subnet and owns the stable public IP, while the portal container runs in a private subnet with NAT egress for OCI API access. Launch proxy routes such as Langfuse use the load balancer host seen by the portal request. The portal container receives the Resource Manager-created demo IDs, hosted deployment URLs, hosted deployment IDs, region, project ID, API key, and portal password through environment variables.
 
 If `portal_container_repository_id` is empty, the stack creates `portal_container_repository_name`. If a repository already exists, pass its OCID through `portal_container_repository_id` so the stack adopts the repository for image delivery without trying to recreate it.
 

@@ -185,6 +185,8 @@ test("portal opens administration as a separate page", () => {
   assert.doesNotMatch(adminHtml, /Hosted application references/);
   assert.match(adminHtml, /admin-run-status-filter/);
   assert.match(admin, /admin-run-status-filter/);
+  assert.match(admin, /error: run\.error \|\| ""/);
+  assert.match(admin, /diagnostics: run\.diagnostics \|\| \{\}/);
   assert.match(adminHtml, /Usage summary/);
   assert.doesNotMatch(admin, /clientSecret|apiKey|password/i);
   assert.doesNotMatch(main, /id="infra-panel"/);

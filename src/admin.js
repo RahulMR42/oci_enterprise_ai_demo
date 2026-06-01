@@ -71,9 +71,12 @@ function renderRunLogs(summary = {}) {
               ${run.error ? `<div class="admin-run-error">${escapeHtml(run.error)}</div>` : ""}
               <pre>${escapeHtml(JSON.stringify({
                 action: run.action || "run",
+                error: run.error || "",
                 logFile: run.logFile || "",
                 request: run.request || {},
                 upstream: run.upstream || {},
+                diagnostics: run.diagnostics || {},
+                stack: run.stack || "",
                 stdout: run.stdout || "",
                 stderr: run.stderr || "",
                 logs: run.logs || [],

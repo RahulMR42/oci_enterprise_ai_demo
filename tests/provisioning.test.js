@@ -119,6 +119,38 @@ test("server exposes redacted administration demo run history", () => {
   assert.match(server, /OCI_PORTAL_RUN_HISTORY_OBJECT/);
 });
 
+test("administration run history keeps failure details available for troubleshooting", () => {
+  const history = summarizeDemoRunHistory([
+    {
+      featureId: "langfuse-hosted-observability",
+      action: "launch",
+      status: "failed",
+      durationMs: 42,
+      createdAt: "2026-06-01T09:48:48.630Z",
+      error: "IDCS token request failed",
+      request: {
+        method: "GET",
+        path: "/api/langfuse/launch/auth/sign-in",
+        headers: { authorization: "Bearer secret-token" }
+      },
+      diagnostics: {
+        stage: "idcs-token",
+        config: { clientSecretConfigured: true }
+      },
+      upstream: {
+        target: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/auth/sign-in"
+      },
+      stack: "Error: IDCS token request failed\n    at getIdcsAccessToken"
+    }
+  ]);
+
+  const run = history.runs[0];
+  assert.equal(run.error, "IDCS token request failed");
+  assert.equal(run.diagnostics.stage, "idcs-token");
+  assert.equal(run.upstream.target.includes("/auth/sign-in"), true);
+  assert.equal(JSON.stringify(run).includes("secret-token"), false);
+});
+
 test("portal admin route is handled before Langfuse passthrough routes", () => {
   const server = readFileSync("server.mjs", "utf8");
   const adminRouteIndex = server.indexOf('requestPath === "/api/admin/demo-runs"');

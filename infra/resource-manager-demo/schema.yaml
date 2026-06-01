@@ -45,6 +45,7 @@ variableGroups:
       - portal_container_memory_gbs
       - portal_vcn_cidr
       - portal_subnet_cidr
+      - portal_private_subnet_cidr
       - portal_auth_password
   - title: OCI Generative AI Runtime
     variables:
@@ -246,6 +247,10 @@ variables:
     title: Portal Public Subnet CIDR
     type: string
     default: 10.42.1.0/24
+  portal_private_subnet_cidr:
+    title: Portal Private Subnet CIDR
+    type: string
+    default: 10.42.2.0/24
   portal_auth_password:
     title: Optional Portal Login Password
     description: Leave empty to generate a sensitive Terraform output.
