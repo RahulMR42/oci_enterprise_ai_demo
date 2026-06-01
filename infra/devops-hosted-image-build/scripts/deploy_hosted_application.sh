@@ -3,6 +3,14 @@ set -euo pipefail
 
 HOSTED_APP_KEY="${1:?HOSTED_APP_KEY is required}"
 
+deploy_selector="${APP_DEPLOY:-none}"
+deploy_flag_name="DEPLOY_${HOSTED_APP_KEY}"
+if [ "${deploy_selector,,}" != "all" ] && [ "${!deploy_flag_name:-false}" != "true" ]; then
+  echo "Skipping ${HOSTED_APP_KEY} hosted deployment because ${deploy_flag_name} is not true and APP_DEPLOY is not all."
+  printf '%s_URL=\n%s_DEPLOYMENT_ID=\n' "$HOSTED_APP_KEY" "$HOSTED_APP_KEY" | tee "hosted-deployments-${HOSTED_APP_KEY}.env"
+  exit 0
+fi
+
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY PIP_PROXY PIP_INDEX_URL PIP_EXTRA_INDEX_URL
 if ! oci generative-ai hosted-application create -h >/dev/null 2>&1; then
   python3 -m pip install --user --upgrade --proxy "" --index-url https://pypi.org/simple oci-cli

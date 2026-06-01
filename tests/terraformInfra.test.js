@@ -423,7 +423,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*default_value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /for_each = var\.enabled \? local\.selected_image_artifacts : \{\}/);
-  assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.selected_hosted_application_deployments : \{\}/);
+  assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.hosted_application_deployments : \{\}/);
+  assert.match(terraform, /contains\(keys\(oci_devops_build_pipeline_stage\.deliver_image\), each\.key\)/);
   assert.match(terraform, /variable "app_deploy"/);
   assert.match(terraform, /variable "oci_ha_hosted_agent_deploy"/);
   assert.match(terraform, /variable "oci_ha_langgraph_deploy"/);
@@ -461,7 +462,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /build_spec_file\s+=\s+each\.value\.build_spec_file/);
   assert.match(terraform, /display_name\s+=\s+each\.value\.stage_name/);
   assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.build_image\[each\.key\]\.id/);
-  assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.deliver_image\[each\.key\]\.id/);
+  assert.match(terraform, /id\s+=\s+contains\(keys\(oci_devops_build_pipeline_stage\.deliver_image\), each\.key\)/);
   assert.match(terraform, /build_spec_deploy_hosted\.yaml/);
   assert.match(terraform, /build_spec_deploy_langgraph\.yaml/);
   assert.match(terraform, /build_spec_deploy_langfuse\.yaml/);
@@ -722,6 +723,9 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
 
   assert.match(buildSpec, /deploy_hosted_application\.sh HOSTED_AGENT/);
   assert.match(deployScript, /case "\$HOSTED_APP_KEY" in/);
+  assert.match(deployScript, /Skipping \$\{HOSTED_APP_KEY\} hosted deployment/);
+  assert.match(deployScript, /\$\{deploy_selector,,\}.*!= "all"/);
+  assert.match(deployScript, /DEPLOY_\$\{HOSTED_APP_KEY\}/);
   assert.match(deployScript, /delete_existing_hosted_resources "\$deployment_display" "\$display"/);
   assert.match(deployScript, /create_hosted HOSTED_AGENT/);
   assert.match(deployScript, /create_hosted LANGGRAPH/);
