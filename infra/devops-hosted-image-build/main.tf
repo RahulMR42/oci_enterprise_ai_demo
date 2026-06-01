@@ -421,7 +421,7 @@ resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
 
   build_pipeline_stage_predecessor_collection {
     items {
-      id = var.deploy_only_app ? oci_devops_build_pipeline_stage.deliver_image["portal"].id : (!contains(keys(oci_devops_build_pipeline_stage.deliver_image), each.key) ? oci_devops_build_pipeline.this[0].id : oci_devops_build_pipeline_stage.deliver_image[each.key].id)
+      id = var.deploy_only_app ? oci_devops_build_pipeline_stage.deploy_portal[0].id : (!contains(keys(oci_devops_build_pipeline_stage.deliver_image), each.key) ? oci_devops_build_pipeline.this[0].id : oci_devops_build_pipeline_stage.deliver_image[each.key].id)
     }
   }
 
