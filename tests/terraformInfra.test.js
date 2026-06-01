@@ -65,6 +65,9 @@ test("shared security terraform creates reusable dynamic group and demo policies
   assert.match(terraform, /secret-family/);
   assert.match(terraform, /object-family/);
   assert.match(terraform, /manage repos in compartment id/);
+  assert.match(terraform, /compute-container-instances-family/);
+  assert.match(terraform, /virtual-network-family/);
+  assert.match(terraform, /load-balancers/);
 });
 
 test("nl2sql terraform includes autonomous database and db tools but no local IAM policy", () => {
@@ -728,7 +731,7 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
   assert.match(deployScript, /case "\$HOSTED_APP_KEY" in/);
   assert.match(deployScript, /Skipping \$\{HOSTED_APP_KEY\} hosted deployment/);
   assert.match(deployScript, /\$\{deploy_selector,,\}.*!= "all"/);
-  assert.match(deployScript, /DEPLOY_\$\{HOSTED_APP_KEY\}/);
+  assert.match(deployScript, /OCI_HA_\$\{HOSTED_APP_KEY\}_DEPLOY/);
   assert.match(deployScript, /delete_existing_hosted_resources "\$deployment_display" "\$display"/);
   assert.match(deployScript, /create_hosted HOSTED_AGENT/);
   assert.match(deployScript, /create_hosted LANGGRAPH/);
