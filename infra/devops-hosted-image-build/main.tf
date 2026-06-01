@@ -291,7 +291,7 @@ resource "oci_devops_build_pipeline" "this" {
 }
 
 resource "oci_devops_build_pipeline_stage" "build" {
-  count = var.enabled ? 1 : 0
+  count = var.enabled && !var.deploy_only_app ? 1 : 0
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
@@ -421,7 +421,7 @@ resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
 
   build_pipeline_stage_predecessor_collection {
     items {
-      id = contains(keys(oci_devops_build_pipeline_stage.deliver_image), each.key) ? oci_devops_build_pipeline_stage.deliver_image[each.key].id : oci_devops_build_pipeline.this[0].id
+      id = var.deploy_only_app || !contains(keys(oci_devops_build_pipeline_stage.deliver_image), each.key) ? oci_devops_build_pipeline.this[0].id : oci_devops_build_pipeline_stage.deliver_image[each.key].id
     }
   }
 
