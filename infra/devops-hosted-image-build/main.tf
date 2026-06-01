@@ -407,7 +407,7 @@ resource "oci_devops_build_pipeline_stage" "deliver_image" {
 }
 
 resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
-  for_each = var.enabled && !var.deploy_only_app ? local.hosted_application_deployments : {}
+  for_each = var.enabled ? local.hosted_application_deployments : {}
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
@@ -463,7 +463,7 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
       id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
     }
     dynamic "items" {
-      for_each = oci_devops_build_pipeline_stage.deploy_hosted
+      for_each = var.deploy_only_app ? {} : oci_devops_build_pipeline_stage.deploy_hosted
 
       content {
         id = items.value.id

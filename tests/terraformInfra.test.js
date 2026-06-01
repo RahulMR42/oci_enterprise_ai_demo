@@ -426,7 +426,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*default_value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /for_each = var\.enabled \? local\.selected_image_artifacts : \{\}/);
-  assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.hosted_application_deployments : \{\}/);
+  assert.match(terraform, /for_each = var\.enabled \? local\.hosted_application_deployments : \{\}/);
+  assert.match(terraform, /for_each = var\.deploy_only_app \? \{\} : oci_devops_build_pipeline_stage\.deploy_hosted/);
   assert.match(terraform, /contains\(keys\(oci_devops_build_pipeline_stage\.deliver_image\), each\.key\)/);
   assert.match(terraform, /variable "app_deploy"/);
   assert.match(terraform, /variable "oci_ha_hosted_agent_deploy"/);
