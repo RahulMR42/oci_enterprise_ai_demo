@@ -150,11 +150,23 @@ import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 vnics = (payload.get("data") or {}).get("vnics") or []
 if not vnics:
-    print("")
+    print("|")
     raise SystemExit
 vnic = vnics[0]
-print(vnic.get("private-ip") or vnic.get("privateIp") or "")
+private_ip = vnic.get("private-ip") or vnic.get("privateIp") or ""
+vnic_id = vnic.get("vnic-id") or vnic.get("vnicId") or vnic.get("id") or ""
+print(f"{private_ip}|{vnic_id}")
 PY
+}
+
+vnic_private_ip() {
+  local vnic_id="$1"
+  oci network vnic get \
+    --vnic-id "$vnic_id" \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json |
+    python3 -c 'import json, sys; print((json.load(sys.stdin).get("data") or {}).get("private-ip", ""))'
 }
 
 list_current_backends() {
@@ -370,7 +382,12 @@ if [ -z "$new_container_id" ]; then
 fi
 
 wait_for_container_active "$get_file"
-new_private_ip="$(container_private_ip "$get_file")"
+private_ip_payload="$(container_private_ip "$get_file")"
+new_private_ip="${private_ip_payload%%|*}"
+new_vnic_id="${private_ip_payload#*|}"
+if [ -z "$new_private_ip" ] && [ -n "$new_vnic_id" ] && [ "$new_vnic_id" != "$private_ip_payload" ]; then
+  new_private_ip="$(vnic_private_ip "$new_vnic_id")"
+fi
 if [ -z "$new_private_ip" ]; then
   echo "Portal container instance ${new_container_id} did not expose a private IP." >&2
   exit 1
