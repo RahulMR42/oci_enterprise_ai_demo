@@ -65,7 +65,7 @@ test("shared security terraform creates reusable dynamic group and demo policies
   assert.match(terraform, /secret-family/);
   assert.match(terraform, /object-family/);
   assert.match(terraform, /manage repos in compartment id/);
-  assert.match(terraform, /compute-container-instances-family/);
+  assert.match(terraform, /compute-container-family/);
   assert.match(terraform, /virtual-network-family/);
   assert.match(terraform, /load-balancers/);
 });
