@@ -1137,6 +1137,44 @@ function selectDiscoveredResource(payload = {}, displayName = "", resourceKind =
     .sort((left, right) => String(right["time-created"] || right.timeCreated || "").localeCompare(String(left["time-created"] || left.timeCreated || "")))[0];
 }
 
+async function getHostedResourceById({ label, id, commandArgs }) {
+  if (!id) {
+    return { result: { status: "skipped", stdout: `No ${label} id configured.` }, resource: null };
+  }
+
+  const result = await runCommand(ociGetCommand(`OCI ${label} refresh`, commandArgs(id)));
+  if (result.status !== "success" || !result.stdout.trim()) {
+    return { result, resource: null };
+  }
+
+  try {
+    return {
+      result: {
+        ...result,
+        stdout: `Refreshed ${label}`
+      },
+      resource: JSON.parse(result.stdout).data || null
+    };
+  } catch (error) {
+    return {
+      result: {
+        ...result,
+        status: "failed",
+        stderr: `${result.stderr}\nFailed to parse ${label} response: ${error.message}`.trim()
+      },
+      resource: null
+    };
+  }
+}
+
+function hostedResourceIsUsable(resource = null) {
+  if (!resource) {
+    return false;
+  }
+  const lifecycleState = String(resource["lifecycle-state"] || resource.lifecycleState || "").toLowerCase();
+  return lifecycleState && !["deleted", "deleting", "failed"].includes(lifecycleState);
+}
+
 async function discoverHostedResource({ label, displayName, resourceKind }) {
   const queryText = `query all resources where displayName = '${displayName}'`;
   const result = await runCommand(resourceSearchCommand(`OCI ${label} discovery`, queryText));
@@ -1202,7 +1240,26 @@ async function discoverGeneratedHostedRuntimeState() {
   for (const definition of hostedRuntimeDiscoveryDefinitions()) {
     const targetFile = join(hostedDir, definition.runtimeFile);
     const current = readJsonFile(targetFile);
-    if (current.hostedApplicationId && (current.hostedDeploymentId || definition.envDeploymentId)) {
+    const currentApplication = await getHostedResourceById({
+      label: `${definition.label} hosted application`,
+      id: current.hostedApplicationId,
+      commandArgs: (id) => ["generative-ai", "hosted-application", "get", "--hosted-application-id", id]
+    });
+    if (currentApplication.result?.status !== "skipped") {
+      logs.push(currentApplication.result);
+    }
+    const currentDeployment = await getHostedResourceById({
+      label: `${definition.label} hosted deployment`,
+      id: current.hostedDeploymentId || definition.envDeploymentId,
+      commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id]
+    });
+    if (currentDeployment.result?.status !== "skipped") {
+      logs.push(currentDeployment.result);
+    }
+
+    const currentApplicationUsable = hostedResourceIsUsable(currentApplication.resource);
+    const currentDeploymentUsable = hostedResourceIsUsable(currentDeployment.resource);
+    if (currentApplicationUsable && currentDeploymentUsable) {
       continue;
     }
 
@@ -1224,8 +1281,8 @@ async function discoverGeneratedHostedRuntimeState() {
       current,
       envUrl: definition.envUrl,
       envDeploymentId: definition.envDeploymentId,
-      applicationResource: applicationDiscovery.resource,
-      deploymentResource: deploymentDiscovery.resource,
+      applicationResource: applicationDiscovery.resource || (currentApplicationUsable ? currentApplication.resource : null),
+      deploymentResource: deploymentDiscovery.resource || (currentDeploymentUsable ? currentDeployment.resource : null),
       applicationDiscoverySucceeded: applicationDiscovery.result?.status === "success",
       deploymentDiscoverySucceeded: deploymentDiscovery.result?.status === "success",
       region: definition.region

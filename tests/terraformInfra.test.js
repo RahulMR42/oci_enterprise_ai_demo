@@ -484,7 +484,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /name\s+=\s+"DEPLOY_ONLY_APP"[\s\S]*value\s+=\s+var\.deploy_only_app \? "true" : "false"/);
   assert.match(terraform, /for build_output in try\(oci_devops_build_run\.this\[0\]\.build_outputs, \[\]\)/);
   assert.match(terraform, /jsondecode\(var\.existing_hosted_deployment_exports_json\)/);
-  assert.match(terraform, /merge\([\s\S]*local\.default_hosted_deployment_exports[\s\S]*local\.existing_hosted_deployment_exports[\s\S]*module\.devops_hosted_image_build\.hosted_deployment_exports[\s\S]*\)/);
+  assert.match(terraform, /non_empty_current_hosted_deployment_exports/);
+  assert.match(terraform, /retained_existing_hosted_deployment_exports/);
+  assert.match(terraform, /merge\([\s\S]*local\.default_hosted_deployment_exports[\s\S]*local\.retained_existing_hosted_deployment_exports[\s\S]*local\.non_empty_current_hosted_deployment_exports[\s\S]*\)/);
   assert.match(terraform, /portal_runtime_config_bucket\s+=\s+oci_objectstorage_bucket\.portal_config\[0\]\.name/);
   assert.match(terraform, /portal_runtime_config_object\s+=\s+"portal-runtime-config\.json"/);
   assert.match(terraform, /portal_run_history_object\s+=\s+"portal-demo-run-summary\.json"/);
@@ -729,6 +731,7 @@ test("server refresh discovers hosted runtime metadata when generated files are 
 test("DevOps hosted deployment replaces old hosted apps instead of accumulating duplicates", () => {
   const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml");
   const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh");
+  const portalContainer = read("infra/resource-manager-demo/portal_container.tf");
 
   assert.match(buildSpec, /deploy_hosted_application\.sh HOSTED_AGENT/);
   assert.match(deployScript, /case "\$HOSTED_APP_KEY" in/);
@@ -754,6 +757,9 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
   assert.doesNotMatch(deployScript, /"\$old_app_id" != "\$new_app_id"/);
   assert.doesNotMatch(deployScript, /"\$old_dep_id" != "\$new_dep_id"/);
   assert.doesNotMatch(deployScript, /^display_name = sys\.argv\[1\]$/m);
+  assert.match(portalContainer, /non_empty_current_hosted_deployment_exports/);
+  assert.match(portalContainer, /stale_hosted_deployment_export_keys/);
+  assert.match(portalContainer, /local\.stale_hosted_deployment_export_keys/);
 });
 
 test("run dialog renders user-facing demo brief", () => {
@@ -792,6 +798,7 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /function buildSourceLink/);
   assert.match(main, /sourceRepoUrl/);
   assert.match(main, /sourceBranch/);
+  assert.match(main, /Source:/);
   assert.match(main, /function renderMarkdown/);
   assert.match(main, /OCI Enterprise AI architecture canvas/);
   assert.match(main, /Tip: why this OCI AI feature matters/);
@@ -812,6 +819,7 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(styles, /\.demo-dialog\.is-launch-demo \.demo-field/);
   assert.match(styles, /\.demo-dialog\.is-launch-demo \.demo-controls label/);
   assert.match(styles, /\.demo-dialog\.is-launch-demo \.demo-output-grid > section:first-child/);
+  assert.match(styles, /\.oci-source-link\s*\{[^}]*font-size: 0\.72rem;[^}]*text-decoration: underline;/);
   assert.match(main, /document\.getElementById\("responses-run-button"\)\.textContent = defaults\.button \|\| "Run demo"/);
   assert.doesNotMatch(main, /externalLaunchDemos/);
   assert.match(main, /launchExternalDemo\(activeDemoId\)/);

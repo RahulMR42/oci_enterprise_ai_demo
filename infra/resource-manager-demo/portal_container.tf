@@ -341,10 +341,25 @@ locals {
     key => tostring(value)
     if contains(keys(local.default_hosted_deployment_exports), key)
   }
+  current_hosted_deployment_exports = module.devops_hosted_image_build.hosted_deployment_exports
+  non_empty_current_hosted_deployment_exports = {
+    for key, value in local.current_hosted_deployment_exports :
+    key => tostring(value)
+    if tostring(value) != ""
+  }
+  stale_hosted_deployment_export_keys = [
+    for key, value in local.current_hosted_deployment_exports :
+    key if tostring(value) == "" && contains(keys(local.existing_hosted_deployment_exports), key)
+  ]
+  retained_existing_hosted_deployment_exports = {
+    for key, value in local.existing_hosted_deployment_exports :
+    key => value
+    if !contains(local.stale_hosted_deployment_export_keys, key)
+  }
   hosted_deployment_exports = merge(
     local.default_hosted_deployment_exports,
-    local.existing_hosted_deployment_exports,
-    module.devops_hosted_image_build.hosted_deployment_exports
+    local.retained_existing_hosted_deployment_exports,
+    local.non_empty_current_hosted_deployment_exports
   )
   portal_runtime_config = {
     resourceSuffix               = var.resource_suffix

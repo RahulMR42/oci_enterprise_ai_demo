@@ -1944,27 +1944,28 @@ h1 {
 .oci-source-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
+  line-height: 1.4;
 }
 
 .oci-source-actions span {
   color: #64748b;
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
+  font-size: 0.7rem;
+  font-weight: 700;
 }
 
 .oci-source-link {
-  min-height: 28px;
-  padding: 6px 9px;
-  border: 1px solid rgba(37, 99, 235, 0.2);
-  border-radius: 8px;
   color: #1d4ed8;
-  background: #eff6ff;
-  font-size: 0.76rem;
-  font-weight: 800;
-  text-decoration: none;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.oci-source-link:hover,
+.oci-source-link:focus-visible {
+  color: #1e40af;
 }
 
 .live-run-logs {

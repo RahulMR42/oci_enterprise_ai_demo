@@ -1554,7 +1554,7 @@ function renderFeatureSnippet(featureId) {
     target.innerHTML = `${snippetMarkup}${
       sourceActions
         ? `<div class="oci-source-actions" aria-label="OCI code links">
-            <span>Source</span>
+            <span>Source:</span>
             ${sourceActions}
           </div>`
         : ""
