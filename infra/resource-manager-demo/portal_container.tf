@@ -347,7 +347,7 @@ locals {
     key => tostring(value)
     if tostring(value) != ""
   }
-  stale_hosted_deployment_export_keys = [
+  stale_hosted_deployment_export_keys = var.deploy_only_app ? [] : [
     for key, value in local.current_hosted_deployment_exports :
     key if tostring(value) == "" && contains(keys(local.existing_hosted_deployment_exports), key)
   ]

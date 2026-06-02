@@ -428,9 +428,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*default_value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /for_each = var\.enabled \? local\.selected_image_artifacts : \{\}/);
-  assert.match(terraform, /for_each = var\.enabled && !var\.deploy_only_app \? local\.hosted_application_deployments : \{\}/);
+  assert.match(terraform, /for_each = var\.enabled \? local\.hosted_application_deployments : \{\}/);
   assert.match(terraform, /id = contains\(keys\(oci_devops_build_pipeline_stage\.deliver_image\), each\.key\) \? oci_devops_build_pipeline_stage\.deliver_image\[each\.key\]\.id : oci_devops_build_pipeline\.this\[0\]\.id/);
-  assert.match(terraform, /for_each = var\.deploy_only_app \? \{\} : oci_devops_build_pipeline_stage\.deploy_hosted/);
+  assert.doesNotMatch(terraform, /for_each = var\.deploy_only_app \? \{\} : oci_devops_build_pipeline_stage\.deploy_hosted/);
+  assert.match(terraform, /for_each = oci_devops_build_pipeline_stage\.deploy_hosted/);
   assert.match(terraform, /variable "app_deploy"/);
   assert.match(terraform, /variable "oci_ha_hosted_agent_deploy"/);
   assert.match(terraform, /variable "oci_ha_langgraph_deploy"/);
@@ -759,6 +760,7 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
   assert.doesNotMatch(deployScript, /^display_name = sys\.argv\[1\]$/m);
   assert.match(portalContainer, /non_empty_current_hosted_deployment_exports/);
   assert.match(portalContainer, /stale_hosted_deployment_export_keys/);
+  assert.match(portalContainer, /stale_hosted_deployment_export_keys\s+=\s+var\.deploy_only_app\s+\?\s+\[\]\s+:/);
   assert.match(portalContainer, /local\.stale_hosted_deployment_export_keys/);
 });
 
