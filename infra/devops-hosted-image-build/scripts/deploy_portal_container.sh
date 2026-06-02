@@ -87,7 +87,7 @@ env = {
     "OCI_PORTAL_RUN_HISTORY_OBJECT": os.environ.get("PORTAL_RUN_HISTORY_OBJECT", "portal-demo-run-summary.json"),
     "OCI_RESOURCE_SUFFIX": os.environ["RESOURCE_SUFFIX"],
 }
-env = {k: str(v) for k, v in env.items()}
+env = {k: str(v) for k, v in env.items() if str(v).strip()}
 shape = {"ocpus": float(os.environ.get("PORTAL_CONTAINER_OCPUS", "1")), "memoryInGBs": float(os.environ.get("PORTAL_CONTAINER_MEMORY_GBS", "4"))}
 vnics = [{
     "displayName": os.environ["PORTAL_DISPLAY_NAME"] + "-vnic",
