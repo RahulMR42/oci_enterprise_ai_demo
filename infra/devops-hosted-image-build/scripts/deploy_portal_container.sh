@@ -159,6 +159,52 @@ print(f"{private_ip}|{vnic_id}")
 PY
 }
 
+print_container_failure_details() {
+  local get_file="$1"
+  echo "Portal container instance ${new_container_id} did not become ACTIVE." >&2
+  python3 - "$get_file" <<'PY' >&2
+import json
+import sys
+
+data = (json.load(open(sys.argv[1], encoding="utf-8")).get("data") or {})
+print(f"Container instance state: {data.get('lifecycle-state', '')}")
+print(f"Container instance details: {data.get('lifecycle-details', '')}")
+for container in data.get("containers") or []:
+    display_name = container.get("display-name") or container.get("name") or ""
+    container_id = container.get("container-id") or container.get("id") or ""
+    print(f"Container: {display_name} {container_id}".strip())
+PY
+  python3 - "$get_file" <<'PY' |
+import json
+import sys
+
+data = (json.load(open(sys.argv[1], encoding="utf-8")).get("data") or {})
+for container in data.get("containers") or []:
+    container_id = container.get("container-id") or container.get("id") or ""
+    if container_id:
+        print(container_id)
+PY
+    while IFS= read -r container_id; do
+      [ -z "$container_id" ] && continue
+      oci container-instances container get \
+        --container-id "$container_id" \
+        --auth resource_principal \
+        --region "$OCI_REGION" \
+        --query 'data.{name:"display-name",state:"lifecycle-state",details:"lifecycle-details",exitCode:"exit-code",restartAttempts:"container-restart-attempt-count",image:"image-url",health:"health-checks"}' \
+        --output json >&2 || true
+    done
+}
+
+delete_new_container_instance() {
+  [ -z "$new_container_id" ] && return 0
+  oci container-instances container-instance delete \
+    --container-instance-id "$new_container_id" \
+    --force \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --wait-for-state SUCCEEDED || true
+}
+
 vnic_private_ip() {
   local vnic_id="$1"
   oci network vnic get \
@@ -200,7 +246,7 @@ backend_health() {
 wait_for_container_active() {
   local get_file="$1"
   local state=""
-  for _ in $(seq 1 40); do
+  for _ in $(seq 1 "${PORTAL_CONTAINER_ACTIVE_POLL_ATTEMPTS:-160}"); do
     oci container-instances container-instance get \
       --container-instance-id "$new_container_id" \
       --auth resource_principal \
@@ -208,10 +254,71 @@ wait_for_container_active() {
       --output json > "$get_file"
     state="$(python3 -c 'import json, sys; print((json.load(open(sys.argv[1])).get("data") or {}).get("lifecycle-state", ""))' "$get_file")"
     [ "$state" = "ACTIVE" ] && return 0
-    [ "$state" = "FAILED" ] && return 1
+    if [ "$state" = "FAILED" ]; then
+      print_container_failure_details "$get_file"
+      return 1
+    fi
     sleep 15
   done
   echo "Timed out waiting for portal container instance ${new_container_id} to become ACTIVE." >&2
+  print_container_failure_details "$get_file"
+  return 1
+}
+
+create_active_container_instance() {
+  local ad_file="/tmp/portal-ads-${rollout_id}.txt"
+  local availability_domain=""
+
+  oci iam availability-domain list \
+    --compartment-id "$COMPARTMENT_ID" \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --query 'data[].name' \
+    --output json |
+    python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+if isinstance(payload, list):
+    for item in payload:
+        if item:
+            print(item)
+' > "$ad_file"
+
+  while IFS= read -r availability_domain; do
+    [ -z "$availability_domain" ] && continue
+    new_container_id=""
+    echo "Creating portal container instance in ${availability_domain}."
+    if ! oci container-instances container-instance create \
+      --compartment-id "$COMPARTMENT_ID" \
+      --availability-domain "$availability_domain" \
+      --shape "$portal_shape" \
+      --shape-config "file://${shape_file}" \
+      --vnics "file://${vnics_file}" \
+      --containers "file://${containers_file}" \
+      --display-name "$portal_display_name" \
+      --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"portal\",\"managed-by\":\"resource-manager-devops\",\"resource-suffix\":\"${RESOURCE_SUFFIX}\"}" \
+      --auth resource_principal \
+      --region "$OCI_REGION" \
+      --output json > "$create_file"; then
+      echo "Portal container instance create failed in ${availability_domain}." >&2
+      continue
+    fi
+
+    new_container_id="$(parse_container_id "$create_file")"
+    if [ -z "$new_container_id" ]; then
+      echo "Portal container instance create in ${availability_domain} did not return an id." >&2
+      continue
+    fi
+
+    if wait_for_container_active "$get_file"; then
+      return 0
+    fi
+
+    echo "Portal container instance ${new_container_id} failed in ${availability_domain}; retrying another availability domain if available." >&2
+    delete_new_container_instance
+    new_container_id=""
+  done < "$ad_file"
+
+  echo "No portal container instance became ACTIVE in any availability domain." >&2
   return 1
 }
 
@@ -336,12 +443,7 @@ rollback_new_backend() {
       --wait-for-state SUCCEEDED || true
   fi
   if [ -n "$new_container_id" ]; then
-    oci container-instances container-instance delete \
-      --container-instance-id "$new_container_id" \
-      --force \
-      --auth resource_principal \
-      --region "$OCI_REGION" \
-      --wait-for-state SUCCEEDED || true
+    delete_new_container_instance
   fi
   exit "$exit_code"
 }
@@ -360,28 +462,7 @@ get_file="/tmp/portal-get-${rollout_id}.json"
 mapfile -t old_backend_names < <(list_current_backends || true)
 write_container_inputs "$shape_file" "$vnics_file" "$containers_file"
 
-oci container-instances container-instance create \
-  --compartment-id "$COMPARTMENT_ID" \
-  --availability-domain "$(oci iam availability-domain list --compartment-id "$COMPARTMENT_ID" --auth resource_principal --region "$OCI_REGION" --query 'data[0].name' --raw-output)" \
-  --shape "$portal_shape" \
-  --shape-config "file://${shape_file}" \
-  --vnics "file://${vnics_file}" \
-  --containers "file://${containers_file}" \
-  --display-name "$portal_display_name" \
-  --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"portal\",\"managed-by\":\"resource-manager-devops\",\"resource-suffix\":\"${RESOURCE_SUFFIX}\"}" \
-  --auth resource_principal \
-  --region "$OCI_REGION" \
-  --wait-for-state SUCCEEDED \
-  --max-wait-seconds "${PORTAL_CONTAINER_CREATE_MAX_WAIT_SECONDS:-2400}" \
-  --output json > "$create_file"
-
-new_container_id="$(parse_container_id "$create_file")"
-if [ -z "$new_container_id" ]; then
-  echo "Portal container instance create did not return an id." >&2
-  exit 1
-fi
-
-wait_for_container_active "$get_file"
+create_active_container_instance
 private_ip_payload="$(container_private_ip "$get_file")"
 new_private_ip="${private_ip_payload%%|*}"
 new_vnic_id="${private_ip_payload#*|}"

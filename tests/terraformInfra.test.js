@@ -611,7 +611,14 @@ test("DevOps rolls portal container through load balancer with smoke tests", () 
   assert.match(main, /PORTAL_RUNTIME_CONFIG_BUCKET/);
   assert.match(buildSpec, /deploy_portal_container\.sh/);
   assert.match(script, /container-instances container-instance create/);
-  assert.match(script, /--max-wait-seconds "\$\{PORTAL_CONTAINER_CREATE_MAX_WAIT_SECONDS:-2400\}"/);
+  assert.doesNotMatch(script, /PORTAL_CONTAINER_CREATE_MAX_WAIT_SECONDS/);
+  assert.match(script, /PORTAL_CONTAINER_ACTIVE_POLL_ATTEMPTS/);
+  assert.match(script, /print_container_failure_details/);
+  assert.match(script, /create_active_container_instance/);
+  assert.match(script, /Portal container instance .* retrying another availability domain/);
+  assert.match(script, /No portal container instance became ACTIVE in any availability domain/);
+  assert.match(script, /container-instances container get/);
+  assert.match(script, /Container instance details/);
   assert.match(script, /lb backend create/);
   assert.match(script, /smoke_direct/);
   assert.match(script, /smoke_public/);
