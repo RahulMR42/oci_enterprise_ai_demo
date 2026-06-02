@@ -372,7 +372,7 @@ oci container-instances container-instance create \
   --auth resource_principal \
   --region "$OCI_REGION" \
   --wait-for-state SUCCEEDED \
-  --max-wait-seconds 1200 \
+  --max-wait-seconds "${PORTAL_CONTAINER_CREATE_MAX_WAIT_SECONDS:-2400}" \
   --output json > "$create_file"
 
 new_container_id="$(parse_container_id "$create_file")"
