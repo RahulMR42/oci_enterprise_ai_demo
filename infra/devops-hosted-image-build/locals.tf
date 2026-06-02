@@ -85,7 +85,7 @@ locals {
   }
   selected_hosted_image_artifacts = {
     for key, artifact in local.image_artifacts : key => artifact
-    if key != "portal" && !var.deploy_only_app && contains(keys(local.selected_hosted_application_deployments), key)
+    if key != "portal" && (var.deploy_only_app || contains(keys(local.selected_hosted_application_deployments), key))
   }
   selected_image_artifacts = merge(
     { portal = local.image_artifacts.portal },

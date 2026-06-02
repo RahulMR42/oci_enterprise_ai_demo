@@ -423,7 +423,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /deploy_all_hosted_applications\s+=\s+lower\(var\.app_deploy\) == "all"/);
   assert.match(terraform, /app_deploy_pipeline_value\s+=\s+local\.deploy_all_hosted_applications \? "all" : "none"/);
   assert.match(terraform, /selected_hosted_image_artifacts\s+=\s+\{/);
-  assert.match(terraform, /selected_hosted_image_artifacts\s+=\s+\{[\s\S]*if key != "portal" && !var\.deploy_only_app && contains\(keys\(local\.selected_hosted_application_deployments\), key\)/);
+  assert.match(terraform, /selected_hosted_image_artifacts\s+=\s+\{[\s\S]*if key != "portal" && \(var\.deploy_only_app \|\| contains\(keys\(local\.selected_hosted_application_deployments\), key\)\)/);
   assert.match(terraform, /selected_image_artifacts\s+=\s+merge\(/);
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*default_value = local\.app_deploy_pipeline_value/);
   assert.match(terraform, /name\s+=\s+"APP_DEPLOY"[\s\S]*value = local\.app_deploy_pipeline_value/);
