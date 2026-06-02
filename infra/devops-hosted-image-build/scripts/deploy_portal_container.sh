@@ -101,22 +101,6 @@ containers = [{
     "displayName": "portal",
     "imageUrl": os.environ["PORTAL_IMAGE_URI"],
     "environmentVariables": env,
-    "healthChecks": [{
-        "healthCheckType": "HTTP",
-        "name": "portal-http",
-        "path": "/",
-        "port": int(os.environ.get("PORTAL_CONTAINER_PORT", "5173")),
-        "initialDelayInSeconds": 60,
-        "intervalInSeconds": 30,
-        "timeoutInSeconds": 5,
-        "failureThreshold": 5,
-        "successThreshold": 1,
-        "failureAction": "KILL",
-    }],
-    "resourceConfig": {
-        "memoryLimitInGBs": float(os.environ.get("PORTAL_CONTAINER_MEMORY_GBS", "4")),
-        "vcpusLimit": float(os.environ.get("PORTAL_CONTAINER_OCPUS", "1")),
-    },
 }]
 for path, data in [(shape_file, shape), (vnics_file, vnics), (containers_file, containers)]:
     with open(path, "w", encoding="utf-8") as handle:

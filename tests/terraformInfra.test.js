@@ -617,6 +617,7 @@ test("DevOps rolls portal container through load balancer with smoke tests", () 
   assert.match(script, /create_active_container_instance/);
   assert.match(script, /Portal container instance .* retrying another availability domain/);
   assert.match(script, /No portal container instance became ACTIVE in any availability domain/);
+  assert.doesNotMatch(script, /healthChecks/);
   assert.match(script, /container-instances container get/);
   assert.match(script, /Container instance details/);
   assert.match(script, /lb backend create/);
