@@ -121,10 +121,11 @@ test("nl2sql terraform includes autonomous database and db tools but no local IA
 });
 
 test("hosted agent terraform creates OCIR repository and OCI hosted deployment", () => {
+  const hostedAppIdcsClient = read("infra/hosted-agentic-applications/hosted_app_idcs_client.tf");
   const terraform = [
     read("infra/hosted-agentic-applications/hosted_application.tf"),
     read("infra/hosted-agentic-applications/langgraph_hosted_application.tf"),
-    read("infra/hosted-agentic-applications/hosted_app_idcs_client.tf"),
+    hostedAppIdcsClient,
     read("infra/hosted-agentic-applications/state_migrations.tf"),
     read("infra/hosted-agentic-applications/langfuse_dependencies.tf"),
     read("infra/hosted-agentic-applications/langfuse_hosted_application.tf"),
@@ -173,6 +174,7 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /client_type\s+=\s+"confidential"/);
   assert.match(terraform, /when\s+=\s+destroy/);
   assert.match(terraform, /oci identity-domains app patch/);
+  assert.doesNotMatch(hostedAppIdcsClient, /identity-domains app patch[\s\S]*--auth resource_principal/);
   assert.match(terraform, /"path":"active","value":false/);
   assert.match(terraform, /hosted_app_idcs_allowed_grants\s+=\s+length\(local\.hosted_app_idcs_redirect_uris\) > 0 \? \["client_credentials", "authorization_code"\] : \["client_credentials"\]/);
   assert.match(terraform, /allowed_grants\s+=\s+local\.hosted_app_idcs_allowed_grants/);

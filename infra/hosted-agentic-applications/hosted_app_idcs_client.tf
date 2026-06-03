@@ -40,7 +40,6 @@ resource "oci_identity_domains_app" "hosted_app_launch_client" {
         --app-id '${self.id}' \
         --schemas '["urn:ietf:params:scim:api:messages:2.0:PatchOp"]' \
         --operations '[{"op":"replace","path":"active","value":false}]' \
-        --auth resource_principal \
         --output json >/dev/null
     EOT
   }
