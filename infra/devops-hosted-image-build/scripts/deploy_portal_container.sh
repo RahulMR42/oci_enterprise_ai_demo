@@ -28,6 +28,8 @@ portal_shape="${PORTAL_CONTAINER_SHAPE:-CI.Standard.E4.Flex}"
 portal_ocpus="${PORTAL_CONTAINER_OCPUS:-1}"
 portal_memory_gbs="${PORTAL_CONTAINER_MEMORY_GBS:-4}"
 portal_image_uri="${OCIR_REGION_KEY}.ocir.io/${OCIR_NAMESPACE}/enterprise-ai-demo/portal-rm:${IMAGE_TAG}"
+portal_create_rounds="${PORTAL_CONTAINER_CREATE_ROUNDS:-4}"
+portal_retry_delay_seconds="${PORTAL_CONTAINER_RETRY_DELAY_SECONDS:-180}"
 rollout_id="$(date +%Y%m%d%H%M%S)-${BUILD_RUN_ID:-manual}"
 rollout_id="${rollout_id//[^A-Za-z0-9-]/-}"
 portal_display_name="enterprise-ai-demo-portal-${RESOURCE_SUFFIX}-${rollout_id}"
@@ -261,6 +263,7 @@ wait_for_container_active() {
 
 create_active_container_instance() {
   local ad_file="/tmp/portal-ads-${rollout_id}.txt"
+  local attempt=""
   local availability_domain=""
 
   oci iam availability-domain list \
@@ -277,41 +280,48 @@ if isinstance(payload, list):
             print(item)
 ' > "$ad_file"
 
-  while IFS= read -r availability_domain; do
-    [ -z "$availability_domain" ] && continue
-    new_container_id=""
-    echo "Creating portal container instance in ${availability_domain}."
-    if ! oci container-instances container-instance create \
-      --compartment-id "$COMPARTMENT_ID" \
-      --availability-domain "$availability_domain" \
-      --shape "$portal_shape" \
-      --shape-config "file://${shape_file}" \
-      --vnics "file://${vnics_file}" \
-      --containers "file://${containers_file}" \
-      --container-restart-policy ALWAYS \
-      --display-name "$portal_display_name" \
-      --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"portal\",\"managed-by\":\"resource-manager-devops\",\"resource-suffix\":\"${RESOURCE_SUFFIX}\"}" \
-      --auth resource_principal \
-      --region "$OCI_REGION" \
-      --output json > "$create_file"; then
-      echo "Portal container instance create failed in ${availability_domain}." >&2
-      continue
-    fi
+  for attempt in $(seq 1 "$portal_create_rounds"); do
+    while IFS= read -r availability_domain; do
+      [ -z "$availability_domain" ] && continue
+      new_container_id=""
+      echo "Creating portal container instance in ${availability_domain}."
+      if ! oci container-instances container-instance create \
+        --compartment-id "$COMPARTMENT_ID" \
+        --availability-domain "$availability_domain" \
+        --shape "$portal_shape" \
+        --shape-config "file://${shape_file}" \
+        --vnics "file://${vnics_file}" \
+        --containers "file://${containers_file}" \
+        --container-restart-policy ALWAYS \
+        --display-name "$portal_display_name" \
+        --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"portal\",\"managed-by\":\"resource-manager-devops\",\"resource-suffix\":\"${RESOURCE_SUFFIX}\"}" \
+        --auth resource_principal \
+        --region "$OCI_REGION" \
+        --output json > "$create_file"; then
+        echo "Portal container instance create failed in ${availability_domain}." >&2
+        continue
+      fi
 
-    new_container_id="$(parse_container_id "$create_file")"
-    if [ -z "$new_container_id" ]; then
-      echo "Portal container instance create in ${availability_domain} did not return an id." >&2
-      continue
-    fi
+      new_container_id="$(parse_container_id "$create_file")"
+      if [ -z "$new_container_id" ]; then
+        echo "Portal container instance create in ${availability_domain} did not return an id." >&2
+        continue
+      fi
 
-    if wait_for_container_active "$get_file"; then
-      return 0
-    fi
+      if wait_for_container_active "$get_file"; then
+        return 0
+      fi
 
-    echo "Portal container instance ${new_container_id} failed in ${availability_domain}; retrying another availability domain if available." >&2
-    delete_new_container_instance
-    new_container_id=""
-  done < "$ad_file"
+      echo "Portal container instance ${new_container_id} failed in ${availability_domain}; retrying another availability domain if available." >&2
+      delete_new_container_instance
+      new_container_id=""
+    done < "$ad_file"
+
+    if [ "$attempt" -lt "$portal_create_rounds" ]; then
+      echo "No portal container instance became ACTIVE on attempt ${attempt}/${portal_create_rounds}; waiting ${portal_retry_delay_seconds}s before retrying portal container creation." >&2
+      sleep "$portal_retry_delay_seconds"
+    fi
+  done
 
   echo "No portal container instance became ACTIVE in any availability domain." >&2
   return 1
