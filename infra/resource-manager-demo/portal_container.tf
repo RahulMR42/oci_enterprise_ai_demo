@@ -208,6 +208,14 @@ data "local_file" "file_search_vector_store" {
   depends_on = [module.file_search_vector_store_rag]
 }
 
+data "local_file" "conversation_store" {
+  count = var.portal_container_enabled && var.conversation_store_local_exec_enabled && fileexists(local.conversation_store_generated_file) ? 1 : 0
+
+  filename = local.conversation_store_generated_file
+
+  depends_on = [module.conversation_store]
+}
+
 data "local_file" "code_interpreter_container" {
   count = var.portal_container_enabled && var.code_interpreter_local_exec_enabled && fileexists(local.code_interpreter_container_generated_file) ? 1 : 0
 
@@ -310,8 +318,14 @@ locals {
     var.portal_container_image_tag
   )
   portal_auth_password                      = var.portal_auth_password != "" ? var.portal_auth_password : random_password.portal_auth[0].result
+  conversation_store_generated_file         = "${path.module}/../conversation-store/.terraform/generated/conversation.json"
   file_search_vector_store_generated_file   = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"
   code_interpreter_container_generated_file = "${path.module}/../code-interpreter/.terraform/generated/container.json"
+  portal_conversation_id = (
+    var.conversation_store_local_exec_enabled
+    ? try(jsondecode(data.local_file.conversation_store[0].content).id, "")
+    : ""
+  )
   portal_vector_store_id = (
     var.file_search_local_exec_enabled
     ? try(jsondecode(data.local_file.file_search_vector_store[0].content).id, "")
@@ -331,8 +345,6 @@ locals {
     LANGGRAPH_URL              = ""
     LLAMAINDEX_DEPLOYMENT_ID   = ""
     LLAMAINDEX_URL             = ""
-    N8N_DEPLOYMENT_ID          = ""
-    N8N_URL                    = ""
     OPENCLAW_DEPLOYMENT_ID     = ""
     OPENCLAW_URL               = ""
   }
@@ -368,6 +380,7 @@ locals {
     codeSourceRepoUrl            = var.devops_source_repo_url
     codeSourceBranch             = var.devops_source_branch
     projectId                    = var.oci_genai_project_id
+    conversationId               = local.portal_conversation_id
     vectorStoreId                = local.portal_vector_store_id
     codeInterpreterContainerId   = local.portal_code_interpreter_container_id
     hosted                       = local.hosted_deployment_exports

@@ -65,6 +65,24 @@ test("demo features provide card and flip-side content", () => {
   }
 });
 
+test("demo catalog does not expose n8n demos or documentation", () => {
+  const catalogText = JSON.stringify(aiFeatures);
+
+  assert.equal(aiFeatures.some((feature) => /n8n/i.test(feature.id)), false);
+  assert.equal(aiFeatures.some((feature) => /n8n/i.test(feature.title)), false);
+  assert.equal(aiFeatures.some((feature) => /docs\.n8n\.io/i.test(feature.docsHref)), false);
+  assert.doesNotMatch(catalogText, /n8n/i);
+});
+
+test("portal stylesheet uses Oracle Redwood palette tokens", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(styles, /--redwood-brand-red:\s*#c74634;/);
+  assert.match(styles, /--redwood-bg:\s*#f7f4ef;/);
+  assert.match(styles, /--redwood-ink:\s*#312d2a;/);
+  assert.doesNotMatch(styles, /#1d4ed8/);
+});
+
 test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   const feature = aiFeatures.find((item) => item.id === "agentic-control-tower");
 
@@ -75,6 +93,26 @@ test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   assert.match(feature.details, /IDCS proxy/);
   assert.match(feature.provisioningDetails, /Terraform-generated IDCS launch client/);
   assert.deepEqual(feature.capabilities, ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]);
+});
+
+test("Conversation Store demo describes OCI-managed Conversations API state", () => {
+  const feature = aiFeatures.find((item) => item.id === "conversation-store");
+
+  assert.ok(feature);
+  assert.equal(feature.title, "Conversation Store");
+  assert.equal(feature.terraformPath, "infra/conversation-store");
+  assert.match(feature.details, /OCI Conversations API/);
+  assert.match(feature.provisioningDetails, /generated conversation ID/);
+  assert.deepEqual(feature.capabilities, ["OCI conversation object", "Context replay", "Live OCI Responses API call"]);
+});
+
+test("File Search demo states that vector store provisioning is required by default", () => {
+  const feature = aiFeatures.find((item) => item.id === "file-search-vector-store-rag");
+
+  assert.ok(feature);
+  assert.match(feature.provisioningDetails, /provisioned by default/);
+  assert.match(feature.provisioningDetails, /OCI_GENAI_VECTOR_STORE_ID/);
+  assert.deepEqual(feature.capabilities, ["File ingestion", "Vector retrieval", "Grounded answers"]);
 });
 
 test("portal exposes mermaid-style flow diagrams for feature cards", () => {

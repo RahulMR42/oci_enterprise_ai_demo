@@ -28,17 +28,24 @@ const infraState = {
   sourceBranch: defaultProvisionConfig.sourceBranch,
   resourceSuffix: "",
   apiKeyAvailable: false,
+  conversationId: "",
   vectorStoreId: "",
   codeInterpreterContainerId: "",
-  n8nHostedUrl: "",
-  n8nHostedDeploymentId: "",
-  n8nHostedDeploymentStatus: "",
+  hostedAgentUrl: "",
+  hostedAgentDeploymentId: "",
+  hostedAgentDeploymentStatus: "",
+  langGraphHostedUrl: "",
+  langGraphHostedDeploymentId: "",
+  langGraphHostedDeploymentStatus: "",
   langfuseHostedUrl: "",
   langfuseHostedDeploymentId: "",
   langfuseHostedDeploymentStatus: "",
   openclawHostedUrl: "",
   openclawHostedDeploymentId: "",
-  openclawHostedDeploymentStatus: ""
+  openclawHostedDeploymentStatus: "",
+  llamaIndexHostedUrl: "",
+  llamaIndexHostedDeploymentId: "",
+  llamaIndexHostedDeploymentStatus: ""
 };
 
 let activeDemoId = "responses-api";
@@ -49,10 +56,48 @@ const maxInitialRunCount = 35;
 const defaultDemoRating = 2;
 const maxDemoRating = 3;
 const hostedUiLaunchDemoIds = [
-  "n8n-hosted-workflow-automation",
   "langfuse-hosted-observability",
   "openclaw-hosted-agent-gateway"
 ];
+
+const hostedRuntimeReferences = {
+  "hosted-agentic-applications": {
+    label: "Hosted agent reference",
+    urlKey: "hostedAgentUrl",
+    deploymentIdKey: "hostedAgentDeploymentId",
+    placeholder: "Paste hosted agent invoke URL, hosted application OCID, or hosted deployment OCID"
+  },
+  "langgraph-hosted-agent-mcp": {
+    label: "LangGraph hosted reference",
+    urlKey: "langGraphHostedUrl",
+    deploymentIdKey: "langGraphHostedDeploymentId",
+    placeholder: "Paste LangGraph invoke URL, hosted application OCID, or hosted deployment OCID"
+  },
+  "a2a-agent-collaboration": {
+    label: "Primary hosted agent reference",
+    urlKey: "hostedAgentUrl",
+    deploymentIdKey: "hostedAgentDeploymentId",
+    placeholder: "Paste primary hosted agent invoke URL, hosted application OCID, or hosted deployment OCID"
+  },
+  "agentic-control-tower": {
+    label: "LlamaIndex hosted reference",
+    urlKey: "llamaIndexHostedUrl",
+    deploymentIdKey: "llamaIndexHostedDeploymentId",
+    placeholder: "Paste LlamaIndex invoke URL, hosted application OCID, or hosted deployment OCID"
+  },
+  "langfuse-hosted-observability": {
+    label: "Langfuse hosted reference",
+    urlKey: "langfuseHostedUrl",
+    deploymentIdKey: "langfuseHostedDeploymentId",
+    placeholder: "Paste Langfuse hosted URL or invoke URL"
+  },
+  "openclaw-hosted-agent-gateway": {
+    label: "OpenClaw hosted reference",
+    urlKey: "openclawHostedUrl",
+    deploymentIdKey: "openclawHostedDeploymentId",
+    placeholder: "Paste OpenClaw hosted URL or invoke URL"
+  }
+};
 
 function escapeHtml(value = "") {
   return String(value)
@@ -196,9 +241,13 @@ const demoDefaults = {
     title: "Conversation Store Workbench",
     prompt: "Remember that this customer prefers concise checkout updates. What should we tell them about a delayed confirmation?",
     button: "Run Conversation Store Demo",
-    output: "Run a live turn. Reuse the same session ID to continue with stored context.",
+    output: "Run a live turn with OCI Conversations API state. Reuse the same session ID or conversation ID to continue with stored context.",
     sessionVisible: true,
-    sessionId: "support-session-001"
+    sessionId: "support-session-001",
+    toolResourceVisible: true,
+    toolResourceLabel: "Conversation ID",
+    toolResourcePlaceholder: "Set OCI_GENAI_CONVERSATION_ID or paste an OCI conversation ID",
+    toolResourceId: ""
   },
   guardrails: {
     title: "Guardrails Workbench",
@@ -479,11 +528,11 @@ const demoBriefs = {
   "conversation-store": {
     services: [
       "OCI Responses API for the answer generation.",
-      "Session-oriented conversation storage pattern for continuity across turns."
+      "OCI Conversations API object for continuity across turns."
     ],
     security: [
       "Uses the shared OCI project and API key.",
-      "Session IDs scope memory to a user/customer workflow."
+      "Conversation IDs scope memory to a user/customer workflow."
     ],
     result: [
       "Demonstrates a support assistant that remembers prior customer preferences.",
@@ -642,20 +691,6 @@ const demoBriefs = {
     result: [
       "Shows two specialized agents collaborating on one incident workflow.",
       "Useful for cross-agent triage, workflow lookup, and coordinated customer response."
-    ]
-  },
-  "n8n-hosted-workflow-automation": {
-    services: [
-      "OCI Generative AI Hosted Application for a real n8n container.",
-      "OCI Hosted Deployment backed by a private OCIR n8n image."
-    ],
-    security: [
-      "Hosted application inbound auth uses the configured IDCS domain, audience, and scope.",
-      "n8n basic auth is injected at runtime and is not rendered in the portal."
-    ],
-    result: [
-      "Opens a live n8n workflow automation UI from the portal.",
-      "Useful for demonstrating hosted workflow tools alongside agentic applications."
     ]
   },
   "langfuse-hosted-observability": {
@@ -836,8 +871,8 @@ const flowDiagrams = {
   },
   "conversation-store": {
     title: "Conversation Store Flow",
-    nodes: ["Session turn", "Conversation store", "Responses API", "Context-aware answer"],
-    mermaid: "flowchart LR\n  A[Session turn] --> B[Conversation store]\n  B --> C[Responses API]\n  C --> D[Context-aware answer]"
+    nodes: ["Session turn", "OCI Conversations API", "Responses API", "Context-aware answer"],
+    mermaid: "flowchart LR\n  A[Session turn] --> B[OCI Conversations API]\n  B --> C[Responses API]\n  C --> D[Context-aware answer]"
   },
   guardrails: {
     title: "Guardrails Flow",
@@ -897,12 +932,6 @@ const flowDiagrams = {
     nodes: ["Agent card discovery", "A2A task", "Incident agent", "LangGraph agent", "Coordinated answer"],
     mermaid:
       "flowchart LR\n  A[Agent card discovery] --> B[A2A task]\n  B --> C[Incident agent]\n  C --> D[LangGraph agent]\n  D --> E[Coordinated answer]"
-  },
-  "n8n-hosted-workflow-automation": {
-    title: "n8n Hosted Workflow Flow",
-    nodes: ["n8n image", "OCI hosted app", "Hosted deployment URL", "n8n workflow UI"],
-    mermaid:
-      "flowchart LR\n  A[n8n image] --> B[OCI hosted app]\n  B --> C[Hosted deployment URL]\n  C --> D[n8n workflow UI]"
   },
   "langfuse-hosted-observability": {
     title: "Langfuse Hosted Observability Flow",
@@ -981,8 +1010,7 @@ const ociFeatureCodeSnippets = {
   "conversation-store": `response = client.responses.create(
     model=model,
     input=prompt,
-    store=True,
-    metadata={"session_id": session_id},
+    conversation=conversation_id,
 )`,
   guardrails: `guardrail_result = evaluate_policy(prompt)
 if guardrail_result["allowed"]:
@@ -1023,8 +1051,6 @@ state = {"messages": prompt, "mcp_tools": discovered_tools}`,
 task = send_a2a_task(agent_card, prompt)`,
     `response = collect_agent_result(task)`
   ],
-  "n8n-hosted-workflow-automation": `deployment = read_n8n_hosted_workflow_metadata()
-window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "langfuse-hosted-observability": `deployment = read_langfuse_hosted_observability_metadata()
 window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "openclaw-hosted-agent-gateway": `deployment = read_openclaw_hosted_gateway_metadata()
@@ -1090,7 +1116,10 @@ const defaultFeatureSourceFiles = [
 
 const ociFeatureSourceFiles = {
   "responses-api": [{ label: "Backend demo", path: "backend/demos/responses_api.py" }],
-  "conversation-store": [{ label: "Backend demo", path: "backend/demos/conversation_store.py" }],
+  "conversation-store": [
+    { label: "Backend demo", path: "backend/demos/conversation_store.py" },
+    { label: "Terraform", path: "infra/conversation-store/conversation.tf" }
+  ],
   guardrails: [{ label: "Backend demo", path: "backend/demos/guardrails.py" }],
   "file-search-vector-store-rag": [
     { label: "Backend demo", path: "backend/demos/file_search_vector_store_rag.py" },
@@ -1116,10 +1145,6 @@ const ociFeatureSourceFiles = {
     { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langgraph.yaml" }
   ],
   "a2a-agent-collaboration": [{ label: "Backend demo", path: "backend/demos/a2a_agent_collaboration.py" }],
-  "n8n-hosted-workflow-automation": [
-    { label: "Hosted image", path: "apps/hosted-n8n/Dockerfile" },
-    { label: "Hosted Terraform", path: "infra/hosted-agentic-applications/n8n_hosted_application.tf" }
-  ],
   "langfuse-hosted-observability": [
     { label: "Hosted image", path: "apps/hosted-langfuse/Dockerfile" },
     { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml" },
@@ -1327,6 +1352,10 @@ function renderPortal() {
               <span>Project OCID</span>
               <input id="responses-project-id-display" placeholder="OCI project OCID" />
             </label>
+            <label class="hosted-reference-field" id="responses-hosted-reference-field" hidden>
+              <span id="responses-hosted-reference-label">Hosted app reference</span>
+              <input id="responses-hosted-reference-value" placeholder="Optional hosted app URL or OCID" />
+            </label>
             <label id="responses-tool-resource-field" hidden>
               <span id="responses-tool-resource-label">Tool Resource ID</span>
               <input id="responses-tool-resource-id" placeholder="Optional tool resource" />
@@ -1526,6 +1555,18 @@ function getResponsesConfig() {
   };
 }
 
+function hostedReferenceConfig(featureId) {
+  return hostedRuntimeReferences[featureId] || null;
+}
+
+function hostedReferenceValue(featureId) {
+  const config = hostedReferenceConfig(featureId);
+  if (!config) {
+    return "";
+  }
+  return infraState[config.urlKey] || infraState[config.deploymentIdKey] || "";
+}
+
 function renderFeatureSnippet(featureId) {
   const snippets = []
     .concat(ociFeatureCodeSnippets[featureId] || ociFeatureCodeSnippets["responses-api"])
@@ -1620,13 +1661,22 @@ function openDemoDialog(featureId) {
   renderRunTrace([], { status: "idle" });
   document.getElementById("responses-session-id").value = defaults.sessionId;
   document.getElementById("responses-session-field").hidden = !defaults.sessionVisible;
+  const hostedConfig = hostedReferenceConfig(featureId);
+  const hostedReferenceVisible = Boolean(hostedConfig);
+  document.getElementById("responses-hosted-reference-field").hidden = !hostedReferenceVisible;
+  document.getElementById("responses-hosted-reference-label").textContent = hostedConfig?.label || "Hosted app reference";
+  document.getElementById("responses-hosted-reference-value").placeholder =
+    hostedConfig?.placeholder || "Optional hosted app URL or OCID";
+  document.getElementById("responses-hosted-reference-value").value = hostedReferenceValue(featureId);
   document.getElementById("responses-tool-resource-field").hidden = !defaults.toolResourceVisible;
   document.getElementById("responses-tool-resource-label").textContent = defaults.toolResourceLabel || "Tool Resource ID";
   document.getElementById("responses-tool-resource-id").placeholder = defaults.toolResourcePlaceholder || "Optional tool resource";
   document.getElementById("responses-code-container-refresh-field").hidden = featureId !== "code-interpreter";
   document.getElementById("responses-code-container-refresh").checked = false;
   const provisionedToolResourceId =
-    featureId === "file-search-vector-store-rag"
+    featureId === "conversation-store"
+      ? infraState.conversationId
+      : featureId === "file-search-vector-store-rag"
       ? infraState.vectorStoreId
       : featureId === "code-interpreter"
         ? infraState.codeInterpreterContainerId
@@ -2131,26 +2181,6 @@ const demoTechnicalFlows = {
     },
     defaultTechnicalFlow[4]
   ],
-  "n8n-hosted-workflow-automation": [
-    defaultTechnicalFlow[0],
-    {
-      ...defaultTechnicalFlow[1],
-      title: "Hosted App Auth",
-      subtitle: "IDCS inbound auth",
-      feature: "OCI Hosted Application protects the n8n deployment with the configured IDCS boundary.",
-      auth: "IDCS client secret and n8n password are not exposed in the browser.",
-      interaction: "Terraform surfaces only the hosted URL and deployment metadata."
-    },
-    {
-      ...defaultTechnicalFlow[2],
-      title: "n8n Runtime",
-      subtitle: "Workflow UI",
-      feature: "OCI Hosted Deployment runs the real n8n container from private OCIR.",
-      auth: "n8n basic auth is injected as hosted application environment variables.",
-      interaction: "The portal opens the hosted n8n URL in a new tab for workflow inspection."
-    },
-    defaultTechnicalFlow[4]
-  ],
   "langfuse-hosted-observability": [
     defaultTechnicalFlow[0],
     {
@@ -2485,14 +2515,19 @@ function applyProvisionedValues(result) {
   const componentByName = (name) => components.find((component) => component.name === name);
   const projectComponent = componentByName("GenAI Project");
   const suffixComponent = componentByName("Resource Suffix");
+  const conversationComponent = componentByName("OCI Conversation Store");
   const vectorStoreComponent = componentByName("File Search Vector Store");
   const codeContainerComponent = componentByName("Code Interpreter Container");
-  const n8nUrlComponent = componentByName("n8n Hosted URL");
-  const n8nDeploymentComponent = componentByName("n8n OCI Hosted Deployment");
+  const hostedAgentUrlComponent = componentByName("OCI Hosted Agent URL");
+  const hostedAgentDeploymentComponent = componentByName("OCI Hosted Deployment");
+  const langGraphUrlComponent = componentByName("LangGraph Hosted Agent URL");
+  const langGraphDeploymentComponent = componentByName("LangGraph OCI Hosted Deployment");
   const langfuseUrlComponent = componentByName("Langfuse Hosted URL");
   const langfuseDeploymentComponent = componentByName("Langfuse OCI Hosted Deployment");
   const openclawUrlComponent = componentByName("OpenClaw Hosted URL");
   const openclawDeploymentComponent = componentByName("OpenClaw OCI Hosted Deployment");
+  const llamaIndexUrlComponent = componentByName("LlamaIndex Control Tower Hosted URL");
+  const llamaIndexDeploymentComponent = componentByName("LlamaIndex Control Tower Hosted Deployment");
   const projectId = values.projectId || config.projectId || infraState.projectId;
   const projectDisplayName = values.projectDisplayName || projectComponent?.value || config.projectDisplayName || infraState.projectDisplayName;
 
@@ -2502,11 +2537,19 @@ function applyProvisionedValues(result) {
   infraState.sourceBranch = values.codeSourceBranch || config.codeSourceBranch || infraState.sourceBranch;
   infraState.resourceSuffix = values.resourceSuffix || suffixComponent?.value || projectDisplayName.split("-").pop() || infraState.resourceSuffix;
   infraState.apiKeyAvailable = Boolean(values.apiKeyAvailable);
+  infraState.conversationId = values.conversationId || conversationComponent?.value || infraState.conversationId;
   infraState.vectorStoreId = values.vectorStoreId || vectorStoreComponent?.value || infraState.vectorStoreId;
   infraState.codeInterpreterContainerId = values.codeInterpreterContainerId || codeContainerComponent?.value || infraState.codeInterpreterContainerId;
-  infraState.n8nHostedUrl = values.n8nHostedUrl || n8nUrlComponent?.value || infraState.n8nHostedUrl;
-  infraState.n8nHostedDeploymentId = values.n8nHostedDeploymentId || n8nDeploymentComponent?.value || infraState.n8nHostedDeploymentId;
-  infraState.n8nHostedDeploymentStatus = values.n8nHostedDeploymentStatus || n8nDeploymentComponent?.status || infraState.n8nHostedDeploymentStatus;
+  infraState.hostedAgentUrl = values.hostedAgentUrl || hostedAgentUrlComponent?.value || infraState.hostedAgentUrl;
+  infraState.hostedAgentDeploymentId =
+    values.hostedAgentDeploymentId || hostedAgentDeploymentComponent?.value || infraState.hostedAgentDeploymentId;
+  infraState.hostedAgentDeploymentStatus =
+    values.hostedAgentDeploymentStatus || hostedAgentDeploymentComponent?.status || infraState.hostedAgentDeploymentStatus;
+  infraState.langGraphHostedUrl = values.langGraphHostedUrl || langGraphUrlComponent?.value || infraState.langGraphHostedUrl;
+  infraState.langGraphHostedDeploymentId =
+    values.langGraphHostedDeploymentId || langGraphDeploymentComponent?.value || infraState.langGraphHostedDeploymentId;
+  infraState.langGraphHostedDeploymentStatus =
+    values.langGraphHostedDeploymentStatus || langGraphDeploymentComponent?.status || infraState.langGraphHostedDeploymentStatus;
   infraState.langfuseHostedUrl = values.langfuseHostedUrl || langfuseUrlComponent?.value || infraState.langfuseHostedUrl;
   infraState.langfuseHostedDeploymentId = values.langfuseHostedDeploymentId || langfuseDeploymentComponent?.value || infraState.langfuseHostedDeploymentId;
   infraState.langfuseHostedDeploymentStatus =
@@ -2515,6 +2558,11 @@ function applyProvisionedValues(result) {
   infraState.openclawHostedDeploymentId = values.openclawHostedDeploymentId || openclawDeploymentComponent?.value || infraState.openclawHostedDeploymentId;
   infraState.openclawHostedDeploymentStatus =
     values.openclawHostedDeploymentStatus || openclawDeploymentComponent?.status || infraState.openclawHostedDeploymentStatus;
+  infraState.llamaIndexHostedUrl = values.llamaIndexHostedUrl || llamaIndexUrlComponent?.value || infraState.llamaIndexHostedUrl;
+  infraState.llamaIndexHostedDeploymentId =
+    values.llamaIndexHostedDeploymentId || llamaIndexDeploymentComponent?.value || infraState.llamaIndexHostedDeploymentId;
+  infraState.llamaIndexHostedDeploymentStatus =
+    values.llamaIndexHostedDeploymentStatus || llamaIndexDeploymentComponent?.status || infraState.llamaIndexHostedDeploymentStatus;
 
   document.getElementById("responses-project-id-display").value = projectId;
   updateInfraStatus(result.status || "not-created");
@@ -2587,6 +2635,10 @@ document.getElementById("responses-run-button").addEventListener("click", async 
   const temperature = Number.parseFloat(document.getElementById("responses-temperature").value);
   const model = document.getElementById("responses-model").value.trim() || "openai.gpt-oss-120b";
   const toolResourceId = document.getElementById("responses-tool-resource-id").value.trim();
+  const hostedReferenceValue = hostedReferenceConfig(activeDemoId)
+    ? document.getElementById("responses-hosted-reference-value").value.trim()
+    : "";
+  const conversationId = activeDemoId === "conversation-store" ? toolResourceId || infraState.conversationId : "";
   const vectorStoreId = activeDemoId === "file-search-vector-store-rag" ? toolResourceId || infraState.vectorStoreId : "";
   const codeInterpreterContainer =
     activeDemoId === "code-interpreter" ? toolResourceId || infraState.codeInterpreterContainerId : "";
@@ -2604,9 +2656,11 @@ document.getElementById("responses-run-button").addEventListener("click", async 
     temperature,
     model,
     sessionId: document.getElementById("responses-session-id").value.trim(),
+    conversationId: activeDemoId === "conversation-store" ? conversationId : "",
     vectorStoreId,
     codeInterpreterContainer,
     createNewCodeInterpreterContainer,
+    hostedAppReference: hostedReferenceValue,
     ...getResponsesConfig()
   };
 
@@ -2717,15 +2771,19 @@ function launchExternalDemo(featureId) {
   }
 
   const requestedAt = new Date().toLocaleTimeString();
+  const hostedAppReference = document.getElementById("responses-hosted-reference-value").value.trim();
+  const effectiveHostedUrl = hostedAppReference || config.hostedUrl;
+  const launchTarget = hostedAppReference && /^https?:\/\//i.test(hostedAppReference) ? hostedAppReference : config.launchUrl;
   const requestPayload = {
     action: "launch-hosted-url",
-    launchUrl: config.launchUrl,
-    hostedUrl: config.hostedUrl,
+    launchUrl: launchTarget,
+    hostedUrl: effectiveHostedUrl,
+    hostedAppReference,
     hostedDeploymentId: config.hostedDeploymentId
   };
   document.getElementById("responses-request").textContent = JSON.stringify(requestPayload, null, 2);
 
-  if (!config.hostedUrl) {
+  if (!effectiveHostedUrl) {
     renderDemoOutput(`Deploy the hosted application externally and refresh deployment metadata before launching ${config.shortLabel}.`);
     renderLiveLogs([
       { label: "Launch", status: "failed", timestamp: requestedAt, message: `${config.shortLabel} hosted URL is not available.` }
@@ -2748,7 +2806,7 @@ function launchExternalDemo(featureId) {
     return;
   }
 
-  if (config.hostedDeploymentStatus && config.hostedDeploymentStatus !== "created") {
+  if (!hostedAppReference && config.hostedDeploymentStatus && config.hostedDeploymentStatus !== "created") {
     const statusLabel = config.hostedDeploymentStatus.replaceAll("-", " ");
     renderDemoOutput(
       `Hosted deployment is not active for ${config.shortLabel}. Current status: ${statusLabel}. Refresh deployment metadata and redeploy before launching.`
@@ -2775,14 +2833,15 @@ function launchExternalDemo(featureId) {
     return;
   }
 
-  window.open(config.launchUrl, "_blank", "noopener,noreferrer");
+  window.open(launchTarget, "_blank", "noopener,noreferrer");
   renderDemoOutput({
     status: "success",
     feature: config.label,
     mode: "hosted-ui-launch",
-    relevantOutput: `Opened ${config.shortLabel} through local IDCS-authenticated launch proxy: ${config.launchUrl}`,
-    launchUrl: config.launchUrl,
-    hostedUrl: config.hostedUrl,
+    relevantOutput: `Opened ${config.shortLabel} through ${hostedAppReference ? "the provided hosted reference" : "local IDCS-authenticated launch proxy"}: ${launchTarget}`,
+    launchUrl: launchTarget,
+    hostedUrl: effectiveHostedUrl,
+    hostedAppReference,
     hostedDeploymentId: config.hostedDeploymentId
   });
   renderLiveLogs([

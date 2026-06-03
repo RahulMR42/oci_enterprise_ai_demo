@@ -30,7 +30,7 @@ The existing OCI Responses API configuration remains the model backend for final
 
 The demo will not create a new IDCS app or ask for separate credentials. It will reuse the Terraform-generated hosted UI launch client metadata already produced by:
 
-`infra/hosted-agentic-applications/.terraform/generated/n8n_idcs_client.json`
+`infra/hosted-agentic-applications/.terraform/generated/hosted_app_idcs_client.json`
 
 That file is already read by `server.mjs` through `idcsConfig()`, which can also fall back to environment variables such as `OCI_HOSTED_APP_IDCS_CLIENT_ID` and `OCI_HOSTED_APP_IDCS_CLIENT_SECRET`.
 

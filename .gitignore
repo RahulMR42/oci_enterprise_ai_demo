@@ -12,6 +12,5 @@ logs/
 __pycache__/
 *.py[cod]
 backend/data/
-.n8n-hosted-password
 .oci-portal-password
 .resource_suffix

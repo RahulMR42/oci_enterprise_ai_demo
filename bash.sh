@@ -29,7 +29,6 @@ OCI_GENAI_COMPARTMENT_ID="${OCI_GENAI_COMPARTMENT_ID:-$DEFAULT_COMPARTMENT_ID}"
 OCI_GENAI_REGION="${OCI_GENAI_REGION:-us-chicago-1}"
 OCI_PROFILE="${OCI_PROFILE:-DEFAULT}"
 OCI_GENAI_PROJECT_DISPLAY_NAME="${OCI_GENAI_PROJECT_DISPLAY_NAME:-enterprise-ai-demo-responses-api}"
-N8N_PASSWORD_FILE="${N8N_PASSWORD_FILE:-.n8n-hosted-password}"
 
 existing_resource_suffix=""
 if command -v terraform >/dev/null 2>&1; then
@@ -89,38 +88,20 @@ print(value if isinstance(value, str) else "")
 PY
 }
 
-ensure_n8n_basic_auth_password() {
-  local password=""
-
-  if [[ -f "$N8N_PASSWORD_FILE" ]]; then
-    password="$(tr -d '\r\n' < "$N8N_PASSWORD_FILE")"
-  fi
-
-  if [[ -z "$password" ]]; then
-    password="${TF_VAR_n8n_basic_auth_password:-${OCI_HOSTED_N8N_BASIC_AUTH_PASSWORD:-}}"
-  fi
-
-  if [[ -z "$password" ]]; then
-    password="$(python3 - <<'PY'
-import secrets
-print(secrets.token_urlsafe(18))
-PY
-)"
-  fi
-
-  umask 177
-  printf '%s\n' "$password" > "$N8N_PASSWORD_FILE"
-  chmod 600 "$N8N_PASSWORD_FILE"
-  export TF_VAR_n8n_basic_auth_password="$password"
-  export OCI_HOSTED_N8N_BASIC_AUTH_PASSWORD="${OCI_HOSTED_N8N_BASIC_AUTH_PASSWORD:-$password}"
-  echo "n8n basic auth password loaded from ${N8N_PASSWORD_FILE}."
-}
-
 export_generated_runtime_ids() {
+  local conversation_id
   local vector_store_id
   local code_container_id
+  conversation_id="$(json_field "infra/conversation-store/.terraform/generated/conversation.json" "id")"
   vector_store_id="$(json_field "infra/file-search-vector-store-rag/.terraform/generated/vector_store.json" "id")"
   code_container_id="$(json_field "infra/code-interpreter/.terraform/generated/container.json" "id")"
+
+  if [[ -n "$conversation_id" ]]; then
+    export OCI_GENAI_CONVERSATION_ID="${OCI_GENAI_CONVERSATION_ID:-$conversation_id}"
+    echo "Runtime Conversation Store conversation: ${OCI_GENAI_CONVERSATION_ID}"
+  else
+    echo "Runtime Conversation Store conversation: not found yet."
+  fi
 
   if [[ -n "$vector_store_id" ]]; then
     export OCI_GENAI_VECTOR_STORE_ID="${OCI_GENAI_VECTOR_STORE_ID:-$vector_store_id}"
@@ -189,6 +170,13 @@ apply_demo_module() {
   fi
 
   case "$demo_id" in
+    conversation-store)
+      terraform_init "$module_path"
+      echo "Applying Terraform module ${module_path}."
+      terraform -chdir="$module_path" apply -auto-approve \
+        -var="region=${OCI_GENAI_REGION}" \
+        -var="resource_suffix=${RESOURCE_SUFFIX}"
+      ;;
     file-search-vector-store-rag)
       terraform_init "$module_path"
       echo "Applying Terraform module ${module_path}."
@@ -219,7 +207,6 @@ apply_demo_module() {
         echo "Set OCI_HOSTED_APP_IDCS_DOMAIN_URL, OCI_HOSTED_APP_IDCS_AUDIENCE, and OCI_HOSTED_APP_IDCS_SCOPE." >&2
         return 1
       fi
-      ensure_n8n_basic_auth_password
       terraform_init "$module_path"
       echo "Applying Terraform module ${module_path}."
       terraform -chdir="$module_path" apply -auto-approve \
@@ -232,13 +219,6 @@ apply_demo_module() {
         -var="idcs_domain_url=${OCI_HOSTED_APP_IDCS_DOMAIN_URL}" \
         -var="idcs_audience=${OCI_HOSTED_APP_IDCS_AUDIENCE}" \
         -var="idcs_scope=${OCI_HOSTED_APP_IDCS_SCOPE}" \
-        -var="n8n_idcs_launch_client_enabled=${OCI_HOSTED_N8N_IDCS_LAUNCH_CLIENT_ENABLED:-true}" \
-        -var="n8n_idcs_domain_url=${OCI_HOSTED_N8N_IDCS_DOMAIN_URL:-}" \
-        -var="n8n_idcs_audience=${OCI_HOSTED_N8N_IDCS_AUDIENCE:-}" \
-        -var="n8n_idcs_scope=${OCI_HOSTED_N8N_IDCS_SCOPE:-}" \
-        -var="n8n_basic_auth_user=${OCI_HOSTED_N8N_BASIC_AUTH_USER:-admin}" \
-        -var="n8n_image_repository_uri=${OCI_HOSTED_N8N_IMAGE_REPOSITORY_URI:-}" \
-        -var="n8n_basic_auth_password=${TF_VAR_n8n_basic_auth_password}" \
         -var="langfuse_image_repository_uri=${OCI_HOSTED_LANGFUSE_IMAGE_REPOSITORY_URI:-}" \
         -var="langfuse_database_url=${LANGFUSE_DATABASE_URL:-}" \
         -var="langfuse_clickhouse_url=${LANGFUSE_CLICKHOUSE_URL:-}" \
@@ -279,6 +259,13 @@ destroy_demo_module() {
   fi
 
   case "$demo_id" in
+    conversation-store)
+      terraform_init "$module_path"
+      echo "Destroying Terraform module ${module_path}."
+      terraform -chdir="$module_path" destroy -auto-approve \
+        -var="region=${OCI_GENAI_REGION}" \
+        -var="resource_suffix=${RESOURCE_SUFFIX}"
+      ;;
     file-search-vector-store-rag)
       terraform_init "$module_path"
       echo "Destroying Terraform module ${module_path}."
@@ -304,7 +291,6 @@ destroy_demo_module() {
         -var="resource_suffix=${RESOURCE_SUFFIX}"
       ;;
     hosted-agentic-applications)
-      ensure_n8n_basic_auth_password
       terraform_init "$module_path"
       echo "Destroying Terraform module ${module_path}."
       terraform -chdir="$module_path" destroy -auto-approve \
@@ -317,13 +303,6 @@ destroy_demo_module() {
         -var="idcs_domain_url=${OCI_HOSTED_APP_IDCS_DOMAIN_URL:-unused}" \
         -var="idcs_audience=${OCI_HOSTED_APP_IDCS_AUDIENCE:-unused}" \
         -var="idcs_scope=${OCI_HOSTED_APP_IDCS_SCOPE:-unused}" \
-        -var="n8n_idcs_launch_client_enabled=${OCI_HOSTED_N8N_IDCS_LAUNCH_CLIENT_ENABLED:-true}" \
-        -var="n8n_idcs_domain_url=${OCI_HOSTED_N8N_IDCS_DOMAIN_URL:-}" \
-        -var="n8n_idcs_audience=${OCI_HOSTED_N8N_IDCS_AUDIENCE:-}" \
-        -var="n8n_idcs_scope=${OCI_HOSTED_N8N_IDCS_SCOPE:-}" \
-        -var="n8n_basic_auth_user=${OCI_HOSTED_N8N_BASIC_AUTH_USER:-admin}" \
-        -var="n8n_image_repository_uri=${OCI_HOSTED_N8N_IMAGE_REPOSITORY_URI:-}" \
-        -var="n8n_basic_auth_password=${TF_VAR_n8n_basic_auth_password}" \
         -var="langfuse_image_repository_uri=${OCI_HOSTED_LANGFUSE_IMAGE_REPOSITORY_URI:-}" \
         -var="langfuse_database_url=${LANGFUSE_DATABASE_URL:-}" \
         -var="langfuse_clickhouse_url=${LANGFUSE_CLICKHOUSE_URL:-}" \
@@ -392,7 +371,7 @@ if [[ "${PROVISION_INFRA:-false}" == "true" ]]; then
     apply_shared_module
   fi
 
-  PROVISION_DEMOS="${PROVISION_DEMOS:-file-search-vector-store-rag,code-interpreter,nl2sql-sql-search,hosted-agentic-applications}"
+  PROVISION_DEMOS="${PROVISION_DEMOS:-conversation-store,file-search-vector-store-rag,code-interpreter,nl2sql-sql-search,hosted-agentic-applications}"
   if [[ -n "$PROVISION_DEMOS" ]]; then
     if ! command -v terraform >/dev/null 2>&1; then
       echo "Terraform is required to provision demo modules."
@@ -432,7 +411,7 @@ if [[ "${DESTROY_INFRA:-false}" == "true" ]]; then
     exit 1
   fi
 
-  DESTROY_DEMOS="${DESTROY_DEMOS:-hosted-agentic-applications,nl2sql-sql-search,code-interpreter,file-search-vector-store-rag}"
+  DESTROY_DEMOS="${DESTROY_DEMOS:-hosted-agentic-applications,nl2sql-sql-search,code-interpreter,file-search-vector-store-rag,conversation-store}"
   if [[ -n "$DESTROY_DEMOS" ]]; then
     echo "Destroying demo Terraform modules: ${DESTROY_DEMOS}"
     IFS=',' read -ra destroy_modules <<< "$DESTROY_DEMOS"

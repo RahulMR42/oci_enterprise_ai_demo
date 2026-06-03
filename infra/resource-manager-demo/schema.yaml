@@ -57,20 +57,18 @@ variableGroups:
       - idcs_domain_url
       - idcs_audience
       - idcs_scope
-      - n8n_basic_auth_user
-      - n8n_basic_auth_password
       - openclaw_gateway_token
   - title: Advanced and Local-Exec Switches
     variables:
       - hosted_applications_local_exec_enabled
       - responses_api_local_exec_enabled
+      - conversation_store_local_exec_enabled
       - file_search_local_exec_enabled
       - code_interpreter_local_exec_enabled
       - hosted_app_push_image
       - hosted_app_container_cli
       - hosted_app_ocir_region_key
       - portal_container_image_uri
-      - n8n_image_repository_uri
       - langfuse_image_repository_uri
       - openclaw_image_repository_uri
       - llamaindex_image_repository_uri
@@ -283,15 +281,6 @@ variables:
     title: IDCS Scope
     type: string
     required: true
-  n8n_basic_auth_user:
-    title: n8n Basic Auth User
-    type: string
-    default: admin
-  n8n_basic_auth_password:
-    title: n8n Basic Auth Password
-    type: password
-    required: true
-    sensitive: true
   openclaw_gateway_token:
     title: OpenClaw Gateway Token
     type: password
@@ -305,16 +294,21 @@ variables:
     title: Enable Responses API Local-Exec
     type: boolean
     default: false
+  conversation_store_local_exec_enabled:
+    title: Enable Conversation Store Local-Exec
+    description: Enable this on first-time deployments to create an OCI Conversations API object and inject OCI_GENAI_CONVERSATION_ID into the portal runtime config.
+    type: boolean
+    default: true
   file_search_local_exec_enabled:
     title: Enable File Search Local-Exec
     description: Enable this on first-time deployments to create the Vector Store and inject OCI_GENAI_VECTOR_STORE_ID into the portal runtime config.
     type: boolean
-    default: false
+    default: true
   code_interpreter_local_exec_enabled:
     title: Enable Code Interpreter Local-Exec
     description: Enable this on first-time deployments to create the Code Interpreter container and inject OCI_GENAI_CODE_INTERPRETER_CONTAINER into the portal runtime config.
     type: boolean
-    default: false
+    default: true
   hosted_app_push_image:
     title: Build Images From Terraform Local-Exec
     type: boolean
@@ -332,10 +326,6 @@ variables:
     default: ord
   portal_container_image_uri:
     title: Optional Full Portal Image URI
-    type: string
-    required: false
-  n8n_image_repository_uri:
-    title: Optional n8n Image Repository URI
     type: string
     required: false
   langfuse_image_repository_uri:

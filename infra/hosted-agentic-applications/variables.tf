@@ -33,18 +33,6 @@ variable "langgraph_repository_name" {
   default     = "enterprise-ai-demo/hosted-langgraph-agent"
 }
 
-variable "n8n_repository_name" {
-  description = "OCIR repository name for the n8n hosted workflow image."
-  type        = string
-  default     = "enterprise-ai-demo/hosted-n8n"
-}
-
-variable "n8n_image_repository_uri" {
-  description = "Optional prebuilt container repository URI for the n8n hosted workflow image. Leave empty to build and push the n8n wrapper image to OCIR."
-  type        = string
-  default     = ""
-}
-
 variable "langfuse_repository_name" {
   description = "OCIR repository name for the Langfuse hosted observability image."
   type        = string
@@ -123,18 +111,6 @@ variable "langgraph_hosted_deployment_display_name" {
   default     = "enterprise-ai-demo-langgraph-agent-deployment"
 }
 
-variable "n8n_hosted_application_display_name" {
-  description = "Display name for the n8n OCI Generative AI hosted application."
-  type        = string
-  default     = "enterprise-ai-demo-n8n"
-}
-
-variable "n8n_hosted_deployment_display_name" {
-  description = "Display name for the n8n OCI Generative AI hosted deployment."
-  type        = string
-  default     = "enterprise-ai-demo-n8n-deployment"
-}
-
 variable "langfuse_hosted_application_display_name" {
   description = "Display name for the Langfuse OCI Generative AI hosted application."
   type        = string
@@ -181,12 +157,6 @@ variable "langgraph_app_source_dir" {
   description = "Local container source directory for the LangGraph hosted agent application."
   type        = string
   default     = "../../apps/hosted-langgraph-agent"
-}
-
-variable "n8n_app_source_dir" {
-  description = "Local container source directory for the n8n hosted workflow application."
-  type        = string
-  default     = "../../apps/hosted-n8n"
 }
 
 variable "langfuse_app_source_dir" {
@@ -240,19 +210,6 @@ variable "idcs_scope" {
   type        = string
 }
 
-variable "n8n_basic_auth_user" {
-  description = "Username for n8n basic authentication."
-  type        = string
-  default     = "admin"
-}
-
-variable "n8n_basic_auth_password" {
-  description = "Password for n8n basic authentication. Provide with TF_VAR_n8n_basic_auth_password or OCI_HOSTED_N8N_BASIC_AUTH_PASSWORD."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "openclaw_gateway_token" {
   description = "Shared gateway token for the OpenClaw Control UI. Provide with TF_VAR_openclaw_gateway_token for a stable token."
   type        = string
@@ -260,43 +217,43 @@ variable "openclaw_gateway_token" {
   default     = ""
 }
 
-variable "n8n_idcs_launch_client_enabled" {
-  description = "When true, Terraform creates a dedicated confidential IDCS OAuth client for launching the n8n hosted workflow UI."
+variable "hosted_app_idcs_launch_client_enabled" {
+  description = "When true, Terraform creates a dedicated confidential IDCS OAuth client for hosted UI launch proxies."
   type        = bool
   default     = true
 }
 
-variable "n8n_idcs_domain_url" {
-  description = "Optional n8n-specific identity domain URL. Defaults to idcs_domain_url."
+variable "hosted_app_idcs_domain_url" {
+  description = "Optional hosted UI launch identity domain URL. Defaults to idcs_domain_url."
   type        = string
   default     = ""
 }
 
-variable "n8n_idcs_audience" {
-  description = "Optional n8n-specific OAuth audience. Defaults to idcs_audience."
+variable "hosted_app_idcs_audience" {
+  description = "Optional hosted UI launch OAuth audience. Defaults to idcs_audience."
   type        = string
   default     = ""
 }
 
-variable "n8n_idcs_scope" {
-  description = "Optional n8n-specific OAuth scope. Defaults to idcs_scope."
+variable "hosted_app_idcs_scope" {
+  description = "Optional hosted UI launch OAuth scope. Defaults to idcs_scope."
   type        = string
   default     = ""
 }
 
-variable "n8n_idcs_client_display_name" {
-  description = "Display name for the Terraform-managed n8n launch confidential app."
+variable "hosted_app_idcs_client_display_name" {
+  description = "Display name for the Terraform-managed hosted UI launch confidential app."
   type        = string
-  default     = "enterprise-ai-demo-n8n-launch-client"
+  default     = "enterprise-ai-demo-hosted-launch-client"
 }
 
-variable "n8n_idcs_redirect_uris" {
+variable "hosted_app_idcs_redirect_uris" {
   description = "Browser OAuth redirect URIs for the shared hosted UI launch confidential app. Add hosted application callback URLs here if switching from client-credentials proxy launch to authorization-code launch."
   type        = list(string)
   default     = []
 
   validation {
-    condition     = alltrue([for uri in var.n8n_idcs_redirect_uris : startswith(uri, "https://")])
+    condition     = alltrue([for uri in var.hosted_app_idcs_redirect_uris : startswith(uri, "https://")])
     error_message = "IDCS redirect URIs must use https://."
   }
 }

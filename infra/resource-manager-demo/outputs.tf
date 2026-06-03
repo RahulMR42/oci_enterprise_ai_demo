@@ -18,11 +18,6 @@ output "langgraph_container_repository_name" {
   value       = module.hosted_agentic_applications.langgraph_container_repository_name
 }
 
-output "n8n_container_repository_name" {
-  description = "OCIR repository name for the n8n hosted workflow image."
-  value       = module.hosted_agentic_applications.n8n_container_repository_name
-}
-
 output "langfuse_container_repository_name" {
   description = "OCIR repository name for the Langfuse hosted observability image."
   value       = module.hosted_agentic_applications.langfuse_container_repository_name
@@ -121,6 +116,11 @@ output "portal_login_password" {
 output "portal_vector_store_id" {
   description = "File Search vector store ID injected into the demo portal."
   value       = var.portal_container_enabled ? local.portal_vector_store_id : ""
+}
+
+output "portal_conversation_id" {
+  description = "OCI Conversations API conversation ID injected into the demo portal."
+  value       = var.portal_container_enabled ? local.portal_conversation_id : ""
 }
 
 output "portal_code_interpreter_container_id" {

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,8 +8,8 @@ from pathlib import Path
 from common_oci import (
     DOCS_URL,
     OCI_RESPONSES_MODEL,
-    call_oci_responses_api,
     config_from_env,
+    create_client,
     read_payload,
     response_output_text,
     response_to_json,
@@ -17,7 +18,6 @@ from common_oci import (
 
 
 STORE_PATH = Path(__file__).resolve().parents[1] / "data" / "conversation_store.json"
-MAX_CONTEXT_TURNS = 8
 
 
 def _read_store():
@@ -44,24 +44,42 @@ def _session(store, session_id):
             "title": "Conversation Store Demo",
             "createdAt": now,
             "updatedAt": now,
+            "conversationId": "",
             "turns": [],
         }
     return sessions[session_id]
 
 
-def _context_prompt(session, user_prompt):
-    recent_turns = session["turns"][-MAX_CONTEXT_TURNS:]
-    context_lines = []
-    for turn in recent_turns:
-        context_lines.append(f"User: {turn['user']}")
-        context_lines.append(f"Assistant: {turn['assistant']}")
+def _conversation_to_json(conversation):
+    if hasattr(conversation, "model_dump"):
+        return conversation.model_dump(mode="json")
+    if hasattr(conversation, "to_dict"):
+        return conversation.to_dict()
+    return json.loads(conversation.model_dump_json())
 
-    context = "\n".join(context_lines) if context_lines else "No previous turns."
-    return (
-        "You are continuing a stored enterprise assistant conversation. "
-        "Use the prior turns only as context and answer the newest user request.\n\n"
-        f"Conversation context:\n{context}\n\nNewest user request:\n{user_prompt}"
+
+def _ensure_conversation(client, session, session_id, payload):
+    configured_id = (
+        str(payload.get("conversationId", "")).strip()
+        or os.getenv("OCI_GENAI_CONVERSATION_ID", "").strip()
+        or str(session.get("conversationId", "")).strip()
     )
+    if configured_id:
+        session["conversationId"] = configured_id
+        return configured_id, {"id": configured_id, "source": "configured-or-session"}
+
+    conversation = client.conversations.create(
+        metadata={
+            "topic": "enterprise-ai-demo-conversation-store",
+            "session_id": session_id,
+            "managed_by": "portal-runtime",
+        }
+    )
+    payload_json = _conversation_to_json(conversation)
+    session["conversationId"] = payload_json.get("id", "")
+    if not session["conversationId"]:
+        raise RuntimeError("OCI Conversations API did not return a conversation id.")
+    return session["conversationId"], payload_json
 
 
 def run_demo(payload):
@@ -78,11 +96,16 @@ def run_demo(payload):
     config = config_from_env()
     store = _read_store()
     session = _session(store, session_id)
-    response_prompt = _context_prompt(session, user_prompt)
     trace = [
-        "Loaded persisted conversation session",
-        f"Prepared {len(session['turns'])} prior turn(s) as model context",
+        "Loaded Conversation Store session mapping",
         f"Selected OCI Responses-compatible model {model}",
+    ]
+    validate_config(config)
+    client = create_client(config)
+    conversation_id, conversation = _ensure_conversation(client, session, session_id, payload)
+    trace = [
+        *trace,
+        "Resolved OCI Conversations API conversation",
     ]
 
     result = {
@@ -93,17 +116,23 @@ def run_demo(payload):
         "request": {
             "model": model,
             "sessionId": session_id,
+            "conversationId": conversation_id,
             "prompt": user_prompt,
             "temperature": temperature,
             "contextTurns": len(session["turns"]),
             "baseUrl": config["base_url"],
             "project": config["project"] or "not configured",
         },
+        "conversation": conversation,
         "trace": trace,
     }
 
-    validate_config(config)
-    response = call_oci_responses_api(response_prompt, temperature, model, config)
+    response = client.responses.create(
+        model=model,
+        input=user_prompt,
+        temperature=temperature,
+        conversation=conversation_id,
+    )
     output = response_output_text(response)
     now = datetime.now(timezone.utc).isoformat()
     session["turns"].append(
@@ -122,8 +151,8 @@ def run_demo(payload):
     result["rawResponse"] = response_to_json(response)
     result["trace"] = [
         *trace,
-        "Called OCI Responses API with stored context",
-        "Persisted the new user and assistant turn",
+        "Called OCI Responses API with OCI-managed conversation state",
+        "Persisted local session-to-conversation mapping",
     ]
     return result
 
@@ -146,10 +175,11 @@ def main():
                         "model": OCI_RESPONSES_MODEL,
                         "baseUrl": config["base_url"],
                         "project": config["project"] or "not configured",
+                        "conversationId": os.getenv("OCI_GENAI_CONVERSATION_ID", ""),
                     },
                     "error": str(exc),
                     "trace": [
-                        "Loaded Conversation Store demo",
+                        "Loaded Conversation Store session mapping",
                         "Live OCI Responses API call was not completed",
                     ],
                 }

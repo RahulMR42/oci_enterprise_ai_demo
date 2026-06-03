@@ -1,5 +1,11 @@
 # Conversation Store demo infrastructure
 
-This demo does not require separate OCI infrastructure beyond the shared OCI Generative AI project and API key created by `infra/responses-api`.
+This module creates an OCI Conversations API object through the OpenAI-compatible OCI endpoint and writes the generated metadata to `.terraform/generated/conversation.json`.
 
-Runtime conversation state is persisted locally under `backend/data/` for the development demo and is intentionally gitignored. If this demo is promoted to use Object Storage, Autonomous Database, NoSQL, Vault, or another OCI resource, that resource must be added to this Terraform module before backend code depends on it.
+```bash
+terraform -chdir=infra/conversation-store apply \
+  -var="region=us-chicago-1" \
+  -var="resource_suffix=fd2ed9"
+```
+
+The live runtime requires the shared OCI Generative AI project/API key from `infra/responses-api`. Startup exports `OCI_GENAI_CONVERSATION_ID` from the generated metadata when present. The backend can also create a conversation lazily when the generated ID is not available.

@@ -282,19 +282,6 @@ variable "oci_genai_api_key" {
   default     = ""
 }
 
-variable "n8n_basic_auth_user" {
-  description = "Username for the hosted n8n basic authentication boundary."
-  type        = string
-  default     = "admin"
-}
-
-variable "n8n_basic_auth_password" {
-  description = "Password for the hosted n8n basic authentication boundary."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "openclaw_gateway_token" {
   description = "Shared gateway token for the OpenClaw Control UI."
   type        = string

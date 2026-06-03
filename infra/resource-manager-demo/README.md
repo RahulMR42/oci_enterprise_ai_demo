@@ -17,7 +17,8 @@ The aggregate stack wires every Terraform-based deployment module used by the po
 - `infra/nl2sql-sql-search`: Autonomous Database, Database Tools connections, KMS, and secrets for SQL Search.
 - `infra/hosted-agentic-applications`: OCIR repositories, hosted application metadata, and Langfuse dependencies: VCN, private subnet, NSGs, PostgreSQL, ClickHouse container instance, Redis container instance, and Object Storage.
 - `infra/devops-hosted-image-build`: OCI DevOps project, source repository seeding from GitHub, selected image build stages, selected image artifact delivery stages, matching hosted deployment build stages, and the rolling portal container rollout stage.
-- `infra/conversation-store` and `infra/guardrails`: no-op Terraform roots kept in the aggregate stack so the local-only demos are represented in the same deployment map.
+- `infra/conversation-store`: OCI Conversations API object used by the Conversation Store demo.
+- `infra/guardrails`: no-op Terraform root kept in the aggregate stack so the local policy demo is represented in the same deployment map.
 - `infra/resource-manager-demo/portal_container.tf`: Enterprise AI portal image repository, public load balancer, VCN/subnets, NSGs, Object Storage runtime config, and run history object.
 
 ## Image and hosted deployment flow
@@ -38,8 +39,6 @@ The DevOps pipeline currently publishes images for:
 - OpenClaw hosted gateway
 - LlamaIndex control tower
 - Enterprise AI portal
-
-The n8n demo code remains in the repository for local/demo compatibility, but the Resource Manager DevOps image pipeline does not publish an n8n image.
 
 ## Portal deployment
 

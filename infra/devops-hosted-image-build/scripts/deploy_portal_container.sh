@@ -74,8 +74,6 @@ env = {
     "OCI_HOSTED_LANGGRAPH_URL": "",
     "OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID": "",
     "OCI_HOSTED_LLAMAINDEX_URL": "",
-    "OCI_HOSTED_N8N_DEPLOYMENT_ID": "",
-    "OCI_HOSTED_N8N_URL": "",
     "OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID": "",
     "OCI_HOSTED_OPENCLAW_URL": "",
     "OCI_PORTAL_PASSWORD": os.environ["PORTAL_AUTH_PASSWORD"],
@@ -101,6 +99,18 @@ containers = [{
     "displayName": "portal",
     "imageUrl": os.environ["PORTAL_IMAGE_URI"],
     "environmentVariables": env,
+    "healthChecks": [{
+        "name": "portal-http",
+        "healthCheckType": "HTTP",
+        "path": "/",
+        "port": int(os.environ.get("PORTAL_CONTAINER_PORT", "5173")),
+        "initialDelayInSeconds": 60,
+        "intervalInSeconds": 30,
+        "timeoutInSeconds": 5,
+        "successThreshold": 1,
+        "failureThreshold": 5,
+        "failureAction": "KILL",
+    }],
 }]
 for path, data in [(shape_file, shape), (vnics_file, vnics), (containers_file, containers)]:
     with open(path, "w", encoding="utf-8") as handle:
@@ -278,6 +288,7 @@ if isinstance(payload, list):
       --shape-config "file://${shape_file}" \
       --vnics "file://${vnics_file}" \
       --containers "file://${containers_file}" \
+      --container-restart-policy ALWAYS \
       --display-name "$portal_display_name" \
       --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"portal\",\"managed-by\":\"resource-manager-devops\",\"resource-suffix\":\"${RESOURCE_SUFFIX}\"}" \
       --auth resource_principal \

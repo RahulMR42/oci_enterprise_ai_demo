@@ -59,7 +59,6 @@ Hosted application cards use local launch proxies:
 
 | Path | Target |
 | --- | --- |
-| `/api/n8n/launch/` | Hosted n8n UI |
 | `/api/langfuse/launch/` | Hosted Langfuse UI |
 | `/api/openclaw/launch/` | Hosted OpenClaw gateway demo UI |
 
@@ -85,7 +84,7 @@ Generated runtime metadata is exported before the Node server starts:
 | `OCI_GENAI_CODE_INTERPRETER_CONTAINER` | `infra/code-interpreter/.terraform/generated/container.json` |
 | Hosted agent metadata | `infra/hosted-agentic-applications/.terraform/generated/hosted_agent.json` |
 | LangGraph hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/langgraph_hosted_agent.json` |
-| n8n hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/n8n_hosted_workflow.json` |
+| Hosted UI launch client metadata | `infra/hosted-agentic-applications/.terraform/generated/hosted_app_idcs_client.json` |
 | Langfuse hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/langfuse_hosted_observability.json` |
 | OpenClaw hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/openclaw_hosted_gateway.json` |
 
@@ -98,7 +97,7 @@ Each runnable card maps to one Python script in `backend/demos/`.
 | Feature | Script | Execution model |
 | --- | --- | --- |
 | Responses API | `responses_api.py` | Direct live OCI Responses API call |
-| Conversation Store | `conversation_store.py` | Local JSON session history plus live OCI call |
+| Conversation Store | `conversation_store.py` | OCI Conversations API state plus live OCI call |
 | Guardrails | `guardrails.py` | Local policy check plus optional sanitized live OCI call |
 | File Search & Vector Store RAG | `file_search_vector_store_rag.py` | Live OCI File Search tool against provisioned vector store |
 | Code Interpreter | `code_interpreter.py` | Live OCI Code Interpreter tool with managed container |
@@ -126,7 +125,7 @@ The repo can run in restricted environments after dependencies and bundled asset
 | Asset | Location | Used by |
 | --- | --- | --- |
 | Oracle PDFs | `infra/file-search-vector-store-rag/assets/pdfs/` | Vector store seeding |
-| Conversation history | `backend/data/conversation_store.json` | Conversation Store |
+| Conversation session mapping | `backend/data/conversation_store.json` | Conversation Store |
 | Long-term memory | `backend/data/long_term_memory_store.json` | Long-Term Memory |
 | SQL sample DB | `backend/data/sql_search_sample.sqlite` | NL2SQL / SQL Search |
 | Governance audit log | `backend/data/governance_audit_log.json` | Governance Center |

@@ -45,7 +45,15 @@ module "code_interpreter" {
 }
 
 module "conversation_store" {
+  count  = var.conversation_store_local_exec_enabled ? 1 : 0
   source = "../conversation-store"
+
+  region               = var.region
+  resource_suffix      = var.resource_suffix
+  oci_genai_project_id = var.oci_genai_project_id
+  oci_genai_api_key    = var.oci_genai_api_key
+
+  depends_on = [module.responses_api]
 }
 
 module "guardrails" {
@@ -83,12 +91,10 @@ module "devops_hosted_image_build" {
   idcs_domain_url                = var.idcs_domain_url
   idcs_audience                  = var.idcs_audience
   idcs_scope                     = var.idcs_scope
-  hosted_app_idcs_client_id      = module.hosted_agentic_applications.n8n_idcs_launch_client_id
-  hosted_app_idcs_client_secret  = module.hosted_agentic_applications.n8n_idcs_launch_client_secret
+  hosted_app_idcs_client_id      = module.hosted_agentic_applications.hosted_app_idcs_launch_client_id
+  hosted_app_idcs_client_secret  = module.hosted_agentic_applications.hosted_app_idcs_launch_client_secret
   oci_genai_project_id           = var.oci_genai_project_id
   oci_genai_api_key              = var.oci_genai_api_key
-  n8n_basic_auth_user            = var.n8n_basic_auth_user
-  n8n_basic_auth_password        = var.n8n_basic_auth_password
   openclaw_gateway_token         = var.openclaw_gateway_token
   langfuse_database_url          = try(module.hosted_agentic_applications.langfuse_database_url, "")
   langfuse_clickhouse_url        = try(module.hosted_agentic_applications.langfuse_clickhouse_url, "")
@@ -154,9 +160,6 @@ module "hosted_agentic_applications" {
   idcs_domain_url                 = var.idcs_domain_url
   idcs_audience                   = var.idcs_audience
   idcs_scope                      = var.idcs_scope
-  n8n_basic_auth_user             = var.n8n_basic_auth_user
-  n8n_basic_auth_password         = var.n8n_basic_auth_password
-  n8n_image_repository_uri        = var.n8n_image_repository_uri
   langfuse_image_repository_uri   = var.langfuse_image_repository_uri
   openclaw_image_repository_uri   = var.openclaw_image_repository_uri
   llamaindex_image_repository_uri = var.llamaindex_image_repository_uri

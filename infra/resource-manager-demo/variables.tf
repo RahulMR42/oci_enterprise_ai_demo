@@ -58,15 +58,21 @@ variable "responses_api_local_exec_enabled" {
 }
 
 variable "file_search_local_exec_enabled" {
-  description = "Enable File Search local-exec vector store provisioning. Set true on first-time Resource Manager deployments when oci_genai_project_id and oci_genai_api_key are provided so the portal receives OCI_GENAI_VECTOR_STORE_ID."
+  description = "Enable File Search local-exec vector store provisioning so the portal receives OCI_GENAI_VECTOR_STORE_ID."
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "conversation_store_local_exec_enabled" {
+  description = "Enable Conversation Store local-exec provisioning so the portal receives OCI_GENAI_CONVERSATION_ID."
+  type        = bool
+  default     = true
 }
 
 variable "code_interpreter_local_exec_enabled" {
-  description = "Enable Code Interpreter local-exec container provisioning. Set true on first-time Resource Manager deployments when oci_genai_project_id and oci_genai_api_key are provided so the portal receives OCI_GENAI_CODE_INTERPRETER_CONTAINER."
+  description = "Enable Code Interpreter local-exec container provisioning so the portal receives OCI_GENAI_CODE_INTERPRETER_CONTAINER."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "project_display_name" {
@@ -454,29 +460,6 @@ variable "idcs_audience" {
 variable "idcs_scope" {
   description = "Existing identity domain OAuth scope for hosted application inbound authentication."
   type        = string
-}
-
-variable "n8n_basic_auth_user" {
-  description = "Username for the hosted n8n basic authentication boundary."
-  type        = string
-  default     = "admin"
-
-  validation {
-    condition     = length(trimspace(var.n8n_basic_auth_user)) > 0
-    error_message = "n8n_basic_auth_user must be non-empty."
-  }
-}
-
-variable "n8n_basic_auth_password" {
-  description = "Password for the hosted n8n basic authentication boundary."
-  type        = string
-  sensitive   = true
-}
-
-variable "n8n_image_repository_uri" {
-  description = "Optional prebuilt n8n image repository URI."
-  type        = string
-  default     = ""
 }
 
 variable "langfuse_image_repository_uri" {
