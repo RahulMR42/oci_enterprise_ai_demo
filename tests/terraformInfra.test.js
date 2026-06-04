@@ -652,6 +652,10 @@ test("DevOps rolls portal container through load balancer with smoke tests", () 
   assert.match(script, /Portal container instance .* retrying another availability domain/);
   assert.match(script, /waiting .* before retrying portal container creation/);
   assert.match(script, /No portal container instance became ACTIVE in any availability domain/);
+  assert.match(script, /def dns_label\(value\):/);
+  assert.match(script, /hostnameLabel": hostname_label/);
+  assert.match(script, /PORTAL_ROLLOUT_ID/);
+  assert.doesNotMatch(script, /"hostnameLabel": "portal"/);
   assert.match(script, /if str\(v\)\.strip\(\)/);
   assert.match(script, /healthChecks/);
   assert.match(script, /healthCheckType": "HTTP"/);

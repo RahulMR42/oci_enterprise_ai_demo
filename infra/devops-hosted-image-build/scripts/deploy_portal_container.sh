@@ -46,12 +46,24 @@ write_container_inputs() {
   python3 - "$shape_file" "$vnics_file" "$containers_file" <<'PY'
 import json
 import os
+import re
 import sys
 
 shape_file, vnics_file, containers_file = sys.argv[1:4]
 
 def env_value(name, default=""):
     return os.environ.get(name, default).strip()
+
+def dns_label(value):
+    label = re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
+    label = re.sub(r"-+", "-", label)
+    if not label or not label[0].isalpha():
+        label = f"p-{label}"
+    return label[:63].rstrip("-") or "portal"
+
+hostname_label = dns_label(
+    f"portal-{os.environ['RESOURCE_SUFFIX']}-{os.environ.get('PORTAL_ROLLOUT_ID', '')}"
+)
 
 env = {
     "HOST": "0.0.0.0",
@@ -91,7 +103,7 @@ env = {k: str(v) for k, v in env.items() if str(v).strip()}
 shape = {"ocpus": float(os.environ.get("PORTAL_CONTAINER_OCPUS", "1")), "memoryInGBs": float(os.environ.get("PORTAL_CONTAINER_MEMORY_GBS", "4"))}
 vnics = [{
     "displayName": os.environ["PORTAL_DISPLAY_NAME"] + "-vnic",
-    "hostnameLabel": "portal",
+    "hostnameLabel": hostname_label,
     "isPublicIpAssigned": False,
     "nsgIds": [os.environ["PORTAL_NETWORK_SECURITY_GROUP_ID"]],
     "subnetId": os.environ["PORTAL_PRIVATE_SUBNET_ID"],
@@ -470,6 +482,7 @@ trap rollback_new_backend ERR
 
 export PORTAL_DISPLAY_NAME="$portal_display_name"
 export PORTAL_IMAGE_URI="$portal_image_uri"
+export PORTAL_ROLLOUT_ID="$rollout_id"
 
 shape_file="/tmp/portal-shape-${rollout_id}.json"
 vnics_file="/tmp/portal-vnics-${rollout_id}.json"
