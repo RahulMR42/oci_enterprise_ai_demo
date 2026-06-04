@@ -188,16 +188,6 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "OCIR namespace used for image repository URIs."
     }
     items {
-      name          = "OCIR_USERNAME"
-      default_value = var.ocir_username
-      description   = "OCIR username used by the portal rollout to pull the private portal image."
-    }
-    items {
-      name          = "OCIR_AUTH_TOKEN"
-      default_value = var.ocir_auth_token
-      description   = "OCIR auth token used by the portal rollout to pull the private portal image."
-    }
-    items {
       name          = "IMAGE_TAG"
       default_value = var.image_tag
       description   = "Image tag to build and push."
@@ -531,14 +521,6 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "OCIR_NAMESPACE"
       value = data.oci_objectstorage_namespace.this[0].namespace
-    }
-    items {
-      name  = "OCIR_USERNAME"
-      value = var.ocir_username
-    }
-    items {
-      name  = "OCIR_AUTH_TOKEN"
-      value = var.ocir_auth_token
     }
     items {
       name  = "IMAGE_TAG"
