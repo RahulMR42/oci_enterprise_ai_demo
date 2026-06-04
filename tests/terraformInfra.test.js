@@ -557,6 +557,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /"OCI_GENAI_REGION": os\.environ\["OCI_REGION"\]/);
   assert.match(terraform, /value = var\.portal_vector_store_id != null && var\.portal_vector_store_id != "" \? var\.portal_vector_store_id : " "/);
   assert.match(terraform, /value = var\.portal_code_interpreter_container_id != null && var\.portal_code_interpreter_container_id != "" \? var\.portal_code_interpreter_container_id : " "/);
+  assert.match(terraform, /ocir_username\s+=\s+var\.devops_ocir_username/);
+  assert.match(terraform, /ocir_auth_token\s+=\s+var\.devops_ocir_auth_token/);
+  assert.match(terraform, /name\s+=\s+"OCIR_USERNAME"[\s\S]*value\s+=\s+var\.ocir_username/);
+  assert.match(terraform, /name\s+=\s+"OCIR_AUTH_TOKEN"[\s\S]*value\s+=\s+var\.ocir_auth_token/);
   assert.match(terraform, /def env_value\(name, default=""\):/);
   assert.match(terraform, /"OCI_GENAI_VECTOR_STORE_ID": env_value\("PORTAL_VECTOR_STORE_ID"\)/);
   assert.match(terraform, /"OCI_GENAI_CODE_INTERPRETER_CONTAINER": env_value\("PORTAL_CODE_INTERPRETER_CONTAINER_ID"\)/);
@@ -568,7 +572,11 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /output "portal_code_interpreter_container_id"/);
   assert.match(terraform, /"OCI_GENAI_API_KEY": os\.environ\.get\("OCI_GENAI_API_KEY", ""\)/);
   assert.match(terraform, /"OCI_PORTAL_PASSWORD": os\.environ\["PORTAL_AUTH_PASSWORD"\]/);
-  assert.doesNotMatch(terraform, /image_pull_secrets/);
+  assert.match(terraform, /--image-pull-secrets "file:\/\/\$\{image_pull_secrets_file\}"/);
+  assert.match(terraform, /"secretType": "BASIC"/);
+  assert.match(terraform, /"registryEndpoint": os\.environ\["OCIR_REGION_KEY"\] \+ "\.ocir\.io"/);
+  assert.match(terraform, /"username": os\.environ\["OCIR_USERNAME"\]/);
+  assert.match(terraform, /"password": os\.environ\["OCIR_AUTH_TOKEN"\]/);
   assert.match(terraform, /manage repos in compartment id/);
   assert.match(terraform, /module "hosted_agentic_applications"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/hosted-agentic-applications"/);
@@ -632,6 +640,10 @@ test("DevOps rolls portal container through load balancer with smoke tests", () 
   assert.match(main, /PORTAL_RUNTIME_CONFIG_BUCKET/);
   assert.match(buildSpec, /deploy_portal_container\.sh/);
   assert.match(script, /container-instances container-instance create/);
+  assert.match(script, /OCIR_USERNAME is required/);
+  assert.match(script, /OCIR_AUTH_TOKEN is required/);
+  assert.match(script, /write_image_pull_secrets/);
+  assert.match(script, /--image-pull-secrets "file:\/\/\$\{image_pull_secrets_file\}"/);
   assert.doesNotMatch(script, /PORTAL_CONTAINER_CREATE_MAX_WAIT_SECONDS/);
   assert.match(script, /PORTAL_CONTAINER_ACTIVE_POLL_ATTEMPTS/);
   assert.match(script, /PORTAL_CONTAINER_CREATE_ROUNDS/);

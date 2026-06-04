@@ -15,6 +15,8 @@ oci lb backend create -h >/dev/null
 : "${COMPARTMENT_ID:?COMPARTMENT_ID is required}"
 : "${OCIR_REGION_KEY:?OCIR_REGION_KEY is required}"
 : "${OCIR_NAMESPACE:?OCIR_NAMESPACE is required}"
+: "${OCIR_USERNAME:?OCIR_USERNAME is required}"
+: "${OCIR_AUTH_TOKEN:?OCIR_AUTH_TOKEN is required}"
 : "${IMAGE_TAG:?IMAGE_TAG is required}"
 : "${PORTAL_PRIVATE_SUBNET_ID:?PORTAL_PRIVATE_SUBNET_ID is required}"
 : "${PORTAL_NETWORK_SECURITY_GROUP_ID:?PORTAL_NETWORK_SECURITY_GROUP_ID is required}"
@@ -118,6 +120,27 @@ for path, data in [(shape_file, shape), (vnics_file, vnics), (containers_file, c
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(data, handle)
 PY
+}
+
+write_image_pull_secrets() {
+  local image_pull_secrets_file="$1"
+
+  python3 - "$image_pull_secrets_file" <<'PY'
+import json
+import os
+import sys
+
+image_pull_secrets_file = sys.argv[1]
+image_pull_secrets = [{
+    "secretType": "BASIC",
+    "registryEndpoint": os.environ["OCIR_REGION_KEY"] + ".ocir.io",
+    "username": os.environ["OCIR_USERNAME"],
+    "password": os.environ["OCIR_AUTH_TOKEN"],
+}]
+with open(image_pull_secrets_file, "w", encoding="utf-8") as handle:
+    json.dump(image_pull_secrets, handle)
+PY
+  chmod 600 "$image_pull_secrets_file"
 }
 
 parse_container_id() {
@@ -292,6 +315,7 @@ if isinstance(payload, list):
         --shape-config "file://${shape_file}" \
         --vnics "file://${vnics_file}" \
         --containers "file://${containers_file}" \
+        --image-pull-secrets "file://${image_pull_secrets_file}" \
         --container-restart-policy ALWAYS \
         --display-name "$portal_display_name" \
         --freeform-tags "{\"enterprise-ai-demo\":\"true\",\"demo\":\"portal\",\"managed-by\":\"resource-manager-devops\",\"resource-suffix\":\"${RESOURCE_SUFFIX}\"}" \
@@ -461,11 +485,13 @@ export PORTAL_IMAGE_URI="$portal_image_uri"
 shape_file="/tmp/portal-shape-${rollout_id}.json"
 vnics_file="/tmp/portal-vnics-${rollout_id}.json"
 containers_file="/tmp/portal-containers-${rollout_id}.json"
+image_pull_secrets_file="/tmp/portal-image-pull-secrets-${rollout_id}.json"
 create_file="/tmp/portal-create-${rollout_id}.json"
 get_file="/tmp/portal-get-${rollout_id}.json"
 
 mapfile -t old_backend_names < <(list_current_backends || true)
 write_container_inputs "$shape_file" "$vnics_file" "$containers_file"
+write_image_pull_secrets "$image_pull_secrets_file"
 
 create_active_container_instance
 private_ip_payload="$(container_private_ip "$get_file")"
