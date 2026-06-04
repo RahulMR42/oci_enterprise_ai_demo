@@ -200,26 +200,41 @@ resource "oci_core_network_security_group_security_rule" "portal_lb_egress" {
   }
 }
 
-data "local_file" "file_search_vector_store" {
-  count = var.portal_container_enabled && var.file_search_local_exec_enabled && fileexists(local.file_search_vector_store_generated_file) ? 1 : 0
+data "external" "file_search_vector_store" {
+  count = var.portal_container_enabled && var.file_search_local_exec_enabled ? 1 : 0
 
-  filename = local.file_search_vector_store_generated_file
+  program = ["python3", "${path.module}/scripts/read_generated_metadata.py"]
+
+  query = {
+    generated_file = local.file_search_vector_store_generated_file
+    id_keys        = "id,vector_store_id"
+  }
 
   depends_on = [module.file_search_vector_store_rag]
 }
 
-data "local_file" "conversation_store" {
-  count = var.portal_container_enabled && var.conversation_store_local_exec_enabled && fileexists(local.conversation_store_generated_file) ? 1 : 0
+data "external" "conversation_store" {
+  count = var.portal_container_enabled && var.conversation_store_local_exec_enabled ? 1 : 0
 
-  filename = local.conversation_store_generated_file
+  program = ["python3", "${path.module}/scripts/read_generated_metadata.py"]
+
+  query = {
+    generated_file = local.conversation_store_generated_file
+    id_keys        = "id"
+  }
 
   depends_on = [module.conversation_store]
 }
 
-data "local_file" "code_interpreter_container" {
-  count = var.portal_container_enabled && var.code_interpreter_local_exec_enabled && fileexists(local.code_interpreter_container_generated_file) ? 1 : 0
+data "external" "code_interpreter_container" {
+  count = var.portal_container_enabled && var.code_interpreter_local_exec_enabled ? 1 : 0
 
-  filename = local.code_interpreter_container_generated_file
+  program = ["python3", "${path.module}/scripts/read_generated_metadata.py"]
+
+  query = {
+    generated_file = local.code_interpreter_container_generated_file
+    id_keys        = "id"
+  }
 
   depends_on = [module.code_interpreter]
 }
@@ -242,6 +257,125 @@ resource "oci_objectstorage_object" "portal_runtime_config" {
   object       = "portal-runtime-config.json"
   content      = jsonencode(local.portal_runtime_config)
   content_type = "application/json"
+}
+
+resource "terraform_data" "portal_runtime_config_generated_values" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  triggers_replace = [
+    var.resource_suffix,
+    var.devops_source_revision,
+    tostring(var.conversation_store_local_exec_enabled),
+    tostring(var.file_search_local_exec_enabled),
+    tostring(var.code_interpreter_local_exec_enabled)
+  ]
+
+  input = {
+    namespace                    = data.oci_objectstorage_namespace.portal.namespace
+    bucket                       = oci_objectstorage_bucket.portal_config[0].name
+    object                       = oci_objectstorage_object.portal_runtime_config[0].object
+    region                       = var.region
+    profile                      = var.profile
+    conversation_store_generated = local.conversation_store_generated_file
+    file_search_vector_store     = local.file_search_vector_store_generated_file
+    code_interpreter_container   = local.code_interpreter_container_generated_file
+    generated_runtime_config     = "${path.module}/.terraform/generated/portal-runtime-config.json"
+    portal_runtime_config_json   = jsonencode(local.portal_runtime_config)
+  }
+
+  depends_on = [
+    oci_objectstorage_object.portal_runtime_config,
+    module.conversation_store,
+    module.file_search_vector_store_rag,
+    module.code_interpreter
+  ]
+
+  provisioner "local-exec" {
+    environment = {
+      PORTAL_RUNTIME_CONFIG_JSON        = self.input.portal_runtime_config_json
+      PORTAL_RUNTIME_CONFIG_NAMESPACE   = self.input.namespace
+      PORTAL_RUNTIME_CONFIG_BUCKET      = self.input.bucket
+      PORTAL_RUNTIME_CONFIG_OBJECT      = self.input.object
+      PORTAL_RUNTIME_CONFIG_OUTPUT_FILE = self.input.generated_runtime_config
+      CONVERSATION_STORE_GENERATED_FILE = self.input.conversation_store_generated
+      FILE_SEARCH_VECTOR_STORE_FILE     = self.input.file_search_vector_store
+      CODE_INTERPRETER_CONTAINER_FILE   = self.input.code_interpreter_container
+    }
+
+    command = <<-EOT
+      set -euo pipefail
+      mkdir -p '${path.module}/.terraform/generated'
+      python3 - <<'PY'
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+def read_json_file(path_value):
+    if not path_value:
+        return {}
+    path = Path(path_value)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+def first_value(payload, *keys):
+    for key in keys:
+        value = str(payload.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+config = json.loads(os.getenv("PORTAL_RUNTIME_CONFIG_JSON") or "{}")
+updates = []
+
+conversation_id = first_value(read_json_file(os.getenv("CONVERSATION_STORE_GENERATED_FILE")), "id")
+if conversation_id:
+    config["conversationId"] = conversation_id
+    updates.append("conversationId")
+
+vector_store_id = first_value(read_json_file(os.getenv("FILE_SEARCH_VECTOR_STORE_FILE")), "id", "vector_store_id")
+if vector_store_id:
+    config["vectorStoreId"] = vector_store_id
+    updates.append("vectorStoreId")
+
+code_container_id = first_value(read_json_file(os.getenv("CODE_INTERPRETER_CONTAINER_FILE")), "id")
+if code_container_id:
+    config["codeInterpreterContainerId"] = code_container_id
+    updates.append("codeInterpreterContainerId")
+
+config["generatedRuntimeConfigUpdatedAt"] = datetime.now(timezone.utc).isoformat()
+output_path = Path(os.environ["PORTAL_RUNTIME_CONFIG_OUTPUT_FILE"])
+output_path.parent.mkdir(parents=True, exist_ok=True)
+output_path.write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
+print("Prepared portal runtime config generated keys: " + (", ".join(updates) if updates else "none"))
+PY
+      oci_auth_args="--auth resource_principal"
+      if [ -n '${self.input.profile}' ]; then
+        oci_auth_args="--profile '${self.input.profile}'"
+      else
+        python3 -m pip install --user --quiet --upgrade oci-cli || true
+        export PATH="$HOME/.local/bin:$PATH"
+      fi
+      if oci os object put \
+        --namespace "$PORTAL_RUNTIME_CONFIG_NAMESPACE" \
+        --bucket-name "$PORTAL_RUNTIME_CONFIG_BUCKET" \
+        --name "$PORTAL_RUNTIME_CONFIG_OBJECT" \
+        --file "$PORTAL_RUNTIME_CONFIG_OUTPUT_FILE" \
+        --content-type application/json \
+        --force \
+        $oci_auth_args \
+        --region '${self.input.region}' \
+        --output json >/dev/null; then
+        echo "Updated portal runtime config generated object."
+      else
+        echo "Skipping portal runtime config generated Object Storage update after Terraform object creation."
+      fi
+    EOT
+  }
 }
 
 resource "oci_objectstorage_object" "portal_run_history" {
@@ -323,17 +457,17 @@ locals {
   code_interpreter_container_generated_file = "${path.module}/../code-interpreter/.terraform/generated/container.json"
   portal_conversation_id = (
     var.conversation_store_local_exec_enabled
-    ? try(jsondecode(data.local_file.conversation_store[0].content).id, "")
+    ? try(data.external.conversation_store[0].result.id, "")
     : ""
   )
   portal_vector_store_id = (
     var.file_search_local_exec_enabled
-    ? try(jsondecode(data.local_file.file_search_vector_store[0].content).id, "")
+    ? try(data.external.file_search_vector_store[0].result.id, "")
     : ""
   )
   portal_code_interpreter_container_id = (
     var.code_interpreter_local_exec_enabled
-    ? try(jsondecode(data.local_file.code_interpreter_container[0].content).id, "")
+    ? try(data.external.code_interpreter_container[0].result.id, "")
     : ""
   )
   default_hosted_deployment_exports = {

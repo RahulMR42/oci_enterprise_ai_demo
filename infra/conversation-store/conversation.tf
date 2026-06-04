@@ -1,4 +1,10 @@
 resource "terraform_data" "conversation_store" {
+  triggers_replace = [
+    "resource-manager-generated-runtime-files-20260604",
+    var.resource_suffix,
+    var.oci_genai_project_id
+  ]
+
   input = {
     generated_file      = "${path.module}/.terraform/generated/conversation.json"
     openai_base_url     = "https://inference.generativeai.${var.region}.oci.oraclecloud.com/openai/v1"

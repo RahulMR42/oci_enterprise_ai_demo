@@ -109,6 +109,7 @@ resource "terraform_data" "seed_devops_repository" {
     var.source_repo_url,
     var.source_branch,
     var.source_revision,
+    local.source_package_revision,
     var.devops_repository_branch,
     oci_devops_repository.source[0].id
   ]
@@ -117,6 +118,7 @@ resource "terraform_data" "seed_devops_repository" {
     devops_repository_http_url = oci_devops_repository.source[0].http_url
     devops_repository_branch   = var.devops_repository_branch
     source_branch              = var.source_branch
+    source_package_revision    = local.source_package_revision
     source_revision            = var.source_revision
     source_repo_url            = var.source_repo_url
     username                   = var.devops_repository_git_username
@@ -529,6 +531,10 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "SOURCE_REVISION"
       value = var.source_revision
+    }
+    items {
+      name  = "SOURCE_PACKAGE_REVISION"
+      value = local.source_package_revision
     }
     items {
       name  = "DEPLOY_ONLY_APP"

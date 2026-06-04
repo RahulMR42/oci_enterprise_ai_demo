@@ -1,5 +1,20 @@
 locals {
-  project_name = "enterprise-ai-demo-devops-${var.resource_suffix}"
+  project_name        = "enterprise-ai-demo-devops-${var.resource_suffix}"
+  source_package_root = abspath("${path.module}/../..")
+  source_package_files = sort(distinct(concat(
+    tolist(fileset(local.source_package_root, "admin.html")),
+    tolist(fileset(local.source_package_root, "index.html")),
+    tolist(fileset(local.source_package_root, "package.json")),
+    tolist(fileset(local.source_package_root, "package-lock.json")),
+    tolist(fileset(local.source_package_root, "server.mjs")),
+    tolist(fileset(local.source_package_root, "apps/**")),
+    tolist(fileset(local.source_package_root, "backend/**")),
+    tolist(fileset(local.source_package_root, "infra/devops-hosted-image-build/**")),
+    tolist(fileset(local.source_package_root, "src/**"))
+  )))
+  source_package_revision = sha256(join(",", [
+    for file_path in local.source_package_files : "${file_path}:${filesha256("${local.source_package_root}/${file_path}")}"
+  ]))
 
   repositories = {
     hosted_agent = "enterprise-ai-demo/hosted-agent-${var.resource_suffix}"
@@ -85,7 +100,7 @@ locals {
   }
   selected_hosted_image_artifacts = {
     for key, artifact in local.image_artifacts : key => artifact
-    if key != "portal" && (var.deploy_only_app || contains(keys(local.selected_hosted_application_deployments), key))
+    if key != "portal"
   }
   selected_image_artifacts = merge(
     { portal = local.image_artifacts.portal },

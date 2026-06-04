@@ -225,19 +225,6 @@ variable "shared_policy_id" {
   default     = ""
 }
 
-variable "ocir_username" {
-  description = "OCIR username used by the DevOps build to push images."
-  type        = string
-  default     = ""
-}
-
-variable "ocir_auth_token" {
-  description = "OCIR auth token used by the DevOps build to push images."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "idcs_domain_url" {
   description = "Existing identity domain URL used for hosted application inbound OAuth authentication."
   type        = string
@@ -387,7 +374,7 @@ variable "run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, build and deliver only the portal image and skip hosted application image delivery and deployment stages so only the portal app container is redeployed."
+  description = "When true, hosted application deployment commands exit as skipped so only the portal app container is redeployed."
   type        = bool
   default     = false
 }

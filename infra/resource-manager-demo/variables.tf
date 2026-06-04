@@ -105,7 +105,7 @@ variable "devops_hosted_image_run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, the OCI DevOps pipeline builds and delivers only the portal image and skips hosted application image delivery and deployment stages so only the portal app container is redeployed."
+  description = "When true, hosted application deployment commands exit as skipped so only the portal app container is redeployed."
   type        = bool
   default     = false
 }
@@ -273,19 +273,6 @@ variable "devops_source_access_token_secret_id" {
     condition     = var.devops_source_access_token_secret_id == "" || can(regex("^ocid1\\.vaultsecret\\.oc1\\.", var.devops_source_access_token_secret_id))
     error_message = "devops_source_access_token_secret_id must be empty or a valid OCI Vault secret OCID."
   }
-}
-
-variable "devops_ocir_username" {
-  description = "OCIR username used by the DevOps build to push hosted app images."
-  type        = string
-  default     = ""
-}
-
-variable "devops_ocir_auth_token" {
-  description = "OCIR auth token used by the DevOps build to push hosted app images."
-  type        = string
-  sensitive   = true
-  default     = ""
 }
 
 variable "hosted_app_container_cli" {

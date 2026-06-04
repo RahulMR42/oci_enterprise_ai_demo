@@ -1,4 +1,10 @@
 resource "terraform_data" "file_search_vector_store" {
+  triggers_replace = [
+    "resource-manager-generated-runtime-files-20260604",
+    var.resource_suffix,
+    var.oci_genai_project_id
+  ]
+
   input = {
     compartment_id         = var.compartment_id
     control_plane_base_url = local.control_plane_base_url
@@ -141,6 +147,8 @@ PY
 
 resource "terraform_data" "file_search_seed_documents" {
   depends_on = [terraform_data.file_search_vector_store]
+
+  triggers_replace = [terraform_data.file_search_vector_store.id]
 
   input = {
     compartment_id              = var.compartment_id

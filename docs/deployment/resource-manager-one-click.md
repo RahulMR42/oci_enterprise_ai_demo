@@ -12,8 +12,8 @@ The OCI DevOps pipeline created by the stack:
 
 - clones the public GitHub branch into an OCI DevOps code repository,
 - always builds and delivers the Enterprise AI portal image,
-- builds and delivers only the hosted demo container images selected by `APP_DEPLOY` or the `OCI_HA_*_DEPLOY` switches,
-- runs one managed hosted-deployment build stage per selected hosted app, each starting after its matching image delivery stage.
+- keeps the hosted image and deployment stages stable so Resource Manager updates do not delete OCI DevOps stages,
+- runs hosted-deployment commands only when `APP_DEPLOY` or the matching `OCI_HA_*_DEPLOY` switch selects that hosted app; otherwise the stage logs that it was skipped.
 - rolls a replacement portal container instance behind the load balancer, waits for backend health, switches traffic, runs smoke tests, and deletes the old portal container instance after the new one is serving.
 
 The stack package includes `infra/resource-manager-demo/schema.yaml`, so OCI Resource Manager renders grouped inputs for target tenancy/compartment, source branch, DevOps credentials, portal settings, OCI Generative AI runtime values, and hosted application auth. Terraform variable validation enforces OCID shapes, branch names, CIDR syntax, port and size ranges, and the Resource Manager-safe defaults.
@@ -31,8 +31,6 @@ Create or collect these values:
 | Six-character resource suffix | Keeps names stable across reruns, for example `fd2ed9`. |
 | OCI DevOps Git username | Resource Manager pushes the cloned GitHub source into the OCI DevOps repo. |
 | OCI DevOps Git password/auth token | Used only for that OCI DevOps repo push. |
-| OCIR username | DevOps build argument for image publishing. |
-| OCIR auth token | DevOps build argument for image publishing. |
 | OCI Generative AI project ID and API key | Injected into the portal so non-hosted demos can call OCI Responses API. |
 | IDCS domain URL, audience, and scope | Used for hosted application inbound auth. |
 

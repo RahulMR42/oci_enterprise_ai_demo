@@ -174,6 +174,23 @@ function renderRunCountBadge(featureId) {
   return `<span class="run-count-badge" data-run-count-feature="${featureId}" aria-label="${count} demo launches" title="${count} demo launches">${count}</span>`;
 }
 
+function hostedReferenceDetails(featureId) {
+  const config = hostedReferenceConfig(featureId);
+  if (!config) {
+    return null;
+  }
+  const hostedUrl = infraState[config.urlKey] || "";
+  const hostedDeploymentId = infraState[config.deploymentIdKey] || "";
+  const value = hostedUrl || hostedDeploymentId;
+  if (!value) {
+    return null;
+  }
+  return {
+    label: config.label,
+    value
+  };
+}
+
 function refreshRunCountBadge(featureId) {
   const count = demoRunCount(featureId);
   document.querySelectorAll(`[data-run-count-feature="${featureId}"]`).forEach((badge) => {
@@ -1169,6 +1186,7 @@ const ociFeatureSourceFiles = {
 
 function featureCard(feature, index) {
   const hasFlowDiagram = Boolean(flowDiagrams[feature.id]);
+  const hostedReference = hostedReferenceDetails(feature.id);
 
   return `
     <article class="feature-card accent-${feature.accent}" tabindex="0" data-card style="--card-index: '${String(index + 1).padStart(2, "0")}'">
@@ -1184,6 +1202,11 @@ function featureCard(feature, index) {
             <p class="category">${feature.serviceArea}</p>
             <h2>${feature.title}</h2>
             <p class="summary">${feature.summary}</p>
+            ${
+              hostedReference
+                ? `<p class="hosted-card-reference"><span>${escapeHtml(hostedReference.label)}</span><code>${escapeHtml(hostedReference.value)}</code></p>`
+                : ""
+            }
           </div>
           <div class="rating-shell" data-rating-shell="${feature.id}" data-rating-placement="card">
             ${renderDemoRatingControl(feature.id, "card")}
@@ -1565,6 +1588,20 @@ function hostedReferenceValue(featureId) {
     return "";
   }
   return infraState[config.urlKey] || infraState[config.deploymentIdKey] || "";
+}
+
+function shouldSendHostedAppReference(featureId) {
+  return Boolean(hostedReferenceConfig(featureId)) && !hostedUiLaunchDemoIds.includes(featureId);
+}
+
+function visibleRequestPayload(payload = {}) {
+  const visiblePayload = { ...payload };
+  delete visiblePayload.hostedAppReference;
+  delete visiblePayload.hostedUrl;
+  if (/^https?:\/\//i.test(String(visiblePayload.launchUrl || ""))) {
+    visiblePayload.launchUrl = "<provided hosted URL>";
+  }
+  return visiblePayload;
 }
 
 function renderFeatureSnippet(featureId) {
@@ -2579,6 +2616,7 @@ async function loadResponsesInfrastructureState({ refresh = false } = {}) {
 
     if (Array.isArray(result.components) && result.components.length > 0) {
       applyProvisionedValues(result);
+      renderFeatureGrid(document.getElementById("feature-search")?.value || "");
       return;
     }
 
@@ -2635,7 +2673,7 @@ document.getElementById("responses-run-button").addEventListener("click", async 
   const temperature = Number.parseFloat(document.getElementById("responses-temperature").value);
   const model = document.getElementById("responses-model").value.trim() || "openai.gpt-oss-120b";
   const toolResourceId = document.getElementById("responses-tool-resource-id").value.trim();
-  const hostedReferenceValue = hostedReferenceConfig(activeDemoId)
+  const hostedReferenceValue = shouldSendHostedAppReference(activeDemoId)
     ? document.getElementById("responses-hosted-reference-value").value.trim()
     : "";
   const conversationId = activeDemoId === "conversation-store" ? toolResourceId || infraState.conversationId : "";
@@ -2660,13 +2698,13 @@ document.getElementById("responses-run-button").addEventListener("click", async 
     vectorStoreId,
     codeInterpreterContainer,
     createNewCodeInterpreterContainer,
-    hostedAppReference: hostedReferenceValue,
+    ...(hostedReferenceValue ? { hostedAppReference: hostedReferenceValue } : {}),
     ...getResponsesConfig()
   };
 
   document.getElementById("responses-request").textContent = JSON.stringify(
     {
-      ...requestPayload,
+      ...visibleRequestPayload(requestPayload),
       apiKey: infraState.apiKeyAvailable ? "<from provisioned state>" : ""
     },
     null,
@@ -2781,7 +2819,7 @@ function launchExternalDemo(featureId) {
     hostedAppReference,
     hostedDeploymentId: config.hostedDeploymentId
   };
-  document.getElementById("responses-request").textContent = JSON.stringify(requestPayload, null, 2);
+  document.getElementById("responses-request").textContent = JSON.stringify(visibleRequestPayload(requestPayload), null, 2);
 
   if (!effectiveHostedUrl) {
     renderDemoOutput(`Deploy the hosted application externally and refresh deployment metadata before launching ${config.shortLabel}.`);
@@ -2838,10 +2876,8 @@ function launchExternalDemo(featureId) {
     status: "success",
     feature: config.label,
     mode: "hosted-ui-launch",
-    relevantOutput: `Opened ${config.shortLabel} through ${hostedAppReference ? "the provided hosted reference" : "local IDCS-authenticated launch proxy"}: ${launchTarget}`,
-    launchUrl: launchTarget,
-    hostedUrl: effectiveHostedUrl,
-    hostedAppReference,
+    relevantOutput: `Opened ${config.shortLabel} through ${hostedAppReference ? "the provided hosted reference" : "the local IDCS-authenticated launch proxy"}.`,
+    launchUrl: hostedAppReference ? "<provided hosted URL>" : launchTarget,
     hostedDeploymentId: config.hostedDeploymentId
   });
   renderLiveLogs([

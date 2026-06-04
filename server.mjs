@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { extname, join, normalize } from "node:path";
+import { basename, extname, join, normalize, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { appVersion } from "./src/version.js";
 
@@ -100,6 +100,29 @@ function safeLogName(value = "demo") {
   return String(value || "demo").replace(/[^a-z0-9-]/gi, "-").toLowerCase().slice(0, 80);
 }
 
+function isSensitiveConfigKey(key = "") {
+  return /secret|password|passwd|passphrase|token|authorization|api[_-]?key|apikey|client[_-]?secret|credential|private[_-]?key|cookie|session|jwt|bearer/i.test(
+    String(key || "")
+  );
+}
+
+export function safeEnvironmentSnapshot(env = process.env) {
+  const entries = Object.entries(env || {});
+  const variables = entries
+    .filter(([key]) => !isSensitiveConfigKey(key))
+    .map(([key, value]) => ({
+      key,
+      value: redactSensitiveText(String(value ?? ""))
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key, undefined, { sensitivity: "base" }));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    hiddenCount: entries.length - variables.length,
+    variables
+  };
+}
+
 function redactForDemoLog(value) {
   if (Array.isArray(value)) {
     return value.map(redactForDemoLog);
@@ -107,14 +130,27 @@ function redactForDemoLog(value) {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => {
-        if (/secret|password|token|authorization|apiKey|clientSecret/i.test(key)) {
+        if (isSensitiveConfigKey(key)) {
           return [key, "<redacted>"];
         }
         return [key, redactForDemoLog(item)];
       })
     );
   }
+  if (typeof value === "string") {
+    return redactSensitiveText(value);
+  }
   return value;
+}
+
+function redactSensitiveText(value = "") {
+  return String(value)
+    .replace(/(authorization\s*[:=]\s*bearer\s+)[^\s"']+/gi, "$1<redacted>")
+    .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]{12,}/gi, "$1<redacted>")
+    .replace(
+      /((?:secret|token|password|api[_-]?key|client[_-]?secret|auth[_-]?token)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
+      "$1<redacted>"
+    );
 }
 
 function writeDemoLog(featureId, payload = {}) {
@@ -130,7 +166,7 @@ function writeDemoLog(featureId, payload = {}) {
 }
 
 function demoLogPreview(value = "") {
-  return String(value || "").slice(0, 4000);
+  return redactSensitiveText(String(value || "").slice(0, 4000));
 }
 
 function demoLogObjectPreview(value = {}) {
@@ -1210,11 +1246,7 @@ export function selectHostedRuntimeCandidate({
   const deploymentLifecycleState = deploymentResource?.["lifecycle-state"] || deploymentResource?.lifecycleState || "";
   const hostedApplicationId = applicationResource?.identifier || (applicationDiscoverySucceeded ? "" : current.hostedApplicationId || "");
   const hostedDeploymentId = deploymentResource?.identifier || (deploymentDiscoverySucceeded ? "" : current.hostedDeploymentId || envDeploymentId || "");
-  const endpoint = hostedApplicationId
-    ? hostedApplicationInvokeUrl(hostedApplicationId, region)
-    : applicationDiscoverySucceeded
-      ? ""
-      : current.url || current.endpoint || envUrl || "";
+  const endpoint = hostedLaunchEndpointFromResource(applicationResource) || (applicationDiscoverySucceeded ? "" : usableHostedLaunchUrl(current.url, current.endpoint, envUrl));
 
   return {
     hostedApplicationId,
@@ -1422,6 +1454,38 @@ function hostedApplicationInvokeUrl(hostedApplicationId, region = "us-chicago-1"
     : "";
 }
 
+function isOciHostedApplicationInvokeUrl(value = "") {
+  return /^https:\/\/application\.generativeai\.[a-z0-9-]+\.oci\.oraclecloud\.com\/[0-9]+\/hostedApplications\/ocid1\.generativeaihostedapplication\.[^/]+\/actions\/invoke\/?/i.test(
+    String(value || "")
+  );
+}
+
+function usableHostedLaunchUrl(...values) {
+  for (const value of values) {
+    const candidate = String(value || "").trim();
+    if (candidate && !isOciHostedApplicationInvokeUrl(candidate)) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+function hostedLaunchEndpointFromResource(resource = null) {
+  if (!resource || typeof resource !== "object") {
+    return "";
+  }
+  return usableHostedLaunchUrl(
+    resource.url,
+    resource.endpoint,
+    resource.endpointUrl,
+    resource.endpoint_url,
+    resource["endpoint-url"],
+    resource.launchUrl,
+    resource.launch_url,
+    resource["launch-url"]
+  );
+}
+
 function hostedRuntimeKindForFeature(featureId = "") {
   return {
     "hosted-agentic-applications": "hosted-agent",
@@ -1439,12 +1503,12 @@ export function resolvePayloadHostedRuntime(featureId = "", payload = {}) {
   }
 
   if (/^https?:\/\//i.test(reference)) {
-    return { kind, hostedUrl: reference, hostedDeploymentId: "", hostedApplicationId: "" };
+    return { kind, hostedUrl: usableHostedLaunchUrl(reference), hostedDeploymentId: "", hostedApplicationId: "" };
   }
   if (reference.startsWith("ocid1.generativeaihostedapplication.")) {
     return {
       kind,
-      hostedUrl: hostedApplicationInvokeUrl(reference, payload.region || process.env.OCI_GENAI_REGION || "us-chicago-1"),
+      hostedUrl: "",
       hostedDeploymentId: "",
       hostedApplicationId: reference
     };
@@ -1479,23 +1543,21 @@ function hostedRuntimeEnvOverrides(hostedRuntime = {}) {
 
 function readLangfuseLaunchUrl() {
   const observability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
-  return (
-    observability.url ||
-    observability.endpoint ||
-    process.env.OCI_HOSTED_LANGFUSE_URL ||
-    portalRuntimeHostedValue("LANGFUSE_URL") ||
-    hostedApplicationInvokeUrl(observability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+  return usableHostedLaunchUrl(
+    observability.url,
+    observability.endpoint,
+    process.env.OCI_HOSTED_LANGFUSE_URL,
+    portalRuntimeHostedValue("LANGFUSE_URL")
   );
 }
 
 function readOpenClawLaunchUrl() {
   const gateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
-  return (
-    gateway.url ||
-    gateway.endpoint ||
-    process.env.OCI_HOSTED_OPENCLAW_URL ||
-    portalRuntimeHostedValue("OPENCLAW_URL") ||
-    hostedApplicationInvokeUrl(gateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+  return usableHostedLaunchUrl(
+    gateway.url,
+    gateway.endpoint,
+    process.env.OCI_HOSTED_OPENCLAW_URL,
+    portalRuntimeHostedValue("OPENCLAW_URL")
   );
 }
 
@@ -1505,12 +1567,11 @@ function readLlamaIndexControlTowerMetadata() {
 
 function readLlamaIndexControlTowerLaunchUrl() {
   const controlTower = readLlamaIndexControlTowerMetadata();
-  return (
-    controlTower.url ||
-    controlTower.endpoint ||
-    process.env.OCI_HOSTED_LLAMAINDEX_URL ||
-    portalRuntimeHostedValue("LLAMAINDEX_URL") ||
-    hostedApplicationInvokeUrl(controlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+  return usableHostedLaunchUrl(
+    controlTower.url,
+    controlTower.endpoint,
+    process.env.OCI_HOSTED_LLAMAINDEX_URL,
+    portalRuntimeHostedValue("LLAMAINDEX_URL")
   );
 }
 
@@ -2141,9 +2202,9 @@ function demoRuntimeComponents() {
   const langfuseArtifact = langfuseDeployment["active-artifact"] || langfuseDeployment.active_artifact || {};
   const openclawArtifact = openclawDeployment["active-artifact"] || openclawDeployment.active_artifact || {};
   const llamaIndexArtifact = llamaIndexDeployment["active-artifact"] || llamaIndexDeployment.active_artifact || {};
-  const langfuseHostedUrl = langfuseObservability.url || langfuseObservability.endpoint || hostedApplicationInvokeUrl(langfuseObservability.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
-  const openclawHostedUrl = openclawGateway.url || openclawGateway.endpoint || hostedApplicationInvokeUrl(openclawGateway.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
-  const llamaIndexHostedUrl = llamaIndexControlTower.url || llamaIndexControlTower.endpoint || hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1");
+  const langfuseHostedUrl = usableHostedLaunchUrl(langfuseObservability.url, langfuseObservability.endpoint);
+  const openclawHostedUrl = usableHostedLaunchUrl(openclawGateway.url, openclawGateway.endpoint);
+  const llamaIndexHostedUrl = usableHostedLaunchUrl(llamaIndexControlTower.url, llamaIndexControlTower.endpoint);
   const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID");
   const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL");
   const langGraphDeploymentIdEnv = process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID");
@@ -2155,9 +2216,9 @@ function demoRuntimeComponents() {
   const openclawDeploymentIdEnv = process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || portalRuntimeHostedValue("OPENCLAW_DEPLOYMENT_ID");
   const llamaIndexDeploymentIdEnv = process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || portalRuntimeHostedValue("LLAMAINDEX_DEPLOYMENT_ID");
   const finalHostedAgentDeploymentId = hostedAgent.hostedDeploymentId || hostedAgentDeploymentIdEnv;
-  const finalHostedAgentUrl = hostedAgent.endpoint || hostedAgentUrlEnv;
+  const finalHostedAgentUrl = usableHostedLaunchUrl(hostedAgent.endpoint, hostedAgent.url, hostedAgentUrlEnv);
   const finalLangGraphDeploymentId = langGraphAgent.hostedDeploymentId || langGraphDeploymentIdEnv;
-  const finalLangGraphHostedUrl = langGraphAgent.endpoint || langGraphHostedUrlEnv;
+  const finalLangGraphHostedUrl = usableHostedLaunchUrl(langGraphAgent.endpoint, langGraphAgent.url, langGraphHostedUrlEnv);
   const finalLangfuseDeploymentId = langfuseObservability.hostedDeploymentId || langfuseDeploymentIdEnv;
   const finalOpenclawDeploymentId = openclawGateway.hostedDeploymentId || openclawDeploymentIdEnv;
   const finalLlamaIndexDeploymentId = llamaIndexControlTower.hostedDeploymentId || llamaIndexDeploymentIdEnv;
@@ -2165,9 +2226,9 @@ function demoRuntimeComponents() {
   const finalVectorStoreId = vectorStore.id || process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId");
   const finalCodeInterpreterContainerId =
     codeContainer.id || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeValue("codeInterpreterContainerId");
-  const finalLangfuseHostedUrl = langfuseHostedUrl || langfuseHostedUrlEnv;
-  const finalOpenclawHostedUrl = openclawHostedUrl || openclawHostedUrlEnv;
-  const finalLlamaIndexHostedUrl = llamaIndexHostedUrl || llamaIndexHostedUrlEnv;
+  const finalLangfuseHostedUrl = usableHostedLaunchUrl(langfuseHostedUrl, langfuseHostedUrlEnv);
+  const finalOpenclawHostedUrl = usableHostedLaunchUrl(openclawHostedUrl, openclawHostedUrlEnv);
+  const finalLlamaIndexHostedUrl = usableHostedLaunchUrl(llamaIndexHostedUrl, llamaIndexHostedUrlEnv);
 
   return [
     component(
@@ -2502,6 +2563,154 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
     },
     logs: [...refreshLogs, ...currentState.logs]
   };
+}
+
+function safeRelativePath(filePath = "") {
+  if (!filePath) {
+    return "";
+  }
+  const relativePath = relative(root, filePath);
+  return relativePath.startsWith("..") ? basename(filePath) : relativePath;
+}
+
+function componentType(address = "") {
+  if (address.startsWith("generated.")) {
+    return "generated";
+  }
+  const [type = "resource"] = String(address).split(".");
+  return type;
+}
+
+function sanitizeAdminComponent(component = {}) {
+  return redactForDemoLog({
+    address: component.address || "",
+    name: component.name || component.address || "Resource",
+    status: component.status || "unknown",
+    type: component.type || componentType(component.address || ""),
+    value: component.value || ""
+  });
+}
+
+export function summarizeAdminInfrastructureState(state = {}) {
+  const components = (Array.isArray(state.components) ? state.components : []).map(sanitizeAdminComponent);
+  const typeCounts = components.reduce((counts, component) => {
+    const type = component.type || "resource";
+    counts[type] = (counts[type] || 0) + 1;
+    return counts;
+  }, {});
+  const statusCounts = components.reduce((counts, component) => {
+    const status = component.status || "unknown";
+    counts[status] = (counts[status] || 0) + 1;
+    return counts;
+  }, {});
+  const modules = [...new Set(
+    components
+      .map((component) => String(component.address || "").split(".").slice(0, 2).join("."))
+      .filter(Boolean)
+  )].sort();
+
+  return redactForDemoLog({
+    generatedAt: new Date().toISOString(),
+    status: state.status || "unknown",
+    values: state.values || {},
+    summary: {
+      totalResources: components.length,
+      createdResources: statusCounts.created || 0,
+      failedResources: statusCounts.failed || 0,
+      pendingResources: (statusCounts["not-created"] || 0) + (statusCounts.warning || 0)
+    },
+    schema: {
+      sources: ["Terraform state", "Runtime generated metadata", "Object Storage runtime config"],
+      resourceTypes: Object.entries(typeCounts)
+        .map(([type, count]) => ({ type, count }))
+        .sort((left, right) => right.count - left.count || left.type.localeCompare(right.type)),
+      modules
+    },
+    components,
+    logs: (Array.isArray(state.logs) ? state.logs : []).map((log) => redactForDemoLog({
+      label: log.label || "Infrastructure state",
+      status: log.status || "unknown",
+      startedAt: log.startedAt || "",
+      finishedAt: log.finishedAt || "",
+      exitCode: log.exitCode ?? null,
+      stdout: demoLogPreview(log.stdout || ""),
+      stderr: demoLogPreview(log.stderr || "")
+    }))
+  });
+}
+
+export async function readAdminInfrastructureState({ refresh = false } = {}) {
+  return summarizeAdminInfrastructureState(await getResponsesInfrastructureState({ refresh }));
+}
+
+function readTextTail(filePath, maxCharacters = 6000) {
+  const text = readFileSync(filePath, "utf8");
+  return text.length > maxCharacters ? `... ${text.slice(-maxCharacters)}` : text;
+}
+
+function readBootstrapLogEntries(limit = 12) {
+  const logRoot = join(root, "logs");
+  if (!existsSync(logRoot)) {
+    return [];
+  }
+  return readdirSync(logRoot, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.(log|txt)$/i.test(entry.name))
+    .map((entry) => {
+      const filePath = join(logRoot, entry.name);
+      const stats = statSync(filePath);
+      return {
+        source: "bootstrap",
+        name: entry.name,
+        status: "available",
+        createdAt: stats.mtime.toISOString(),
+        path: safeRelativePath(filePath),
+        sizeBytes: stats.size,
+        preview: demoLogPreview(readTextTail(filePath))
+      };
+    })
+    .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
+    .slice(0, limit);
+}
+
+export function readAdminLogSummary() {
+  const history = readDemoRunHistory();
+  const demoLogs = history.runs.slice(0, 30).map((run) => redactForDemoLog({
+    source: "demo",
+    name: run.featureId || "unknown",
+    status: run.status || "unknown",
+    createdAt: run.createdAt || "",
+    path: safeRelativePath(run.logFile || ""),
+    sizeBytes: 0,
+    preview: [
+      run.error ? `error: ${run.error}` : "",
+      run.stdout ? `stdout:\n${run.stdout}` : "",
+      run.stderr ? `stderr:\n${run.stderr}` : ""
+    ].filter(Boolean).join("\n\n") || JSON.stringify({
+      action: run.action || "run",
+      durationMs: run.durationMs || 0,
+      trace: run.trace || [],
+      logs: run.logs || []
+    }, null, 2)
+  }));
+  const bootstrapLogs = readBootstrapLogEntries();
+  const logs = [...demoLogs, ...bootstrapLogs]
+    .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
+    .slice(0, 60);
+
+  return redactForDemoLog({
+    generatedAt: new Date().toISOString(),
+    sources: [
+      { name: "demo", count: demoLogs.length },
+      { name: "bootstrap", count: bootstrapLogs.length },
+      { name: "container", count: 0 }
+    ],
+    containerLogs: {
+      status: "manual",
+      note: "Portal startup logs are shown from local log capture. OCI container logs can be retrieved with the container retrieve-logs command when a container OCID is available.",
+      command: `oci container-instances container retrieve-logs --container-id <container-ocid> --region ${process.env.OCI_GENAI_REGION || "us-chicago-1"}`
+    },
+    logs
+  });
 }
 
 function demoCallSnippet(featureId) {
@@ -3051,6 +3260,65 @@ export const server = createServer(async (request, response) => {
         demos: [],
         runs: [],
         error: error.message
+      });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && requestPath === "/api/admin/runtime-env") {
+    try {
+      sendJson(response, 200, safeEnvironmentSnapshot());
+    } catch (error) {
+      sendJson(response, 500, {
+        generatedAt: new Date().toISOString(),
+        hiddenCount: 0,
+        variables: [],
+        error: error.message
+      });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && requestPath === "/api/admin/infra") {
+    try {
+      const result = await readAdminInfrastructureState({ refresh: parsedUrl.searchParams.get("refresh") === "true" });
+      sendJson(response, 200, result);
+    } catch (error) {
+      sendJson(response, 500, {
+        generatedAt: new Date().toISOString(),
+        status: "failed",
+        summary: {
+          totalResources: 0,
+          createdResources: 0,
+          failedResources: 0,
+          pendingResources: 0
+        },
+        schema: {
+          sources: [],
+          resourceTypes: [],
+          modules: []
+        },
+        components: [],
+        logs: [],
+        error: error.message
+      });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && requestPath === "/api/admin/logs") {
+    try {
+      sendJson(response, 200, readAdminLogSummary());
+    } catch (error) {
+      sendJson(response, 500, {
+        generatedAt: new Date().toISOString(),
+        sources: [],
+        containerLogs: {
+          status: "unavailable",
+          note: error.message,
+          command: ""
+        },
+        logs: []
       });
     }
     return;

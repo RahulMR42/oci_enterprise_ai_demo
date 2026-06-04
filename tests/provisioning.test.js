@@ -22,7 +22,11 @@ import {
   rewriteLangfuseLaunchJson,
   rewriteLangfuseLaunchHtml,
   proxyResponseHeaders,
+  resolvePayloadHostedRuntime,
+  readAdminLogSummary,
+  safeEnvironmentSnapshot,
   selectHostedRuntimeCandidate,
+  summarizeAdminInfrastructureState,
   summarizeDemoRunHistory
 } from "../server.mjs";
 
@@ -113,6 +117,80 @@ test("server exposes redacted administration demo run history", () => {
   assert.match(server, /writePersistentDemoRunRecord/);
   assert.match(server, /portalRunHistoryObject/);
   assert.match(server, /OCI_PORTAL_RUN_HISTORY_OBJECT/);
+});
+
+test("server exposes non-secret runtime environment variables for administration", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const admin = readFileSync("src/admin.js", "utf8");
+  const html = readFileSync("admin.html", "utf8");
+  const snapshot = safeEnvironmentSnapshot({
+    OCI_GENAI_REGION: "us-chicago-1",
+    OCI_HOSTED_APP_IDCS_DOMAIN_URL: "https://idcs.example.com",
+    OCI_HOSTED_APP_IDCS_CLIENT_SECRET: "secret-client",
+    OCI_GENAI_API_KEY: "secret-api-key",
+    OCI_PORTAL_PASSWORD: "portal-password",
+    PATH: "/usr/bin"
+  });
+
+  assert.deepEqual(
+    snapshot.variables.map((entry) => entry.key),
+    ["OCI_GENAI_REGION", "OCI_HOSTED_APP_IDCS_DOMAIN_URL", "PATH"]
+  );
+  assert.equal(snapshot.hiddenCount, 3);
+  assert.equal(JSON.stringify(snapshot).includes("secret-client"), false);
+  assert.equal(JSON.stringify(snapshot).includes("secret-api-key"), false);
+  assert.equal(JSON.stringify(snapshot).includes("portal-password"), false);
+  assert.match(server, /requestPath === "\/api\/admin\/runtime-env"/);
+  assert.match(admin, /\/api\/admin\/runtime-env/);
+  assert.match(html, /admin-runtime-env/);
+});
+
+test("server exposes redacted administration infrastructure and logs", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const admin = readFileSync("src/admin.js", "utf8");
+  const html = readFileSync("admin.html", "utf8");
+  const infra = summarizeAdminInfrastructureState({
+    status: "created",
+    values: {
+      projectId: "ocid1.generativeaiproject.example",
+      apiKeyAvailable: true
+    },
+    components: [
+      {
+        address: "oci_core_vcn.portal[0]",
+        name: "Portal VCN",
+        status: "created",
+        value: "enterprise-ai-demo-vcn"
+      },
+      {
+        address: "terraform_data.example",
+        name: "Generated Example",
+        status: "created",
+        value: "client_secret=very-sensitive"
+      }
+    ],
+    logs: [
+      {
+        label: "state",
+        status: "success",
+        stdout: "token=very-sensitive",
+        stderr: "ok"
+      }
+    ]
+  });
+
+  assert.equal(infra.summary.totalResources, 2);
+  assert.equal(infra.schema.resourceTypes.some((item) => item.type === "oci_core_vcn"), true);
+  assert.equal(JSON.stringify(infra).includes("very-sensitive"), false);
+  assert.match(server, /requestPath === "\/api\/admin\/infra"/);
+  assert.match(server, /requestPath === "\/api\/admin\/logs"/);
+  assert.match(server, /readAdminLogSummary/);
+  assert.match(server, /summarizeAdminInfrastructureState/);
+  assert.match(server, /redactSensitiveText/);
+  assert.match(admin, /\/api\/admin\/infra/);
+  assert.match(admin, /\/api\/admin\/logs/);
+  assert.match(html, /admin-panel-infra/);
+  assert.match(html, /admin-panel-logs/);
 });
 
 test("administration run history keeps failure details available for troubleshooting", () => {
@@ -245,6 +323,34 @@ test("hosted runtime discovery prefers newest active application over stale expo
     envDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
     applicationResource: {
       identifier: "ocid1.generativeaihostedapplication.active",
+      "lifecycle-state": "ACTIVE",
+      endpoint: "https://active-hosted.example.com/"
+    },
+    deploymentResource: {
+      identifier: "ocid1.generativeaihosteddeployment.active",
+      "lifecycle-state": "ACTIVE"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.active");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.active");
+  assert.equal(selected.endpoint, "https://active-hosted.example.com/");
+});
+
+test("hosted runtime discovery does not synthesize OCI API invoke URLs for browser launch", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.stale",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.stale",
+      endpoint: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.stale/actions/invoke/"
+    },
+    envUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.stale/actions/invoke/",
+    envDeploymentId: "ocid1.generativeaihosteddeployment.stale",
+    applicationResource: {
+      identifier: "ocid1.generativeaihostedapplication.active",
       "lifecycle-state": "ACTIVE"
     },
     deploymentResource: {
@@ -258,7 +364,18 @@ test("hosted runtime discovery prefers newest active application over stale expo
 
   assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.active");
   assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.active");
-  assert.equal(selected.endpoint.includes("ocid1.generativeaihostedapplication.active"), true);
+  assert.equal(selected.endpoint, "");
+});
+
+test("hosted application OCID overrides do not become unauthenticated invoke URLs", () => {
+  const runtime = resolvePayloadHostedRuntime("agentic-control-tower", {
+    hostedAppReference: "ocid1.generativeaihostedapplication.example",
+    region: "us-chicago-1"
+  });
+
+  assert.equal(runtime.kind, "llamaindex");
+  assert.equal(runtime.hostedApplicationId, "ocid1.generativeaihostedapplication.example");
+  assert.equal(runtime.hostedUrl, "");
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {
@@ -739,7 +856,7 @@ test("run dialog exposes editable hosted app references for hosted-backed demos"
   assert.match(main, /hostedReferenceVisible/);
   assert.match(main, /responses-hosted-reference-field/);
   assert.match(main, /responses-hosted-reference-value/);
-  assert.match(main, /hostedAppReference: hostedReferenceValue/);
+  assert.match(main, /shouldSendHostedAppReference/);
   assert.match(main, /hostedRuntimeReferences/);
   assert.match(main, /langfuse-hosted-observability/);
   assert.match(main, /agentic-control-tower/);
@@ -747,4 +864,14 @@ test("run dialog exposes editable hosted app references for hosted-backed demos"
   assert.match(server, /resolvePayloadHostedRuntime/);
   assert.match(server, /OCI_HOSTED_AGENT_URL: hostedRuntime\.hostedUrl/);
   assert.match(server, /OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID: hostedRuntime\.hostedDeploymentId/);
+});
+
+test("hosted application references are displayed on hosted cards instead of generic run payloads", () => {
+  const main = readFileSync("src/main.js", "utf8");
+
+  assert.match(main, /hostedReferenceDetails/);
+  assert.match(main, /class="hosted-card-reference"/);
+  assert.match(main, /visibleRequestPayload/);
+  assert.match(main, /delete visiblePayload\.hostedAppReference/);
+  assert.match(main, /delete visiblePayload\.hostedUrl/);
 });

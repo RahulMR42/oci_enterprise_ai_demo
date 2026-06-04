@@ -3,12 +3,27 @@ set -euo pipefail
 
 HOSTED_APP_KEY="${1:?HOSTED_APP_KEY is required}"
 
+skip_hosted_deployment() {
+  local reason="$1"
+  local url_var="${HOSTED_APP_KEY}_URL"
+  local deployment_var="${HOSTED_APP_KEY}_DEPLOYMENT_ID"
+
+  echo "Skipping ${HOSTED_APP_KEY} hosted deployment because ${reason}."
+  export "${url_var}="
+  export "${deployment_var}="
+  printf '%s=\n%s=\n' "$url_var" "$deployment_var" | tee "hosted-deployments-${HOSTED_APP_KEY}.env"
+  exit 0
+}
+
+deploy_only_app="${DEPLOY_ONLY_APP:-false}"
+if [ "${deploy_only_app,,}" = "true" ]; then
+  skip_hosted_deployment "DEPLOY_ONLY_APP is true"
+fi
+
 deploy_selector="${APP_DEPLOY:-none}"
 deploy_flag_name="OCI_HA_${HOSTED_APP_KEY}_DEPLOY"
 if [ "${deploy_selector,,}" != "all" ] && [ "${!deploy_flag_name:-false}" != "true" ]; then
-  echo "Skipping ${HOSTED_APP_KEY} hosted deployment because ${deploy_flag_name} is not true and APP_DEPLOY is not all."
-  printf '%s_URL=\n%s_DEPLOYMENT_ID=\n' "$HOSTED_APP_KEY" "$HOSTED_APP_KEY" | tee "hosted-deployments-${HOSTED_APP_KEY}.env"
-  exit 0
+  skip_hosted_deployment "${deploy_flag_name} is not true and APP_DEPLOY is not all"
 fi
 
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY PIP_PROXY PIP_INDEX_URL PIP_EXTRA_INDEX_URL

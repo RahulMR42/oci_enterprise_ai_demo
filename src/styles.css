@@ -750,6 +750,36 @@ h1 {
   font-weight: 850;
 }
 
+.admin-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border: 1px solid rgba(49, 45, 42, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.admin-tab {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 14px;
+  color: var(--redwood-muted);
+  cursor: pointer;
+  background: transparent;
+  font-weight: 950;
+}
+
+.admin-tab.is-active {
+  color: #ffffff;
+  background: var(--redwood-brand-red);
+}
+
+.admin-panel[hidden] {
+  display: none;
+}
+
 .admin-metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -759,6 +789,8 @@ h1 {
 
 .admin-metric,
 .admin-demo-table,
+.admin-infra-panel,
+.admin-runtime-env-panel,
 .admin-run-log-panel {
   border: 1px solid rgba(49, 45, 42, 0.1);
   border-radius: 8px;
@@ -786,12 +818,16 @@ h1 {
 }
 
 .admin-demo-table,
+.admin-infra-panel,
+.admin-runtime-env-panel,
 .admin-run-log-panel {
   min-width: 0;
   padding: 14px;
 }
 
 .admin-demo-table h3,
+.admin-infra-panel h3,
+.admin-runtime-env-panel h3,
 .admin-run-log-panel h3 {
   margin: 0 0 12px;
   color: var(--redwood-ink);
@@ -844,6 +880,46 @@ h1 {
   margin-top: 14px;
 }
 
+.admin-runtime-env-panel {
+  margin-top: 14px;
+}
+
+.admin-infra-panel {
+  margin-top: 14px;
+}
+
+.admin-runtime-env {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-env-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(220px, 1.35fr);
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border: 1px solid rgba(49, 45, 42, 0.08);
+  border-radius: 8px;
+  background: var(--redwood-bg-soft);
+  color: var(--redwood-charcoal);
+  font-size: 0.82rem;
+}
+
+.admin-env-row strong,
+.admin-env-row code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-env-row strong {
+  color: var(--redwood-ink);
+}
+
+.admin-env-row code {
+  color: var(--redwood-muted);
+}
+
 .admin-run-log-heading {
   display: flex;
   align-items: center;
@@ -854,6 +930,13 @@ h1 {
 
 .admin-run-log-heading h2 {
   margin: 0;
+}
+
+.admin-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .admin-run-log-heading label {
@@ -873,6 +956,81 @@ h1 {
   color: var(--redwood-ink);
   background: #ffffff;
   font-weight: 850;
+}
+
+.admin-schema-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.admin-schema-card,
+.admin-resource-row {
+  border: 1px solid rgba(49, 45, 42, 0.08);
+  border-radius: 8px;
+  background: var(--redwood-bg-soft);
+}
+
+.admin-schema-card {
+  display: grid;
+  gap: 6px;
+  min-height: 78px;
+  padding: 10px;
+}
+
+.admin-schema-card strong,
+.admin-resource-row strong {
+  color: var(--redwood-ink);
+}
+
+.admin-schema-card span {
+  color: var(--redwood-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.admin-resource-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-resource-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.9fr) 126px 104px minmax(220px, 1.4fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: var(--redwood-charcoal);
+  font-size: 0.82rem;
+}
+
+.admin-resource-row[data-status="created"] {
+  border-color: rgba(4, 120, 87, 0.24);
+}
+
+.admin-resource-row[data-status="failed"] {
+  border-color: rgba(185, 28, 28, 0.24);
+}
+
+.admin-resource-row code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--redwood-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-container-log-note {
+  margin: 0 0 10px;
+  padding: 10px;
+  border-radius: 8px;
+  color: var(--redwood-muted);
+  background: var(--redwood-bg-soft);
+  font-size: 0.82rem;
+  font-weight: 850;
+  line-height: 1.45;
 }
 
 .admin-run-log {
@@ -1125,6 +1283,32 @@ h1 {
   color: rgba(255, 255, 255, 0.88);
   font-size: 0.92rem;
   font-weight: 680;
+}
+
+.hosted-card-reference {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  max-width: 100%;
+  margin: 10px 0 0;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(49, 45, 42, 0.18);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.hosted-card-reference span {
+  font-weight: 950;
+}
+
+.hosted-card-reference code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .rating-shell {
@@ -2581,7 +2765,8 @@ h1 {
   }
 
   .admin-metric-grid,
-  .admin-layout {
+  .admin-layout,
+  .admin-schema-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2644,6 +2829,8 @@ h1 {
   .admin-metric-grid,
   .admin-layout,
   .admin-demo-row,
+  .admin-schema-grid,
+  .admin-resource-row,
   .admin-run-log summary,
   .infra-layout,
   .component-row {

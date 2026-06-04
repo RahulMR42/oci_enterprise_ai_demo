@@ -18,6 +18,13 @@ function formatElapsedTime(milliseconds) {
   return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
 }
 
+const adminState = {
+  history: {},
+  infra: {},
+  logs: {},
+  runtimeEnv: {}
+};
+
 function renderMetrics(summary = {}) {
   const metrics = summary.metrics || {};
   document.getElementById("admin-metric-grid").innerHTML = [
@@ -53,39 +60,105 @@ function renderUsage(summary = {}) {
 }
 
 function renderRunLogs(summary = {}) {
-  const runs = Array.isArray(summary.runs) ? summary.runs : [];
+  const logs = Array.isArray(summary.logs) ? summary.logs : [];
+  const sourceFilter = document.getElementById("admin-log-source-filter")?.value || "all";
   const statusFilter = document.getElementById("admin-run-status-filter")?.value || "all";
-  const filteredRuns = statusFilter === "all" ? runs : runs.filter((run) => (run.status || "unknown") === statusFilter);
-  document.getElementById("admin-run-logs").innerHTML = filteredRuns.length
-    ? filteredRuns
+  const filteredLogs = logs.filter((entry) => {
+    const source = entry.source || "unknown";
+    const status = entry.status || "unknown";
+    return (sourceFilter === "all" || source === sourceFilter) && (statusFilter === "all" || status === statusFilter);
+  });
+  const containerLogs = summary.containerLogs || {};
+  const containerNote = containerLogs.note
+    ? `${containerLogs.note}${containerLogs.command ? ` Command: ${containerLogs.command}` : ""}`
+    : "Container log access is loading.";
+  document.getElementById("admin-container-log-note").textContent = containerNote;
+  document.getElementById("admin-run-logs").innerHTML = filteredLogs.length
+    ? filteredLogs
         .slice(0, 20)
         .map(
-          (run) => `
-            <details class="admin-run-log" data-status="${escapeHtml(run.status || "unknown")}">
+          (entry) => `
+            <details class="admin-run-log" data-status="${escapeHtml(entry.status || "unknown")}">
               <summary>
-                <strong>${escapeHtml(run.featureId || "unknown")}</strong>
-                <span>${escapeHtml(run.status || "unknown")}</span>
-                <span>${escapeHtml(formatElapsedTime(run.durationMs || 0))}</span>
-                <time>${escapeHtml(run.createdAt || "")}</time>
+                <strong>${escapeHtml(entry.name || "unknown")}</strong>
+                <span>${escapeHtml(entry.source || "unknown")}</span>
+                <span>${escapeHtml(entry.status || "unknown")}</span>
+                <time>${escapeHtml(entry.createdAt || "")}</time>
               </summary>
-              ${run.error ? `<div class="admin-run-error">${escapeHtml(run.error)}</div>` : ""}
-              <pre>${escapeHtml(JSON.stringify({
-                action: run.action || "run",
-                error: run.error || "",
-                logFile: run.logFile || "",
-                request: run.request || {},
-                upstream: run.upstream || {},
-                diagnostics: run.diagnostics || {},
-                stack: run.stack || "",
-                stdout: run.stdout || "",
-                stderr: run.stderr || "",
-                logs: run.logs || [],
-                trace: run.trace || []
-              }, null, 2))}</pre>
+              ${entry.path ? `<div class="admin-run-error">${escapeHtml(entry.path)}</div>` : ""}
+              <pre>${escapeHtml(entry.preview || "")}</pre>
             </details>`
         )
         .join("")
-    : `<div class="admin-run-log-empty">${runs.length ? "No execution logs match this status." : "No execution logs yet."}</div>`;
+    : `<div class="admin-run-log-empty">${logs.length ? "No logs match the selected filters." : "No logs are available yet."}</div>`;
+}
+
+function renderRuntimeEnv(snapshot = {}) {
+  const variables = Array.isArray(snapshot.variables) ? snapshot.variables : [];
+  const hiddenCount = Number.isFinite(snapshot.hiddenCount) ? snapshot.hiddenCount : 0;
+  const updatedAt = snapshot.generatedAt ? `Snapshot: ${snapshot.generatedAt}` : "Snapshot pending";
+  document.getElementById("admin-runtime-env-note").textContent =
+    `${updatedAt}. ${hiddenCount} confidential variable${hiddenCount === 1 ? "" : "s"} hidden.`;
+  document.getElementById("admin-runtime-env").innerHTML = variables.length
+    ? variables
+        .map(
+          (entry) => `
+            <div class="admin-env-row">
+              <strong>${escapeHtml(entry.key || "")}</strong>
+              <code>${escapeHtml(entry.value || "")}</code>
+            </div>`
+        )
+        .join("")
+    : `<div class="admin-run-log-empty">No non-confidential runtime variables are available.</div>`;
+}
+
+function renderInfrastructure(infra = {}) {
+  const summary = infra.summary || {};
+  document.getElementById("admin-infra-metric-grid").innerHTML = [
+    ["Status", infra.status || "unknown"],
+    ["Resources", summary.totalResources || 0],
+    ["Created", summary.createdResources || 0],
+    ["Issues", (summary.failedResources || 0) + (summary.pendingResources || 0)]
+  ]
+    .map(([label, value]) => `<div class="admin-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
+    .join("");
+
+  const schema = infra.schema || {};
+  const resourceTypes = Array.isArray(schema.resourceTypes) ? schema.resourceTypes : [];
+  const modules = Array.isArray(schema.modules) ? schema.modules : [];
+  document.getElementById("admin-schema-grid").innerHTML = `
+    <div class="admin-schema-card">
+      <strong>Sources</strong>
+      <span>${escapeHtml((schema.sources || []).join(", ") || "No sources")}</span>
+    </div>
+    <div class="admin-schema-card">
+      <strong>Resource types</strong>
+      <span>${escapeHtml(resourceTypes.map((item) => `${item.type}: ${item.count}`).join(", ") || "No resources")}</span>
+    </div>
+    <div class="admin-schema-card">
+      <strong>Modules</strong>
+      <span>${escapeHtml(modules.slice(0, 12).join(", ") || "No modules")}</span>
+    </div>`;
+
+  const statusFilter = document.getElementById("admin-infra-status-filter")?.value || "all";
+  const components = (Array.isArray(infra.components) ? infra.components : []).filter((component) => {
+    const status = component.status || "unknown";
+    return statusFilter === "all" || status === statusFilter;
+  });
+  document.getElementById("admin-resource-list").innerHTML = components.length
+    ? components
+        .slice(0, 120)
+        .map(
+          (component) => `
+            <div class="admin-resource-row" data-status="${escapeHtml(component.status || "unknown")}">
+              <strong>${escapeHtml(component.name || "Resource")}</strong>
+              <span>${escapeHtml(component.type || "resource")}</span>
+              <span>${escapeHtml(component.status || "unknown")}</span>
+              <code>${escapeHtml(component.value || "")}</code>
+            </div>`
+        )
+        .join("")
+    : `<div class="admin-run-log-empty">${infra.components?.length ? "No resources match this status." : "No infrastructure resources are available."}</div>`;
 }
 
 async function fetchJson(url) {
@@ -101,10 +174,21 @@ export async function loadAdministrationDashboard() {
   const refreshButton = document.getElementById("admin-refresh-button");
   refreshButton.disabled = true;
   try {
-    const history = await fetchJson("/api/admin/demo-runs");
+    const [history, runtimeEnv, infra, logs] = await Promise.all([
+      fetchJson("/api/admin/demo-runs"),
+      fetchJson("/api/admin/runtime-env"),
+      fetchJson("/api/admin/infra"),
+      fetchJson("/api/admin/logs")
+    ]);
+    adminState.history = history;
+    adminState.runtimeEnv = runtimeEnv;
+    adminState.infra = infra;
+    adminState.logs = logs;
     renderMetrics(history);
     renderUsage(history);
-    renderRunLogs(history);
+    renderRuntimeEnv(runtimeEnv);
+    renderInfrastructure(infra);
+    renderRunLogs(logs);
   } catch (error) {
     document.getElementById("admin-last-updated").textContent = `Administration load failed: ${error.message}`;
   } finally {
@@ -112,6 +196,24 @@ export async function loadAdministrationDashboard() {
   }
 }
 
+function activateAdminTab(tabName) {
+  document.querySelectorAll("[data-admin-tab]").forEach((button) => {
+    const isActive = button.dataset.adminTab === tabName;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+  document.querySelectorAll(".admin-panel").forEach((panel) => {
+    const isActive = panel.id === `admin-panel-${tabName}`;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  });
+}
+
+document.querySelectorAll("[data-admin-tab]").forEach((button) => {
+  button.addEventListener("click", () => activateAdminTab(button.dataset.adminTab));
+});
 document.getElementById("admin-refresh-button").addEventListener("click", loadAdministrationDashboard);
-document.getElementById("admin-run-status-filter").addEventListener("change", loadAdministrationDashboard);
+document.getElementById("admin-run-status-filter").addEventListener("change", () => renderRunLogs(adminState.logs));
+document.getElementById("admin-log-source-filter").addEventListener("change", () => renderRunLogs(adminState.logs));
+document.getElementById("admin-infra-status-filter").addEventListener("change", () => renderInfrastructure(adminState.infra));
 loadAdministrationDashboard();

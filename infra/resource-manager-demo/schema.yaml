@@ -21,8 +21,6 @@ variableGroups:
       - devops_create_repository
       - devops_repository_git_username
       - devops_repository_git_password
-      - devops_ocir_username
-      - devops_ocir_auth_token
       - devops_hosted_image_build_enabled
       - devops_hosted_image_run_build
       - deploy_only_app
@@ -140,15 +138,6 @@ variables:
     type: password
     required: true
     sensitive: true
-  devops_ocir_username:
-    title: OCIR Username
-    type: string
-    required: true
-  devops_ocir_auth_token:
-    title: OCIR Auth Token
-    type: password
-    required: true
-    sensitive: true
   devops_hosted_image_build_enabled:
     title: Enable OCI DevOps Hosted Image Build
     type: boolean
@@ -159,7 +148,7 @@ variables:
     default: true
   deploy_only_app:
     title: DEPLOY_ONLY_APP
-    description: When true, build and deliver only the portal image and skip hosted application image delivery and deployment stages; use this for portal-only redeployments that must not touch ClickHouse, Redis, or hosted app deployments.
+    description: When true, hosted application deployment commands exit as skipped; use this for portal-only redeployments that must not touch ClickHouse, Redis, or hosted app deployments.
     type: boolean
     default: false
   app_deploy:
