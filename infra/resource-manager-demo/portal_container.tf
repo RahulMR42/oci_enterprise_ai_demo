@@ -456,20 +456,41 @@ locals {
   conversation_store_generated_file         = "${path.module}/../conversation-store/.terraform/generated/conversation.json"
   file_search_vector_store_generated_file   = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"
   code_interpreter_container_generated_file = "${path.module}/../code-interpreter/.terraform/generated/container.json"
-  portal_conversation_id = (
+  existing_portal_runtime_config            = try(jsondecode(var.existing_portal_runtime_config_json), {})
+  retained_generated_runtime_config = {
+    conversationId             = try(tostring(local.existing_portal_runtime_config.conversationId), "")
+    vectorStoreId              = try(tostring(local.existing_portal_runtime_config.vectorStoreId), "")
+    codeInterpreterContainerId = try(tostring(local.existing_portal_runtime_config.codeInterpreterContainerId), "")
+  }
+  generated_portal_conversation_id = (
     var.conversation_store_local_exec_enabled
     ? try(data.external.conversation_store[0].result.id, "")
     : ""
   )
-  portal_vector_store_id = (
+  generated_portal_vector_store_id = (
     var.file_search_local_exec_enabled
     ? try(data.external.file_search_vector_store[0].result.id, "")
     : ""
   )
-  portal_code_interpreter_container_id = (
+  generated_portal_code_interpreter_container_id = (
     var.code_interpreter_local_exec_enabled
     ? try(data.external.code_interpreter_container[0].result.id, "")
     : ""
+  )
+  portal_conversation_id = (
+    local.generated_portal_conversation_id != ""
+    ? local.generated_portal_conversation_id
+    : local.retained_generated_runtime_config.conversationId
+  )
+  portal_vector_store_id = (
+    local.generated_portal_vector_store_id != ""
+    ? local.generated_portal_vector_store_id
+    : local.retained_generated_runtime_config.vectorStoreId
+  )
+  portal_code_interpreter_container_id = (
+    local.generated_portal_code_interpreter_container_id != ""
+    ? local.generated_portal_code_interpreter_container_id
+    : local.retained_generated_runtime_config.codeInterpreterContainerId
   )
   default_hosted_deployment_exports = {
     HOSTED_AGENT_DEPLOYMENT_ID = ""
@@ -489,7 +510,8 @@ locals {
     if contains(keys(local.default_hosted_deployment_exports), key)
   }
   current_hosted_deployment_exports = module.devops_hosted_image_build.hosted_deployment_exports
-  deploy_all_hosted_applications    = lower(var.app_deploy) == "all"
+  deploy_all_hosted_applications    = trimspace(var.app_deploy) == "" || lower(var.app_deploy) == "all"
+  effective_deploy_only_app         = local.deploy_all_hosted_applications ? false : var.deploy_only_app
   selected_hosted_deployment_export_keys = local.deploy_all_hosted_applications ? keys(local.default_hosted_deployment_exports) : concat(
     var.oci_ha_hosted_agent_deploy ? ["HOSTED_AGENT_DEPLOYMENT_ID", "HOSTED_AGENT_URL"] : [],
     var.oci_ha_langgraph_deploy ? ["LANGGRAPH_DEPLOYMENT_ID", "LANGGRAPH_URL"] : [],
@@ -502,7 +524,7 @@ locals {
     key => tostring(value)
     if tostring(value) != ""
   }
-  stale_hosted_deployment_export_keys = var.deploy_only_app ? [] : [
+  stale_hosted_deployment_export_keys = local.effective_deploy_only_app ? [] : [
     for key, value in local.current_hosted_deployment_exports :
     key if tostring(value) == "" && contains(keys(local.existing_hosted_deployment_exports), key) && contains(local.selected_hosted_deployment_export_keys, key)
   ]
@@ -517,21 +539,23 @@ locals {
     local.non_empty_current_hosted_deployment_exports
   )
   portal_runtime_config = {
-    resourceSuffix               = var.resource_suffix
-    region                       = var.region
-    sourceRevision               = var.devops_source_revision
-    codeSourceRepoUrl            = var.devops_source_repo_url
-    codeSourceBranch             = var.devops_source_branch
-    projectId                    = var.oci_genai_project_id
-    conversationId               = local.portal_conversation_id
-    vectorStoreId                = local.portal_vector_store_id
-    codeInterpreterContainerId   = local.portal_code_interpreter_container_id
-    hosted                       = local.hosted_deployment_exports
-    runHistoryObjectNamespace    = data.oci_objectstorage_namespace.portal.namespace
-    runHistoryObjectBucket       = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
-    runHistoryObjectName         = "portal-demo-run-summary.json"
-    runtimeConfigObjectNamespace = data.oci_objectstorage_namespace.portal.namespace
-    runtimeConfigObjectBucket    = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
-    runtimeConfigObjectName      = "portal-runtime-config.json"
+    resourceSuffix                   = var.resource_suffix
+    region                           = var.region
+    sourceRevision                   = var.devops_source_revision
+    codeSourceRepoUrl                = var.devops_source_repo_url
+    codeSourceBranch                 = var.devops_source_branch
+    devopsHostedImageBuildRunId      = module.devops_hosted_image_build.build_run_id
+    devopsHostedImageBuildPipelineId = module.devops_hosted_image_build.build_pipeline_id
+    projectId                        = var.oci_genai_project_id
+    conversationId                   = local.portal_conversation_id
+    vectorStoreId                    = local.portal_vector_store_id
+    codeInterpreterContainerId       = local.portal_code_interpreter_container_id
+    hosted                           = local.hosted_deployment_exports
+    runHistoryObjectNamespace        = data.oci_objectstorage_namespace.portal.namespace
+    runHistoryObjectBucket           = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runHistoryObjectName             = "portal-demo-run-summary.json"
+    runtimeConfigObjectNamespace     = data.oci_objectstorage_namespace.portal.namespace
+    runtimeConfigObjectBucket        = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runtimeConfigObjectName          = "portal-runtime-config.json"
   }
 }

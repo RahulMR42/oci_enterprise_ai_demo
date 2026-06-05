@@ -537,6 +537,14 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
     <title>OCI Enterprise AI Portal Login</title>
     <style>
       :root {
+        --oci-brand-red: #c74634;
+        --oci-brand-red-dark: #9d392c;
+        --oci-cloud-ink: #1f1f1f;
+        --oci-graphite: #312d2a;
+        --oci-muted: #5f6368;
+        --oci-border: #d6d2cc;
+        --oci-console-bg: #f8f7f4;
+        --oci-cyan: #00758f;
         color-scheme: light;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
@@ -545,36 +553,38 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         min-height: 100vh;
         margin: 0;
         place-items: center;
-        color: #111827;
+        color: var(--oci-cloud-ink);
         background:
-          radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.13), transparent 28%),
-          linear-gradient(135deg, #f8fafc 0%, #eef2f7 48%, #f9fafb 100%);
+          linear-gradient(90deg, rgba(31, 31, 31, 0.035) 0 1px, transparent 1px 100%),
+          linear-gradient(180deg, rgba(31, 31, 31, 0.028) 0 1px, transparent 1px 100%),
+          linear-gradient(135deg, #ffffff 0%, #f1efea 48%, var(--oci-console-bg) 100%);
+        background-size: 48px 48px, 48px 48px, auto;
       }
       main {
         width: min(100% - 32px, 420px);
         padding: 28px;
-        border: 1px solid rgba(15, 23, 42, 0.1);
-        border-radius: 12px;
+        border: 1px solid rgba(31, 31, 31, 0.12);
+        border-radius: 8px;
         background: rgba(255, 255, 255, 0.94);
-        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+        box-shadow: 0 24px 70px rgba(31, 31, 31, 0.12);
       }
       .eyebrow {
         margin: 0 0 8px;
-        color: #475569;
+        color: var(--oci-cyan);
         font-size: 0.78rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
+        font-weight: 900;
+        letter-spacing: 0;
         text-transform: uppercase;
       }
       h1 {
         margin: 0 0 8px;
-        color: #0f172a;
+        color: var(--oci-cloud-ink);
         font-size: 1.45rem;
         line-height: 1.2;
       }
       .subtext {
         margin: 0 0 22px;
-        color: #64748b;
+        color: var(--oci-muted);
         font-size: 0.92rem;
         line-height: 1.5;
       }
@@ -582,22 +592,22 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         display: grid;
         gap: 7px;
         margin: 0 0 14px;
-        color: #334155;
+        color: var(--oci-graphite);
         font-size: 0.82rem;
         font-weight: 800;
       }
       input {
         min-height: 42px;
         padding: 0 12px;
-        border: 1px solid rgba(15, 23, 42, 0.16);
+        border: 1px solid rgba(31, 31, 31, 0.16);
         border-radius: 8px;
-        color: #0f172a;
+        color: var(--oci-cloud-ink);
         background: #ffffff;
         font: inherit;
       }
       input:focus {
-        border-color: #2563eb;
-        outline: 3px solid rgba(37, 99, 235, 0.16);
+        border-color: var(--oci-brand-red);
+        outline: 3px solid rgba(199, 70, 52, 0.16);
       }
       button {
         width: 100%;
@@ -606,13 +616,13 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         border-radius: 8px;
         color: #ffffff;
         cursor: pointer;
-        background: #1d4ed8;
+        background: var(--oci-brand-red);
         font-size: 0.9rem;
         font-weight: 900;
       }
       button:hover,
       button:focus-visible {
-        background: #1e40af;
+        background: var(--oci-brand-red-dark);
       }
       .error {
         margin: 0 0 14px;
@@ -627,10 +637,10 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
       .notice {
         margin: 0 0 14px;
         padding: 10px 12px;
-        border: 1px solid rgba(37, 99, 235, 0.2);
+        border: 1px solid rgba(0, 117, 143, 0.22);
         border-radius: 8px;
-        color: #1e3a8a;
-        background: #eff6ff;
+        color: #005c70;
+        background: #eef8fa;
         font-size: 0.84rem;
         font-weight: 760;
       }
@@ -638,17 +648,17 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         margin-top: 12px;
       }
       .forgot-password button {
-        color: #1e293b;
+        color: var(--oci-graphite);
         background: transparent;
-        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.14);
+        box-shadow: inset 0 0 0 1px rgba(31, 31, 31, 0.14);
       }
       .forgot-password button:hover,
       .forgot-password button:focus-visible {
-        background: #f8fafc;
+        background: var(--oci-console-bg);
       }
       .version {
         margin: 18px 0 0;
-        color: #64748b;
+        color: var(--oci-muted);
         font-size: 0.78rem;
         font-weight: 800;
         text-align: center;
@@ -659,7 +669,7 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
     <main>
       <p class="eyebrow">Secure Access</p>
       <h1>OCI Enterprise AI Portal</h1>
-      <p class="subtext">Sign in to access the demo portal and OCI Enterprise AI workflows.</p>
+      <p class="subtext">Sign in to access the demo portal and Oracle Cloud Enterprise AI workflows.</p>
       ${noticeMarkup}
       ${errorMarkup}
       <form method="post" action="/login">
@@ -943,7 +953,8 @@ export function summarizeInfrastructureState(resources = [], provisionedDetails 
   const suffix = resources.find((resource) => resource.address === "terraform_data.resource_suffix");
   const project = resources.find((resource) => resource.address === "terraform_data.generative_ai_project");
   const apiKey = resources.find((resource) => resource.address === "terraform_data.generative_ai_api_key");
-  const isCreated = hasAllRequiredTerraformResources(resources);
+  const hasExternalRuntime = Boolean(provisionedDetails.projectId && provisionedDetails.apiKeySecret);
+  const isCreated = hasAllRequiredTerraformResources(resources) || hasExternalRuntime;
   const hasFailedResources = resources.some((resource) => resource.status === "failed");
 
   return {
@@ -1627,21 +1638,58 @@ function hostedRuntimeEnvOverrides(hostedRuntime = {}) {
 function readLangfuseLaunchUrl() {
   const observability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
   return hostedRuntimeUrl(
-    observability.url,
-    observability.endpoint,
     process.env.OCI_HOSTED_LANGFUSE_URL,
-    portalRuntimeHostedValue("LANGFUSE_URL")
+    portalRuntimeHostedValue("LANGFUSE_URL"),
+    observability.url,
+    observability.endpoint
   );
 }
 
 function readOpenClawLaunchUrl() {
   const gateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
   return hostedRuntimeUrl(
-    gateway.url,
-    gateway.endpoint,
     process.env.OCI_HOSTED_OPENCLAW_URL,
-    portalRuntimeHostedValue("OPENCLAW_URL")
+    portalRuntimeHostedValue("OPENCLAW_URL"),
+    gateway.url,
+    gateway.endpoint
   );
+}
+
+function readHostedAgentLaunchUrl() {
+  const hostedAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_agent.json"));
+  return hostedRuntimeUrl(
+    process.env.OCI_HOSTED_AGENT_URL,
+    portalRuntimeHostedValue("HOSTED_AGENT_URL"),
+    hostedAgent.url,
+    hostedAgent.endpoint
+  );
+}
+
+function readLangGraphLaunchUrl() {
+  const langGraphAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_agent.json"));
+  return hostedRuntimeUrl(
+    process.env.OCI_HOSTED_LANGGRAPH_URL,
+    portalRuntimeHostedValue("LANGGRAPH_URL"),
+    langGraphAgent.url,
+    langGraphAgent.endpoint
+  );
+}
+
+function hostedLaunchDefinition(featureId = "") {
+  return {
+    "hosted-agentic-applications": {
+      label: "Hosted Agent",
+      launchUrl: readHostedAgentLaunchUrl()
+    },
+    "a2a-agent-collaboration": {
+      label: "A2A Primary Hosted Agent",
+      launchUrl: readHostedAgentLaunchUrl()
+    },
+    "langgraph-hosted-agent-mcp": {
+      label: "LangGraph Hosted Agent",
+      launchUrl: readLangGraphLaunchUrl()
+    }
+  }[featureId] || null;
 }
 
 function readLlamaIndexControlTowerMetadata() {
@@ -1699,9 +1747,9 @@ export function hostedRuntimeIsLaunchable(metadata = {}) {
 function readLlamaIndexControlTowerLaunchUrl() {
   const metadata = readLlamaIndexControlTowerMetadata();
   return (
-    (hostedRuntimeIsLaunchable(metadata) ? metadata.endpoint || metadata.url : "") ||
     process.env.OCI_HOSTED_LLAMAINDEX_URL ||
     portalRuntimeHostedValue("LLAMAINDEX_URL") ||
+    (hostedRuntimeIsLaunchable(metadata) ? metadata.endpoint || metadata.url : "") ||
     (hostedRuntimeIsLaunchable(metadata) && metadata.hostedApplicationId
       ? hostedApplicationInvokeUrl(metadata.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
       : "")
@@ -1896,6 +1944,24 @@ export function llamaIndexControlTowerProxyTargetUrl(requestPath, search = "", l
   return base;
 }
 
+export function hostedLaunchProxyTargetUrl(featureId = "", requestPath = "", search = "", launchUrl = "") {
+  const definition = hostedLaunchDefinition(featureId);
+  const resolvedLaunchUrl = launchUrl || definition?.launchUrl || "";
+  if (!definition || !resolvedLaunchUrl) {
+    throw new Error("Hosted application URL is not available. Provision hosted application infrastructure and refresh Resources first.");
+  }
+
+  const base = new URL(resolvedLaunchUrl);
+  const proxyPrefix = `/api/hosted/launch/${featureId}`;
+  const suffix = requestPath.startsWith(proxyPrefix)
+    ? requestPath.slice(proxyPrefix.length).replace(/^\/+/, "")
+    : requestPath.replace(/^\/+/, "");
+  const basePath = base.pathname.replace(/\/?$/, "/");
+  base.pathname = suffix ? `${basePath}${suffix}` : basePath;
+  base.search = search || base.search;
+  return base;
+}
+
 function isLangfusePassthroughPath(requestPath = "") {
   return [
     "/_next/",
@@ -1979,6 +2045,68 @@ function langfuseProxyOrigin(request) {
   const host = request?.headers?.host || "127.0.0.1:5175";
   const protocol = request?.headers?.["x-forwarded-proto"] || "http";
   return `${protocol}://${host}`;
+}
+
+export async function proxyHostedApplicationLaunch(request, response, parsedUrl, featureId) {
+  const startedAt = Date.now();
+  const definition = hostedLaunchDefinition(featureId);
+  const featureLabel = definition?.label || "Hosted application";
+  try {
+    const targetUrl = hostedLaunchProxyTargetUrl(featureId, parsedUrl.pathname, parsedUrl.search);
+    const token = await getIdcsAccessToken();
+    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
+    const upstream = await fetch(targetUrl, {
+      method: request.method,
+      headers: forwardedHeaders(request.headers, token),
+      body,
+      redirect: "manual"
+    });
+    const contentType = upstream.headers.get("content-type") || "";
+    const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
+    const proxyBase = `/api/hosted/launch/${featureId}/`;
+    const logFile = writeDemoLog(featureId, {
+      action: "launch",
+      status: upstream.ok ? "success" : "failed",
+      durationMs: Date.now() - startedAt,
+      request: {
+        method: request.method,
+        path: parsedUrl.pathname
+      },
+      upstream: {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        contentType,
+        opcRequestId: upstream.headers.get("opc-request-id") || "",
+        target: `${targetUrl.origin}${targetUrl.pathname}`,
+        bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
+      }
+    });
+    response.writeHead(upstream.status, {
+      ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
+        launchUrl: definition?.launchUrl || "",
+        proxyBase
+      }),
+      "X-Demo-Log-File": logFile
+    });
+    response.end(responseBody);
+  } catch (error) {
+    const logFile = writeDemoLog(featureId || "hosted-application", {
+      action: "launch",
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      request: {
+        method: request.method,
+        path: parsedUrl.pathname
+      },
+      error: error.message || String(error)
+    });
+    response.writeHead(502, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Demo-Log-File": logFile
+    });
+    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>${featureLabel} launch failed</title></head><body><h1>${featureLabel} launch failed</h1><p>${String(error.message || error).replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p><p>Log file: ${logFile.replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p></body></html>`);
+  }
 }
 
 export async function proxyOpenClawLaunch(request, response, parsedUrl) {
@@ -2306,6 +2434,40 @@ export function sharedResponsesDemoComponents({ projectId = "", apiKeyAvailable 
   return demos.map(([address, name]) => component(address, name, status, value));
 }
 
+export function devopsHostedDeploymentComponents({ buildRunId = "", buildPipelineId = "", deployments = {} } = {}) {
+  const metadataValue = ({ label = "Hosted application", url = "", deploymentId = "" } = {}) => {
+    const values = [deploymentId, url].map((value) => String(value || "").trim()).filter(Boolean);
+    return values.length ? values.join(" | ") : `OCI DevOps build did not export ${label} deployment metadata`;
+  };
+  const deploymentEntries = Object.entries(deployments || {}).map(([key, deployment]) => {
+    const label = deployment?.label || key;
+    const url = String(deployment?.url || "").trim();
+    const deploymentId = String(deployment?.deploymentId || "").trim();
+    return component(
+      `generated.devops_hosted_${key}`,
+      `${label} DevOps Deployment Export`,
+      url || deploymentId ? "created" : "not-created",
+      metadataValue({ label, url, deploymentId })
+    );
+  });
+
+  return [
+    component(
+      "generated.devops_hosted_build_run",
+      "OCI DevOps Hosted Build Run",
+      buildRunId ? "created" : "not-created",
+      buildRunId || "OCI DevOps build run ID is not available"
+    ),
+    component(
+      "generated.devops_hosted_build_pipeline",
+      "OCI DevOps Hosted Build Pipeline",
+      buildPipelineId ? "created" : "not-created",
+      buildPipelineId || "OCI DevOps build pipeline ID is not available"
+    ),
+    ...deploymentEntries
+  ];
+}
+
 function demoRuntimeComponents() {
   const conversation = readJsonFile(join(demoGeneratedDirs["conversation-store"], "conversation.json"));
   const vectorStore = readJsonFile(join(demoGeneratedDirs["file-search-vector-store-rag"], "vector_store.json"));
@@ -2356,29 +2518,45 @@ function demoRuntimeComponents() {
   const langGraphApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langGraphHostedUrlEnv);
   const langfuseApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langfuseHostedUrlEnv);
   const openclawApplicationIdEnv = hostedApplicationIdFromInvokeUrl(openclawHostedUrlEnv);
-  const finalHostedAgentDeploymentId = hostedAgent.hostedDeploymentId || hostedAgentDeploymentIdEnv;
-  const finalHostedAgentApplicationId = hostedAgent.hostedApplicationId || hostedAgentApplicationIdEnv;
-  const finalHostedAgentUrl = hostedRuntimeUrl(hostedAgent.endpoint, hostedAgent.url, hostedAgentUrlEnv);
-  const finalLangGraphDeploymentId = langGraphAgent.hostedDeploymentId || langGraphDeploymentIdEnv;
-  const finalLangGraphApplicationId = langGraphAgent.hostedApplicationId || langGraphApplicationIdEnv;
-  const finalLangGraphHostedUrl = hostedRuntimeUrl(langGraphAgent.endpoint, langGraphAgent.url, langGraphHostedUrlEnv);
-  const finalLangfuseDeploymentId = langfuseObservability.hostedDeploymentId || langfuseDeploymentIdEnv;
-  const finalOpenclawDeploymentId = openclawGateway.hostedDeploymentId || openclawDeploymentIdEnv;
-  const finalLlamaIndexDeploymentId = llamaIndexControlTower.hostedDeploymentId || llamaIndexDeploymentIdEnv;
-  const finalLangfuseApplicationId = langfuseObservability.hostedApplicationId || langfuseApplicationIdEnv;
-  const finalOpenclawApplicationId = openclawGateway.hostedApplicationId || openclawApplicationIdEnv;
-  const finalConversationId = conversation.id || process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId");
-  const finalVectorStoreId = vectorStore.id || process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId");
+  const runtimeManagedStatus = (finalId, runtimeId, lifecycle) => {
+    if (!finalId) {
+      return "not-created";
+    }
+    return runtimeId && finalId === runtimeId ? "created" : statusFromLifecycle(lifecycle, "created");
+  };
+  const runtimeManagedValue = (knownValue, runtimeValue, fallbackValue) =>
+    knownValue || (runtimeValue ? fallbackValue : "");
+  const finalHostedAgentDeploymentId = hostedAgentDeploymentIdEnv || hostedAgent.hostedDeploymentId;
+  const finalHostedAgentApplicationId = hostedAgentApplicationIdEnv || hostedAgent.hostedApplicationId;
+  const finalHostedAgentUrl = hostedRuntimeUrl(hostedAgentUrlEnv, hostedAgent.endpoint, hostedAgent.url);
+  const finalLangGraphDeploymentId = langGraphDeploymentIdEnv || langGraphAgent.hostedDeploymentId;
+  const finalLangGraphApplicationId = langGraphApplicationIdEnv || langGraphAgent.hostedApplicationId;
+  const finalLangGraphHostedUrl = hostedRuntimeUrl(langGraphHostedUrlEnv, langGraphAgent.endpoint, langGraphAgent.url);
+  const finalLangfuseDeploymentId = langfuseDeploymentIdEnv || langfuseObservability.hostedDeploymentId;
+  const finalOpenclawDeploymentId = openclawDeploymentIdEnv || openclawGateway.hostedDeploymentId;
+  const finalLlamaIndexDeploymentId = llamaIndexDeploymentIdEnv || llamaIndexControlTower.hostedDeploymentId;
+  const finalLangfuseApplicationId = langfuseApplicationIdEnv || langfuseObservability.hostedApplicationId;
+  const finalOpenclawApplicationId = openclawApplicationIdEnv || openclawGateway.hostedApplicationId;
+  const finalConversationId = process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId") || conversation.id;
+  const finalVectorStoreId = process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId") || vectorStore.id;
   const finalCodeInterpreterContainerId =
-    codeContainer.id || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeValue("codeInterpreterContainerId");
-  const finalLangfuseHostedUrl = hostedRuntimeUrl(langfuseHostedUrl, langfuseHostedUrlEnv);
-  const finalOpenclawHostedUrl = hostedRuntimeUrl(openclawHostedUrl, openclawHostedUrlEnv);
+    process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeValue("codeInterpreterContainerId") || codeContainer.id;
+  const finalLangfuseHostedUrl = hostedRuntimeUrl(langfuseHostedUrlEnv, langfuseHostedUrl);
+  const finalOpenclawHostedUrl = hostedRuntimeUrl(openclawHostedUrlEnv, openclawHostedUrl);
   const finalLlamaIndexHostedUrl =
-    llamaIndexHostedUrl ||
     llamaIndexHostedUrlEnv ||
+    llamaIndexHostedUrl ||
     (llamaIndexLaunchable && llamaIndexControlTower.hostedApplicationId
       ? hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
       : "");
+  const hostedAgentRuntimeManaged = Boolean(hostedAgentUrlEnv || hostedAgentDeploymentIdEnv);
+  const langGraphRuntimeManaged = Boolean(langGraphHostedUrlEnv || langGraphDeploymentIdEnv);
+  const langfuseRuntimeManaged = Boolean(langfuseHostedUrlEnv || langfuseDeploymentIdEnv);
+  const openclawRuntimeManaged = Boolean(openclawHostedUrlEnv || openclawDeploymentIdEnv);
+  const llamaIndexRuntimeManaged = Boolean(llamaIndexHostedUrlEnv || llamaIndexDeploymentIdEnv);
+  const devopsHostedBuildRunId =
+    process.env.OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID || portalRuntimeValue("devopsHostedImageBuildRunId");
+  const devopsHostedBuildPipelineId = portalRuntimeValue("devopsHostedImageBuildPipelineId");
 
   return [
     component(
@@ -2403,49 +2581,58 @@ function demoRuntimeComponents() {
     component(
       "generated.hosted_agent_ocir_repository",
       "Hosted Agent OCIR Repository",
-      hostedAgent.repositoryId ? "created" : "not-created",
-      hostedAgent.repositoryName || "Run provisioning to create OCIR repository"
+      hostedAgent.repositoryId || hostedAgentRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(hostedAgent.repositoryName, hostedAgentRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OCIR repository"
     ),
     component(
       "generated.hosted_agent_ocir_repository_id",
       "Hosted Agent OCIR Repository ID",
-      hostedAgent.repositoryId ? statusFromLifecycle(ocirRepository["lifecycle-state"], "created") : "not-created",
-      hostedAgent.repositoryId || "Run provisioning to create OCIR repository"
+      hostedAgent.repositoryId || hostedAgentRuntimeManaged ? statusFromLifecycle(ocirRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(hostedAgent.repositoryId, hostedAgentRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OCIR repository"
     ),
     component(
       "generated.hosted_agent_ocir_image_count",
       "Hosted Agent OCIR Image Count",
-      ocirRepository.id ? "created" : "not-created",
-      ocirRepository.id ? `${ocirRepository["image-count"] || 0} image(s), ${ocirRepository["layer-count"] || 0} layer(s)` : "Run provisioning to push hosted agent image"
+      ocirRepository.id || hostedAgentRuntimeManaged ? "created" : "not-created",
+      ocirRepository.id
+        ? `${ocirRepository["image-count"] || 0} image(s), ${ocirRepository["layer-count"] || 0} layer(s)`
+        : hostedAgentRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to push hosted agent image"
     ),
     component(
       "generated.hosted_agent_image",
       "Hosted Agent Image URI",
-      hostedAgent.imageUri ? "created" : "not-created",
-      hostedAgent.imageUri || "Run provisioning to push hosted agent image"
+      hostedAgent.imageUri || hostedAgentRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(hostedAgent.imageUri, hostedAgentRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to push hosted agent image"
     ),
     component(
       "generated.llamaindex_control_tower_ocir_repository",
       "LlamaIndex Control Tower OCIR Repository",
-      llamaIndexControlTower.repositoryId ? "created" : "not-created",
-      llamaIndexControlTower.repositoryName || "Run provisioning to create LlamaIndex OCIR repository"
+      llamaIndexControlTower.repositoryId || llamaIndexRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(llamaIndexControlTower.repositoryName, llamaIndexRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LlamaIndex OCIR repository"
     ),
     component(
       "generated.llamaindex_control_tower_ocir_repository_id",
       "LlamaIndex Control Tower OCIR Repository ID",
-      llamaIndexControlTower.repositoryId ? statusFromLifecycle(llamaIndexRepository["lifecycle-state"], "created") : "not-created",
-      llamaIndexControlTower.repositoryId || "Run provisioning to create LlamaIndex OCIR repository"
+      llamaIndexControlTower.repositoryId || llamaIndexRuntimeManaged ? statusFromLifecycle(llamaIndexRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(llamaIndexControlTower.repositoryId, llamaIndexRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LlamaIndex OCIR repository"
     ),
     component(
       "generated.llamaindex_control_tower_hosted_application",
       "LlamaIndex Control Tower Hosted Application",
-      llamaIndexControlTower.hostedApplicationId ? statusFromLifecycle(llamaIndexControlTower.hostedApplicationLifecycleState, "created") : "not-created",
-      llamaIndexControlTower.hostedApplicationId || "Run provisioning to create LlamaIndex hosted application"
+      runtimeManagedStatus(llamaIndexControlTower.hostedApplicationId || hostedApplicationIdFromInvokeUrl(finalLlamaIndexHostedUrl), hostedApplicationIdFromInvokeUrl(llamaIndexHostedUrlEnv), llamaIndexControlTower.hostedApplicationLifecycleState),
+      llamaIndexControlTower.hostedApplicationId || hostedApplicationIdFromInvokeUrl(finalLlamaIndexHostedUrl) || "Run provisioning to create LlamaIndex hosted application"
     ),
     component(
       "generated.llamaindex_control_tower_hosted_deployment",
       "LlamaIndex Control Tower Hosted Deployment",
-      finalLlamaIndexDeploymentId ? statusFromLifecycle(llamaIndexControlTower.hostedDeploymentLifecycleState, "created") : "not-created",
+      runtimeManagedStatus(finalLlamaIndexDeploymentId, llamaIndexDeploymentIdEnv, llamaIndexControlTower.hostedDeploymentLifecycleState),
       finalLlamaIndexDeploymentId || "Run provisioning to create LlamaIndex hosted deployment"
     ),
     component(
@@ -2457,25 +2644,28 @@ function demoRuntimeComponents() {
     component(
       "generated.llamaindex_control_tower_image",
       "LlamaIndex Control Tower Image URI",
-      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) ? "created" : "not-created",
-      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) || "Run provisioning to push LlamaIndex image"
+      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) || llamaIndexRuntimeManaged ? "created" : "not-created",
+      llamaIndexControlTower.imageUri ||
+        artifactContainerUri(llamaIndexArtifact) ||
+        runtimeManagedValue("", llamaIndexRuntimeManaged, "Managed by Resource Manager DevOps") ||
+        "Run provisioning to push LlamaIndex image"
     ),
     component(
       "generated.hosted_agent_application",
       "OCI Hosted Application",
-      finalHostedAgentApplicationId ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
+      runtimeManagedStatus(finalHostedAgentApplicationId, hostedAgentApplicationIdEnv, hostedApplication.status),
       finalHostedAgentApplicationId || "Run provisioning to create hosted application"
     ),
     component(
       "generated.hosted_agent_application_work_request",
       "OCI Hosted Application Work Request",
-      hostedApplication.id ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
-      hostedApplication.id || "Run provisioning to create hosted application"
+      hostedApplication.id || hostedAgentRuntimeManaged ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
+      hostedApplication.id || (hostedAgentRuntimeManaged ? "Managed by Resource Manager DevOps" : "Run provisioning to create hosted application")
     ),
     component(
       "generated.hosted_agent_deployment",
       "OCI Hosted Deployment",
-      finalHostedAgentDeploymentId ? statusFromLifecycle(lifecycleValue(hostedDeployment), "created") : "not-created",
+      runtimeManagedStatus(finalHostedAgentDeploymentId, hostedAgentDeploymentIdEnv, lifecycleValue(hostedDeployment)),
       finalHostedAgentDeploymentId || "Run provisioning to create hosted deployment"
     ),
     component(
@@ -2487,37 +2677,44 @@ function demoRuntimeComponents() {
     component(
       "generated.hosted_agent_deployment_artifact",
       "OCI Hosted Deployment Artifact",
-      hostedArtifact.id ? statusFromLifecycle(hostedArtifact.status, "created") : "not-created",
-      artifactContainerUri(hostedArtifact) ? `${artifactContainerUri(hostedArtifact)}:${hostedArtifact.tag || ""}` : "Run provisioning to attach hosted deployment artifact"
+      hostedArtifact.id || hostedAgentRuntimeManaged ? statusFromLifecycle(hostedArtifact.status, "created") : "not-created",
+      artifactContainerUri(hostedArtifact)
+        ? `${artifactContainerUri(hostedArtifact)}:${hostedArtifact.tag || ""}`
+        : hostedAgentRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to attach hosted deployment artifact"
     ),
     component(
       "generated.langgraph_hosted_agent_ocir_repository",
       "LangGraph Agent OCIR Repository",
-      langGraphAgent.repositoryId ? "created" : "not-created",
-      langGraphAgent.repositoryName || "Run provisioning to create LangGraph OCIR repository"
+      langGraphAgent.repositoryId || langGraphRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(langGraphAgent.repositoryName, langGraphRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LangGraph OCIR repository"
     ),
     component(
       "generated.langgraph_hosted_agent_ocir_repository_id",
       "LangGraph Agent OCIR Repository ID",
-      langGraphAgent.repositoryId ? statusFromLifecycle(langGraphRepository["lifecycle-state"], "created") : "not-created",
-      langGraphAgent.repositoryId || "Run provisioning to create LangGraph OCIR repository"
+      langGraphAgent.repositoryId || langGraphRuntimeManaged ? statusFromLifecycle(langGraphRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(langGraphAgent.repositoryId, langGraphRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LangGraph OCIR repository"
     ),
     component(
       "generated.langgraph_hosted_agent_image",
       "LangGraph Agent Image URI",
-      langGraphAgent.imageUri ? "created" : "not-created",
-      langGraphAgent.imageUri || "Run provisioning to push LangGraph hosted agent image"
+      langGraphAgent.imageUri || langGraphRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(langGraphAgent.imageUri, langGraphRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to push LangGraph hosted agent image"
     ),
     component(
       "generated.langgraph_hosted_agent_application",
       "LangGraph OCI Hosted Application",
-      finalLangGraphApplicationId ? statusFromLifecycle(langGraphApplication.status, "created") : "not-created",
+      runtimeManagedStatus(finalLangGraphApplicationId, langGraphApplicationIdEnv, langGraphApplication.status),
       finalLangGraphApplicationId || "Run provisioning to create LangGraph hosted application"
     ),
     component(
       "generated.langgraph_hosted_agent_deployment",
       "LangGraph OCI Hosted Deployment",
-      finalLangGraphDeploymentId ? statusFromLifecycle(lifecycleValue(langGraphDeployment), "created") : "not-created",
+      runtimeManagedStatus(finalLangGraphDeploymentId, langGraphDeploymentIdEnv, lifecycleValue(langGraphDeployment)),
       finalLangGraphDeploymentId || "Run provisioning to create LangGraph hosted deployment"
     ),
     component(
@@ -2529,46 +2726,55 @@ function demoRuntimeComponents() {
     component(
       "generated.langgraph_hosted_agent_deployment_artifact",
       "LangGraph OCI Hosted Deployment Artifact",
-      langGraphArtifact.id ? statusFromLifecycle(langGraphArtifact.status, "created") : "not-created",
+      langGraphArtifact.id || langGraphRuntimeManaged ? statusFromLifecycle(langGraphArtifact.status, "created") : "not-created",
       artifactContainerUri(langGraphArtifact)
         ? `${artifactContainerUri(langGraphArtifact)}:${langGraphArtifact.tag || ""}`
-        : "Run provisioning to attach LangGraph hosted deployment artifact"
+        : langGraphRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to attach LangGraph hosted deployment artifact"
     ),
     component(
       "generated.langfuse_hosted_observability_ocir_repository",
       "Langfuse OCIR Repository",
-      langfuseRepositoryId ? "created" : "not-created",
-      langfuseObservability.repositoryName || "Run provisioning to create Langfuse OCIR repository"
+      langfuseRepositoryId || langfuseRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(langfuseObservability.repositoryName, langfuseRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create Langfuse OCIR repository"
     ),
     component(
       "generated.langfuse_hosted_observability_ocir_repository_id",
       "Langfuse OCIR Repository ID",
-      langfuseRepositoryId ? statusFromLifecycle(langfuseRepository["lifecycle-state"], "created") : "not-created",
-      langfuseRepositoryId || "Run provisioning to create Langfuse OCIR repository"
+      langfuseRepositoryId || langfuseRuntimeManaged ? statusFromLifecycle(langfuseRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(langfuseRepositoryId, langfuseRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create Langfuse OCIR repository"
     ),
     component(
       "generated.langfuse_hosted_observability_image",
       "Langfuse Image URI",
-      langfuseObservability.imageUri ? "created" : "not-created",
-      langfuseObservability.imageUri || "Run provisioning to push Langfuse image"
+      langfuseObservability.imageUri || langfuseRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(langfuseObservability.imageUri, langfuseRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to push Langfuse image"
     ),
     component(
       "generated.langfuse_hosted_observability_application",
       "Langfuse OCI Hosted Application",
-      finalLangfuseApplicationId ? statusFromLifecycle(langfuseApplication.status, "created") : "not-created",
+      runtimeManagedStatus(finalLangfuseApplicationId, langfuseApplicationIdEnv, langfuseApplication.status),
       finalLangfuseApplicationId || "Run provisioning to create Langfuse hosted application"
     ),
     component(
       "generated.langfuse_hosted_observability_deployment",
       "Langfuse OCI Hosted Deployment",
-      finalLangfuseDeploymentId ? statusFromLifecycle(lifecycleValue(langfuseDeployment), "created") : "not-created",
+      runtimeManagedStatus(finalLangfuseDeploymentId, langfuseDeploymentIdEnv, lifecycleValue(langfuseDeployment)),
       finalLangfuseDeploymentId || "Run provisioning to create Langfuse hosted deployment"
     ),
     component(
       "generated.langfuse_hosted_observability_deployment_artifact",
       "Langfuse OCI Hosted Deployment Artifact",
-      langfuseArtifact.id ? statusFromLifecycle(langfuseArtifact.status, "created") : "not-created",
-      artifactContainerUri(langfuseArtifact) ? `${artifactContainerUri(langfuseArtifact)}:${langfuseArtifact.tag || ""}` : "Run provisioning to attach Langfuse hosted deployment artifact"
+      langfuseArtifact.id || langfuseRuntimeManaged ? statusFromLifecycle(langfuseArtifact.status, "created") : "not-created",
+      artifactContainerUri(langfuseArtifact)
+        ? `${artifactContainerUri(langfuseArtifact)}:${langfuseArtifact.tag || ""}`
+        : langfuseRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to attach Langfuse hosted deployment artifact"
     ),
     component(
       "generated.langfuse_hosted_observability_url",
@@ -2579,45 +2785,83 @@ function demoRuntimeComponents() {
     component(
       "generated.openclaw_hosted_gateway_ocir_repository",
       "OpenClaw OCIR Repository",
-      openclawGateway.repositoryId ? "created" : "not-created",
-      openclawGateway.repositoryName || "Run provisioning to create OpenClaw OCIR repository"
+      openclawGateway.repositoryId || openclawRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(openclawGateway.repositoryName, openclawRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OpenClaw OCIR repository"
     ),
     component(
       "generated.openclaw_hosted_gateway_ocir_repository_id",
       "OpenClaw OCIR Repository ID",
-      openclawGateway.repositoryId ? statusFromLifecycle(openclawRepository["lifecycle-state"], "created") : "not-created",
-      openclawGateway.repositoryId || "Run provisioning to create OpenClaw OCIR repository"
+      openclawGateway.repositoryId || openclawRuntimeManaged ? statusFromLifecycle(openclawRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(openclawGateway.repositoryId, openclawRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OpenClaw OCIR repository"
     ),
     component(
       "generated.openclaw_hosted_gateway_image",
       "OpenClaw Image URI",
-      openclawGateway.imageUri ? "created" : "not-created",
-      openclawGateway.imageUri || "Run provisioning to push OpenClaw image"
+      openclawGateway.imageUri || openclawRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(openclawGateway.imageUri, openclawRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to push OpenClaw image"
     ),
     component(
       "generated.openclaw_hosted_gateway_application",
       "OpenClaw OCI Hosted Application",
-      finalOpenclawApplicationId ? statusFromLifecycle(openclawApplication.status, "created") : "not-created",
+      runtimeManagedStatus(finalOpenclawApplicationId, openclawApplicationIdEnv, openclawApplication.status),
       finalOpenclawApplicationId || "Run provisioning to create OpenClaw hosted application"
     ),
     component(
       "generated.openclaw_hosted_gateway_deployment",
       "OpenClaw OCI Hosted Deployment",
-      finalOpenclawDeploymentId ? statusFromLifecycle(lifecycleValue(openclawDeployment), "created") : "not-created",
+      runtimeManagedStatus(finalOpenclawDeploymentId, openclawDeploymentIdEnv, lifecycleValue(openclawDeployment)),
       finalOpenclawDeploymentId || "Run provisioning to create OpenClaw hosted deployment"
     ),
     component(
       "generated.openclaw_hosted_gateway_deployment_artifact",
       "OpenClaw OCI Hosted Deployment Artifact",
-      openclawArtifact.id ? statusFromLifecycle(openclawArtifact.status, "created") : "not-created",
-      artifactContainerUri(openclawArtifact) ? `${artifactContainerUri(openclawArtifact)}:${openclawArtifact.tag || ""}` : "Run provisioning to attach OpenClaw hosted deployment artifact"
+      openclawArtifact.id || openclawRuntimeManaged ? statusFromLifecycle(openclawArtifact.status, "created") : "not-created",
+      artifactContainerUri(openclawArtifact)
+        ? `${artifactContainerUri(openclawArtifact)}:${openclawArtifact.tag || ""}`
+        : openclawRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to attach OpenClaw hosted deployment artifact"
     ),
     component(
       "generated.openclaw_hosted_gateway_url",
       "OpenClaw Hosted URL",
       finalOpenclawHostedUrl ? "created" : "not-created",
       finalOpenclawHostedUrl || "Run provisioning to create OpenClaw hosted URL"
-    )
+    ),
+    ...devopsHostedDeploymentComponents({
+      buildRunId: devopsHostedBuildRunId,
+      buildPipelineId: devopsHostedBuildPipelineId,
+      deployments: {
+        hostedAgent: {
+          label: "Hosted Agent",
+          url: finalHostedAgentUrl,
+          deploymentId: finalHostedAgentDeploymentId
+        },
+        langGraph: {
+          label: "LangGraph",
+          url: finalLangGraphHostedUrl,
+          deploymentId: finalLangGraphDeploymentId
+        },
+        langfuse: {
+          label: "Langfuse",
+          url: finalLangfuseHostedUrl,
+          deploymentId: finalLangfuseDeploymentId
+        },
+        openclaw: {
+          label: "OpenClaw",
+          url: finalOpenclawHostedUrl,
+          deploymentId: finalOpenclawDeploymentId
+        },
+        llamaIndex: {
+          label: "LlamaIndex",
+          url: finalLlamaIndexHostedUrl,
+          deploymentId: finalLlamaIndexDeploymentId
+        }
+      }
+    })
   ];
 }
 
@@ -2665,7 +2909,15 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
     : [];
   const portalRuntimeConfig = readPortalRuntimeConfig({ refresh });
   const currentState = await readAllTerraformStates();
-  const provisionedDetails = readProvisionedDetails();
+  const localProvisionedDetails = readProvisionedDetails();
+  const provisionedDetails = {
+    ...localProvisionedDetails,
+    projectId: localProvisionedDetails.projectId || portalRuntimeConfig.projectId || "",
+    projectDisplayName:
+      localProvisionedDetails.projectDisplayName ||
+      (portalRuntimeConfig.resourceSuffix ? `${baseProjectDisplayName}-${portalRuntimeConfig.resourceSuffix}` : ""),
+    apiKeySecret: localProvisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY || ""
+  };
   const runtimeComponents = [
     ...demoRuntimeComponents(),
     ...sharedResponsesDemoComponents({
@@ -3361,6 +3613,12 @@ export const server = createServer(async (request, response) => {
 
   if (requestPath === "/api/llamaindex/launch" || requestPath.startsWith("/api/llamaindex/launch/")) {
     await proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl);
+    return;
+  }
+
+  const hostedLaunchMatch = requestPath.match(/^\/api\/hosted\/launch\/([a-z0-9-]+)(?:\/.*)?$/);
+  if (hostedLaunchMatch) {
+    await proxyHostedApplicationLaunch(request, response, parsedUrl, hostedLaunchMatch[1]);
     return;
   }
 

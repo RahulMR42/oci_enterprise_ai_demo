@@ -55,11 +55,62 @@ const minInitialRunCount = 20;
 const maxInitialRunCount = 35;
 const defaultDemoRating = 2;
 const maxDemoRating = 3;
-const hostedUiLaunchDemoIds = [
-  "langfuse-hosted-observability",
-  "openclaw-hosted-agent-gateway",
-  "agentic-control-tower"
-];
+const hostedApplicationLaunchConfigs = {
+  "hosted-agentic-applications": {
+    label: "Hosted Agent Runtime",
+    shortLabel: "Hosted Agent",
+    launchUrl: "/api/hosted/launch/hosted-agentic-applications/",
+    hostedUrlKey: "hostedAgentUrl",
+    hostedDeploymentIdKey: "hostedAgentDeploymentId",
+    hostedDeploymentStatusKey: "hostedAgentDeploymentStatus",
+    uiKind: "hosted agent runtime"
+  },
+  "langgraph-hosted-agent-mcp": {
+    label: "LangGraph Hosted Agent",
+    shortLabel: "LangGraph",
+    launchUrl: "/api/hosted/launch/langgraph-hosted-agent-mcp/",
+    hostedUrlKey: "langGraphHostedUrl",
+    hostedDeploymentIdKey: "langGraphHostedDeploymentId",
+    hostedDeploymentStatusKey: "langGraphHostedDeploymentStatus",
+    uiKind: "LangGraph hosted agent"
+  },
+  "a2a-agent-collaboration": {
+    label: "A2A Primary Hosted Agent",
+    shortLabel: "A2A Agent",
+    launchUrl: "/api/hosted/launch/a2a-agent-collaboration/",
+    hostedUrlKey: "hostedAgentUrl",
+    hostedDeploymentIdKey: "hostedAgentDeploymentId",
+    hostedDeploymentStatusKey: "hostedAgentDeploymentStatus",
+    uiKind: "primary hosted agent"
+  },
+  "langfuse-hosted-observability": {
+    label: "Langfuse Hosted Observability",
+    shortLabel: "Langfuse",
+    launchUrl: "/api/langfuse/launch/auth/sign-in",
+    hostedUrlKey: "langfuseHostedUrl",
+    hostedDeploymentIdKey: "langfuseHostedDeploymentId",
+    hostedDeploymentStatusKey: "langfuseHostedDeploymentStatus",
+    uiKind: "observability"
+  },
+  "openclaw-hosted-agent-gateway": {
+    label: "OpenClaw Hosted Agent Gateway",
+    shortLabel: "OpenClaw",
+    launchUrl: "/api/openclaw/launch/",
+    hostedUrlKey: "openclawHostedUrl",
+    hostedDeploymentIdKey: "openclawHostedDeploymentId",
+    hostedDeploymentStatusKey: "openclawHostedDeploymentStatus",
+    uiKind: "agent gateway"
+  },
+  "agentic-control-tower": {
+    label: "Agentic Control Tower",
+    shortLabel: "LlamaIndex Control Tower",
+    launchUrl: "/api/llamaindex/launch/",
+    hostedUrlKey: "llamaIndexHostedUrl",
+    hostedDeploymentIdKey: "llamaIndexHostedDeploymentId",
+    hostedDeploymentStatusKey: "llamaIndexHostedDeploymentStatus",
+    uiKind: "control tower"
+  }
+};
 
 const hostedRuntimeReferences = {
   "hosted-agentic-applications": {
@@ -176,7 +227,20 @@ function renderRunCountBadge(featureId) {
 }
 
 function demoCardActionLabel(featureId) {
-  return hostedUiLaunchDemoIds.includes(featureId) ? "Launch" : "Run";
+  return "Run";
+}
+
+function hostedApplicationLaunchConfig(featureId) {
+  const config = hostedApplicationLaunchConfigs[featureId];
+  if (!config) {
+    return null;
+  }
+  return {
+    ...config,
+    hostedUrl: infraState[config.hostedUrlKey] || "",
+    hostedDeploymentId: infraState[config.hostedDeploymentIdKey] || "",
+    hostedDeploymentStatus: infraState[config.hostedDeploymentStatusKey] || ""
+  };
 }
 
 function hostedReferenceDetails(featureId) {
@@ -1397,6 +1461,7 @@ function renderPortal() {
               <input id="responses-temperature" type="number" min="0" max="1" step="0.1" value="0.2" />
             </label>
             <button id="responses-run-button" type="button">Run demo</button>
+            <button id="responses-launch-button" class="secondary-run-action" type="button" hidden>Launch hosted app</button>
           </div>
           <div class="demo-output-grid">
             <section>
@@ -1656,10 +1721,11 @@ function defaultWiringHref(featureId) {
 function openDemoDialog(featureId) {
   const defaults = demoDefaults[featureId] || demoDefaults["responses-api"];
   const feature = aiFeatures.find((item) => item.id === featureId) || aiFeatures[0];
+  const launchConfig = hostedApplicationLaunchConfig(featureId);
   activeDemoId = featureId;
   document
     .getElementById("responses-demo-dialog")
-    .classList.toggle("is-launch-demo", hostedUiLaunchDemoIds.includes(featureId));
+    .classList.toggle("has-hosted-launch", Boolean(launchConfig));
   document.getElementById("demo-dialog-title").textContent = defaults.title;
   document.getElementById("demo-details-summary").textContent = feature.details || feature.summary;
   document.getElementById("demo-details-use-case").textContent = `Use case: ${feature.sampleUseCase}`;
@@ -1681,6 +1747,10 @@ function openDemoDialog(featureId) {
   document.getElementById("responses-prompt").value = defaults.prompt;
   document.getElementById("responses-model").value = defaults.model || "openai.gpt-oss-120b";
   document.getElementById("responses-run-button").textContent = defaults.button || "Run demo";
+  document.getElementById("responses-launch-button").hidden = !launchConfig;
+  document.getElementById("responses-launch-button").textContent = launchConfig
+    ? `Launch ${launchConfig.shortLabel}`
+    : "Launch hosted app";
   const ratingShell = document.getElementById("demo-rating-shell");
   ratingShell.dataset.ratingShell = featureId;
   ratingShell.innerHTML = renderDemoRatingControl(featureId, "dialog");
@@ -2654,10 +2724,6 @@ document.getElementById("flow-close-button").addEventListener("click", () => {
 document.getElementById("responses-run-button").addEventListener("click", async () => {
   const runButton = document.getElementById("responses-run-button");
   const actionLogs = document.getElementById("responses-action-logs");
-  if (hostedUiLaunchDemoIds.includes(activeDemoId)) {
-    launchExternalDemo(activeDemoId);
-    return;
-  }
   const prompt = document.getElementById("responses-prompt").value;
   const temperature = Number.parseFloat(document.getElementById("responses-temperature").value);
   const model = document.getElementById("responses-model").value.trim() || "openai.gpt-oss-120b";
@@ -2767,37 +2833,13 @@ document.getElementById("responses-run-button").addEventListener("click", async 
   }
 });
 
+document.getElementById("responses-launch-button").addEventListener("click", () => {
+  incrementFeatureRunCount(activeDemoId);
+  launchExternalDemo(activeDemoId);
+});
+
 function launchExternalDemo(featureId) {
-  const launchConfigs = {
-    "langfuse-hosted-observability": {
-      label: "Langfuse Hosted Observability",
-      shortLabel: "Langfuse",
-      launchUrl: "/api/langfuse/launch/auth/sign-in",
-      hostedUrl: infraState.langfuseHostedUrl,
-      hostedDeploymentId: infraState.langfuseHostedDeploymentId,
-      hostedDeploymentStatus: infraState.langfuseHostedDeploymentStatus,
-      uiKind: "observability"
-    },
-    "openclaw-hosted-agent-gateway": {
-      label: "OpenClaw Hosted Agent Gateway",
-      shortLabel: "OpenClaw",
-      launchUrl: "/api/openclaw/launch/",
-      hostedUrl: infraState.openclawHostedUrl,
-      hostedDeploymentId: infraState.openclawHostedDeploymentId,
-      hostedDeploymentStatus: infraState.openclawHostedDeploymentStatus,
-      uiKind: "agent gateway"
-    },
-    "agentic-control-tower": {
-      label: "Agentic Control Tower",
-      shortLabel: "LlamaIndex Control Tower",
-      launchUrl: "/api/llamaindex/launch/",
-      hostedUrl: infraState.llamaIndexHostedUrl,
-      hostedDeploymentId: infraState.llamaIndexHostedDeploymentId,
-      hostedDeploymentStatus: infraState.llamaIndexHostedDeploymentStatus,
-      uiKind: "control tower"
-    }
-  };
-  const config = launchConfigs[featureId];
+  const config = hostedApplicationLaunchConfig(featureId);
   if (!config) {
     return;
   }

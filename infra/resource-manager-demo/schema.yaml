@@ -31,6 +31,7 @@ variableGroups:
       - oci_ha_openclaw_deploy
       - oci_ha_llamaindex_deploy
       - existing_hosted_deployment_exports_json
+      - existing_portal_runtime_config_json
   - title: Portal Container
     variables:
       - portal_container_enabled
@@ -155,7 +156,7 @@ variables:
     title: APP_DEPLOY
     description: Set to all to build, deliver, and deploy every hosted application. Leave empty to use the OCI_HA_* per-application switches; enable the needed switches on the first deployment so those hosted apps are created.
     type: string
-    default: ""
+    default: all
   oci_ha_hosted_agent_deploy:
     title: OCI_HA_HOSTED_AGENT_DEPLOY
     description: When true, build, deliver, and deploy the hosted-agent hosted application through OCI DevOps. Set true on the first deployment if the hosted-agent app should be created; leave false on later selective runs unless replacing it.
@@ -184,6 +185,12 @@ variables:
   existing_hosted_deployment_exports_json:
     title: Existing Hosted Deployment Exports
     description: Non-sensitive JSON object of hosted app deployment IDs and URLs to reuse when DEPLOY_ONLY_APP skips hosted deployment stages.
+    type: text
+    required: false
+    default: "{}"
+  existing_portal_runtime_config_json:
+    title: Existing Portal Runtime Config
+    description: Non-sensitive JSON copy of portal-runtime-config.json used to retain generated conversation, vector store, and code interpreter IDs across redeployments.
     type: text
     required: false
     default: "{}"

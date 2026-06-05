@@ -201,7 +201,7 @@ resource "oci_devops_build_pipeline" "this" {
     }
     items {
       name          = "DEPLOY_ONLY_APP"
-      default_value = var.deploy_only_app ? "true" : "false"
+      default_value = local.deploy_only_app_pipeline_value
       description   = "When true, hosted app deployment stages are skipped and only the portal app container redeploys."
     }
     items {
@@ -293,7 +293,7 @@ resource "oci_devops_build_pipeline" "this" {
 }
 
 resource "oci_devops_build_pipeline_stage" "build" {
-  count = var.enabled && !var.deploy_only_app ? 1 : 0
+  count = var.enabled && !local.effective_deploy_only_app ? 1 : 0
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
@@ -538,7 +538,7 @@ resource "oci_devops_build_run" "this" {
     }
     items {
       name  = "DEPLOY_ONLY_APP"
-      value = var.deploy_only_app ? "true" : "false"
+      value = local.deploy_only_app_pipeline_value
     }
     items {
       name  = "OCI_HA_LANGFUSE_DEPLOY"
@@ -635,6 +635,10 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "PORTAL_VECTOR_STORE_ID"
       value = var.portal_vector_store_id != null && var.portal_vector_store_id != "" ? var.portal_vector_store_id : " "
+    }
+    items {
+      name  = "PORTAL_CONVERSATION_ID"
+      value = var.portal_conversation_id != null && var.portal_conversation_id != "" ? var.portal_conversation_id : " "
     }
     items {
       name  = "PORTAL_CODE_INTERPRETER_CONTAINER_ID"

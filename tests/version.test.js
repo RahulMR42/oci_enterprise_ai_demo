@@ -7,6 +7,7 @@ test("app version manifest matches package metadata", () => {
   const packageLock = JSON.parse(readFileSync("package-lock.json", "utf8"));
   const versionJson = JSON.parse(readFileSync("src/version.json", "utf8"));
 
+  assert.equal(packageJson.version, "0.0.17");
   assert.equal(versionJson.version, packageJson.version);
   assert.equal(packageLock.version, packageJson.version);
   assert.equal(packageLock.packages[""].version, packageJson.version);

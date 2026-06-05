@@ -213,6 +213,12 @@ variable "portal_vector_store_id" {
   default     = ""
 }
 
+variable "portal_conversation_id" {
+  description = "OCI Conversations API conversation ID injected into DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
 variable "portal_code_interpreter_container_id" {
   description = "Code Interpreter container ID injected into DevOps-created portal container instances."
   type        = string
@@ -388,7 +394,7 @@ variable "deploy_langfuse_hosted_application" {
 variable "app_deploy" {
   description = "Hosted application deployment selector. Use all to deploy every hosted application, or leave empty to use the per-application switches."
   type        = string
-  default     = ""
+  default     = "all"
 
   validation {
     condition     = contains(["", "all"], lower(var.app_deploy))

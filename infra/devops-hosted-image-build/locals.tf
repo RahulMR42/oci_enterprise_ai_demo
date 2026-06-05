@@ -86,8 +86,10 @@ locals {
     }
   }
 
-  deploy_all_hosted_applications = lower(var.app_deploy) == "all"
+  deploy_all_hosted_applications = trimspace(var.app_deploy) == "" || lower(var.app_deploy) == "all"
+  effective_deploy_only_app      = local.deploy_all_hosted_applications ? false : var.deploy_only_app
   app_deploy_pipeline_value      = local.deploy_all_hosted_applications ? "all" : "none"
+  deploy_only_app_pipeline_value = local.effective_deploy_only_app ? "true" : "false"
   selected_hosted_application_deployments = {
     for key, deployment in local.hosted_application_deployments : key => deployment
     if local.deploy_all_hosted_applications || contains(compact([

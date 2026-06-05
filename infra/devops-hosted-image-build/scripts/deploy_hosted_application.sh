@@ -98,6 +98,68 @@ for item in (payload.get("data") or {}).get("items", []):
         print(identifier)'
 }
 
+active_hosted_app_ids_by_display_name() {
+  local display_name="$1"
+  oci generative-ai hosted-application-collection list-hosted-applications \
+    --compartment-id "$COMPARTMENT_ID" \
+    --display-name "$display_name" \
+    --all \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json |
+    python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state in {"ACTIVE", "SUCCEEDED", "AVAILABLE", "CREATED"}:
+        print(identifier)'
+}
+
+active_hosted_deployment_id_by_app_id() {
+  local app_id="$1"
+  local deployment_display="$2"
+  oci generative-ai hosted-deployment-collection list-hosted-deployments \
+    --compartment-id "$COMPARTMENT_ID" \
+    --application-id "$app_id" \
+    --all \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json |
+    python3 -c 'import json, sys
+deployment_display = sys.argv[1]
+payload = json.load(sys.stdin)
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    display = item.get("displayName") or item.get("display-name") or ""
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state == "ACTIVE" and (not deployment_display or display == deployment_display):
+        print(identifier)
+        raise SystemExit(0)' "$deployment_display"
+}
+
+reuse_existing_hosted_resource() {
+  local key="$1"
+  local display="$2"
+  local deployment_display="$3"
+  local app_id dep_id
+  local existing_app_ids=()
+
+  mapfile -t existing_app_ids < <(active_hosted_app_ids_by_display_name "$display" || true)
+  for app_id in "${existing_app_ids[@]}"; do
+    [ -z "$app_id" ] && continue
+    dep_id="$(active_hosted_deployment_id_by_app_id "$app_id" "$deployment_display" || true)"
+    if [ -n "$dep_id" ]; then
+      export "${key}_URL=$(invoke_url "$app_id")"
+      export "${key}_DEPLOYMENT_ID=$dep_id"
+      echo "Reusing active ${HOSTED_APP_KEY} hosted application ${app_id} and deployment ${dep_id}."
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 wait_for_hosted_deployment_deleted() {
   local dep_id="$1"
   local state
@@ -210,6 +272,10 @@ create_hosted() {
   local networking_json="${7:-}"
   local app_file="/tmp/${key}_hosted_application.json"
   local dep_file="/tmp/${key}_hosted_deployment.json"
+
+  if reuse_existing_hosted_resource "$key" "$display" "$deployment_display"; then
+    return 0
+  fi
 
   env_args=()
   if [ -n "$env_json" ] && [ "$env_json" != "[]" ]; then

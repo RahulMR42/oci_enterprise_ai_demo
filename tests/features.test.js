@@ -74,13 +74,18 @@ test("demo catalog does not expose n8n demos or documentation", () => {
   assert.doesNotMatch(catalogText, /n8n/i);
 });
 
-test("portal stylesheet uses Oracle Redwood palette tokens", () => {
+test("portal stylesheet uses Oracle Cloud palette tokens", () => {
   const styles = readFileSync("src/styles.css", "utf8");
+  const server = readFileSync("server.mjs", "utf8");
 
-  assert.match(styles, /--redwood-brand-red:\s*#c74634;/);
-  assert.match(styles, /--redwood-bg:\s*#f7f4ef;/);
-  assert.match(styles, /--redwood-ink:\s*#312d2a;/);
+  assert.match(styles, /--oci-brand-red:\s*#c74634;/);
+  assert.match(styles, /--oci-cloud-ink:\s*#1f1f1f;/);
+  assert.match(styles, /--oci-console-bg:\s*#f8f7f4;/);
+  assert.match(styles, /--oci-cyan:\s*#00758f;/);
+  assert.match(server, /--oci-brand-red:\s*#c74634;/);
+  assert.match(server, /Oracle Cloud/);
   assert.doesNotMatch(styles, /#1d4ed8/);
+  assert.doesNotMatch(server, /#1d4ed8/);
 });
 
 test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {

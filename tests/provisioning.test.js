@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   createResourceSuffix,
   createPortalSession,
+  devopsHostedDeploymentComponents,
   extractProvisionedValues,
   fileSearchRuntimeComponents,
   hasAllRequiredTerraformResources,
@@ -15,6 +16,7 @@ import {
   demoProcessEnv,
   isAuthorizedRequest,
   idcsDemoCredentialPosture,
+  hostedLaunchProxyTargetUrl,
   llamaIndexControlTowerProxyTargetUrl,
   sharedResponsesDemoComponents,
   summarizeInfrastructureState,
@@ -470,10 +472,13 @@ test("server-side hosted runtimes preserve OCI invoke URLs", () => {
 test("server runtime readers use Resource Manager hosted invoke URLs", () => {
   const server = readFileSync("server.mjs", "utf8");
 
-  assert.match(server, /function readLangfuseLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl/);
-  assert.match(server, /function readOpenClawLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl/);
-  assert.match(server, /finalHostedAgentApplicationId = hostedAgent\.hostedApplicationId \|\| hostedAgentApplicationIdEnv/);
-  assert.match(server, /finalOpenclawHostedUrl = hostedRuntimeUrl\(openclawHostedUrl, openclawHostedUrlEnv\)/);
+  assert.match(server, /function readLangfuseLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl\(\s*process\.env\.OCI_HOSTED_LANGFUSE_URL,\s*portalRuntimeHostedValue\("LANGFUSE_URL"\),\s*observability\.url/);
+  assert.match(server, /function readOpenClawLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl\(\s*process\.env\.OCI_HOSTED_OPENCLAW_URL,\s*portalRuntimeHostedValue\("OPENCLAW_URL"\),\s*gateway\.url/);
+  assert.match(server, /function readLlamaIndexControlTowerLaunchUrl\(\)[\s\S]*process\.env\.OCI_HOSTED_LLAMAINDEX_URL \|\|\s*portalRuntimeHostedValue\("LLAMAINDEX_URL"\) \|\|/);
+  assert.match(server, /finalConversationId = process\.env\.OCI_GENAI_CONVERSATION_ID \|\| portalRuntimeValue\("conversationId"\) \|\| conversation\.id/);
+  assert.match(server, /finalVectorStoreId = process\.env\.OCI_GENAI_VECTOR_STORE_ID \|\| portalRuntimeValue\("vectorStoreId"\) \|\| vectorStore\.id/);
+  assert.match(server, /finalHostedAgentApplicationId = hostedAgentApplicationIdEnv \|\| hostedAgent\.hostedApplicationId/);
+  assert.match(server, /finalOpenclawHostedUrl = hostedRuntimeUrl\(openclawHostedUrlEnv, openclawHostedUrl\)/);
 });
 
 test("server recovers hosted LlamaIndex metadata and legacy IDCS client exports", () => {
@@ -941,6 +946,18 @@ test("summarizes tainted terraform resources as failed infrastructure", () => {
   assert.equal(summary.values.resourceSuffix, "ab12cd");
 });
 
+test("summarizes externally provisioned RMS runtime as created infrastructure", () => {
+  const summary = summarizeInfrastructureState([], {
+    projectId: "ocid1.generativeaiproject.oc1.us-chicago-1.example",
+    projectDisplayName: "enterprise-ai-demo-responses-api-fd2ed9",
+    apiKeySecret: "configured"
+  });
+
+  assert.equal(summary.status, "created");
+  assert.equal(summary.values.projectId, "ocid1.generativeaiproject.oc1.us-chicago-1.example");
+  assert.equal(summary.values.apiKeyAvailable, true);
+});
+
 test("run dialog uses provisioned vector store and code container ids", () => {
   const main = readFileSync("src/main.js", "utf8");
 
@@ -973,6 +990,75 @@ test("run dialog does not expose editable hosted app references", () => {
   assert.match(server, /resolvePayloadHostedRuntime/);
   assert.match(server, /OCI_HOSTED_AGENT_URL: hostedRuntime\.hostedUrl/);
   assert.match(server, /OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID: hostedRuntime\.hostedDeploymentId/);
+});
+
+test("hosted application demos keep run action and expose separate launch button", () => {
+  const main = readFileSync("src/main.js", "utf8");
+
+  assert.match(main, /const hostedApplicationLaunchConfigs = \{/);
+  assert.match(main, /id="responses-launch-button"/);
+  assert.match(main, /hostedApplicationLaunchConfig\(featureId\)/);
+  assert.match(main, /responses-launch-button"\)\.hidden = !launchConfig/);
+  assert.match(main, /responses-launch-button"\)\.addEventListener\("click"/);
+  assert.match(main, /\/api\/hosted\/launch\/hosted-agentic-applications\//);
+  assert.match(main, /\/api\/hosted\/launch\/langgraph-hosted-agent-mcp\//);
+  assert.match(main, /\/api\/hosted\/launch\/a2a-agent-collaboration\//);
+  assert.match(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
+  assert.match(main, /\/api\/openclaw\/launch\//);
+  assert.match(main, /\/api\/llamaindex\/launch\//);
+  assert.match(main, /return "Run"/);
+  assert.doesNotMatch(main, /hostedUiLaunchDemoIds\.includes\(activeDemoId\)/);
+});
+
+test("generic hosted launch proxy routes through IDCS authenticated invoke URL", () => {
+  assert.equal(typeof hostedLaunchProxyTargetUrl, "function");
+
+  const target = hostedLaunchProxyTargetUrl(
+    "hosted-agentic-applications",
+    "/api/hosted/launch/hosted-agentic-applications/health",
+    "?ready=1",
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.example/actions/invoke/"
+  );
+
+  assert.equal(
+    target.toString(),
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.example/actions/invoke/health?ready=1"
+  );
+});
+
+test("DevOps hosted deployment exports are reported as build-managed infra", () => {
+  assert.equal(typeof devopsHostedDeploymentComponents, "function");
+
+  const components = devopsHostedDeploymentComponents({
+    buildRunId: "ocid1.devopsbuildrun.oc1.us-chicago-1.example",
+    buildPipelineId: "ocid1.devopsbuildpipeline.oc1.us-chicago-1.example",
+    deployments: {
+      hostedAgent: {
+        label: "Hosted Agent",
+        url: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/app/actions/invoke/",
+        deploymentId: "ocid1.generativeaihosteddeployment.oc1.us-chicago-1.hosted"
+      },
+      langGraph: {
+        label: "LangGraph",
+        url: "",
+        deploymentId: ""
+      }
+    }
+  });
+
+  assert.deepEqual(
+    components.map((component) => [component.name, component.status, component.value]),
+    [
+      ["OCI DevOps Hosted Build Run", "created", "ocid1.devopsbuildrun.oc1.us-chicago-1.example"],
+      ["OCI DevOps Hosted Build Pipeline", "created", "ocid1.devopsbuildpipeline.oc1.us-chicago-1.example"],
+      [
+        "Hosted Agent DevOps Deployment Export",
+        "created",
+        "ocid1.generativeaihosteddeployment.oc1.us-chicago-1.hosted | https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/app/actions/invoke/"
+      ],
+      ["LangGraph DevOps Deployment Export", "not-created", "OCI DevOps build did not export LangGraph deployment metadata"]
+    ]
+  );
 });
 
 test("hosted application references are displayed on hosted cards instead of generic run payloads", () => {

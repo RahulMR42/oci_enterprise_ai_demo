@@ -136,10 +136,11 @@ module "devops_hosted_image_build" {
   portal_run_history_bucket              = oci_objectstorage_bucket.portal_config[0].name
   portal_run_history_object              = "portal-demo-run-summary.json"
   portal_vector_store_id                 = local.portal_vector_store_id
+  portal_conversation_id                 = local.portal_conversation_id
   portal_code_interpreter_container_id   = local.portal_code_interpreter_container_id
   shared_policy_id                       = module.shared_demo_security.policy_id
   run_build                              = var.devops_hosted_image_run_build
-  deploy_only_app                        = var.deploy_only_app
+  deploy_only_app                        = local.effective_deploy_only_app
   app_deploy                             = var.app_deploy
   deploy_hosted_agent_hosted_application = var.oci_ha_hosted_agent_deploy
   deploy_langgraph_hosted_application    = var.oci_ha_langgraph_deploy

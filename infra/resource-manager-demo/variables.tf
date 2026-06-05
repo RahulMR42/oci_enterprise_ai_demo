@@ -119,7 +119,7 @@ variable "oci_ha_langfuse_deploy" {
 variable "app_deploy" {
   description = "Hosted application deployment selector. Use all to deploy every hosted application, or leave empty to use the per-application switches."
   type        = string
-  default     = ""
+  default     = "all"
 
   validation {
     condition     = contains(["", "all"], lower(var.app_deploy))
@@ -159,6 +159,17 @@ variable "existing_hosted_deployment_exports_json" {
   validation {
     condition     = can(jsondecode(var.existing_hosted_deployment_exports_json))
     error_message = "existing_hosted_deployment_exports_json must be valid JSON."
+  }
+}
+
+variable "existing_portal_runtime_config_json" {
+  description = "Non-sensitive JSON copy of the existing portal runtime config used to retain generated runtime IDs across portal-only redeployments."
+  type        = string
+  default     = "{}"
+
+  validation {
+    condition     = can(jsondecode(var.existing_portal_runtime_config_json))
+    error_message = "existing_portal_runtime_config_json must be valid JSON."
   }
 }
 
