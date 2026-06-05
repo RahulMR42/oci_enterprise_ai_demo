@@ -489,6 +489,14 @@ locals {
     if contains(keys(local.default_hosted_deployment_exports), key)
   }
   current_hosted_deployment_exports = module.devops_hosted_image_build.hosted_deployment_exports
+  deploy_all_hosted_applications    = lower(var.app_deploy) == "all"
+  selected_hosted_deployment_export_keys = local.deploy_all_hosted_applications ? keys(local.default_hosted_deployment_exports) : concat(
+    var.oci_ha_hosted_agent_deploy ? ["HOSTED_AGENT_DEPLOYMENT_ID", "HOSTED_AGENT_URL"] : [],
+    var.oci_ha_langgraph_deploy ? ["LANGGRAPH_DEPLOYMENT_ID", "LANGGRAPH_URL"] : [],
+    var.oci_ha_langfuse_deploy ? ["LANGFUSE_DEPLOYMENT_ID", "LANGFUSE_URL"] : [],
+    var.oci_ha_openclaw_deploy ? ["OPENCLAW_DEPLOYMENT_ID", "OPENCLAW_URL"] : [],
+    var.oci_ha_llamaindex_deploy ? ["LLAMAINDEX_DEPLOYMENT_ID", "LLAMAINDEX_URL"] : []
+  )
   non_empty_current_hosted_deployment_exports = {
     for key, value in local.current_hosted_deployment_exports :
     key => tostring(value)
@@ -496,7 +504,7 @@ locals {
   }
   stale_hosted_deployment_export_keys = var.deploy_only_app ? [] : [
     for key, value in local.current_hosted_deployment_exports :
-    key if tostring(value) == "" && contains(keys(local.existing_hosted_deployment_exports), key)
+    key if tostring(value) == "" && contains(keys(local.existing_hosted_deployment_exports), key) && contains(local.selected_hosted_deployment_export_keys, key)
   ]
   retained_existing_hosted_deployment_exports = {
     for key, value in local.existing_hosted_deployment_exports :

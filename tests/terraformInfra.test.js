@@ -548,7 +548,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /for build_output in try\(oci_devops_build_run\.this\[0\]\.build_outputs, \[\]\)/);
   assert.match(terraform, /jsondecode\(var\.existing_hosted_deployment_exports_json\)/);
   assert.match(terraform, /non_empty_current_hosted_deployment_exports/);
+  assert.match(terraform, /selected_hosted_deployment_export_keys/);
   assert.match(terraform, /retained_existing_hosted_deployment_exports/);
+  assert.match(terraform, /contains\(local\.selected_hosted_deployment_export_keys, key\)/);
   assert.match(terraform, /merge\([\s\S]*local\.default_hosted_deployment_exports[\s\S]*local\.retained_existing_hosted_deployment_exports[\s\S]*local\.non_empty_current_hosted_deployment_exports[\s\S]*\)/);
   assert.match(terraform, /portal_runtime_config_bucket\s+=\s+oci_objectstorage_bucket\.portal_config\[0\]\.name/);
   assert.match(terraform, /portal_runtime_config_object\s+=\s+"portal-runtime-config\.json"/);
