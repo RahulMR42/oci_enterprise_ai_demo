@@ -58,15 +58,21 @@ variable "responses_api_local_exec_enabled" {
 }
 
 variable "file_search_local_exec_enabled" {
-  description = "Enable File Search local-exec vector store provisioning. Set true on first-time Resource Manager deployments when oci_genai_project_id and oci_genai_api_key are provided so the portal receives OCI_GENAI_VECTOR_STORE_ID."
+  description = "Enable File Search local-exec vector store provisioning so the portal receives OCI_GENAI_VECTOR_STORE_ID."
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "conversation_store_local_exec_enabled" {
+  description = "Enable Conversation Store local-exec provisioning so the portal receives OCI_GENAI_CONVERSATION_ID."
+  type        = bool
+  default     = true
 }
 
 variable "code_interpreter_local_exec_enabled" {
-  description = "Enable Code Interpreter local-exec container provisioning. Set true on first-time Resource Manager deployments when oci_genai_project_id and oci_genai_api_key are provided so the portal receives OCI_GENAI_CODE_INTERPRETER_CONTAINER."
+  description = "Enable Code Interpreter local-exec container provisioning so the portal receives OCI_GENAI_CODE_INTERPRETER_CONTAINER."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "project_display_name" {
@@ -99,7 +105,7 @@ variable "devops_hosted_image_run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, the OCI DevOps pipeline builds and delivers only the portal image and skips hosted application image delivery and deployment stages so only the portal app container is redeployed."
+  description = "When true, hosted application deployment commands exit as skipped so only the portal app container is redeployed."
   type        = bool
   default     = false
 }
@@ -107,7 +113,7 @@ variable "deploy_only_app" {
 variable "oci_ha_langfuse_deploy" {
   description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted app deployment stages stay disabled."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "app_deploy" {
@@ -269,19 +275,6 @@ variable "devops_source_access_token_secret_id" {
   }
 }
 
-variable "devops_ocir_username" {
-  description = "OCIR username used by the DevOps build to push hosted app images."
-  type        = string
-  default     = ""
-}
-
-variable "devops_ocir_auth_token" {
-  description = "OCIR auth token used by the DevOps build to push hosted app images."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "hosted_app_container_cli" {
   description = "Container CLI used by hosted-app modules when hosted_app_push_image is true."
   type        = string
@@ -390,13 +383,24 @@ variable "portal_vcn_cidr" {
 }
 
 variable "portal_subnet_cidr" {
-  description = "Public subnet CIDR block for the demo portal container instance."
+  description = "Public subnet CIDR block for the demo portal load balancer."
   type        = string
   default     = "10.42.1.0/24"
 
   validation {
     condition     = can(cidrhost(var.portal_subnet_cidr, 1))
     error_message = "portal_subnet_cidr must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "portal_private_subnet_cidr" {
+  description = "Private subnet CIDR block for the demo portal container instance."
+  type        = string
+  default     = "10.42.2.0/24"
+
+  validation {
+    condition     = can(cidrhost(var.portal_private_subnet_cidr, 1))
+    error_message = "portal_private_subnet_cidr must be a valid IPv4 CIDR block."
   }
 }
 
@@ -443,29 +447,6 @@ variable "idcs_audience" {
 variable "idcs_scope" {
   description = "Existing identity domain OAuth scope for hosted application inbound authentication."
   type        = string
-}
-
-variable "n8n_basic_auth_user" {
-  description = "Username for the hosted n8n basic authentication boundary."
-  type        = string
-  default     = "admin"
-
-  validation {
-    condition     = length(trimspace(var.n8n_basic_auth_user)) > 0
-    error_message = "n8n_basic_auth_user must be non-empty."
-  }
-}
-
-variable "n8n_basic_auth_password" {
-  description = "Password for the hosted n8n basic authentication boundary."
-  type        = string
-  sensitive   = true
-}
-
-variable "n8n_image_repository_uri" {
-  description = "Optional prebuilt n8n image repository URI."
-  type        = string
-  default     = ""
 }
 
 variable "langfuse_image_repository_uri" {

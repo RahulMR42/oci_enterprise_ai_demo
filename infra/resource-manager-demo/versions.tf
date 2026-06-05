@@ -8,8 +8,8 @@ terraform {
     random = {
       source = "hashicorp/random"
     }
-    local = {
-      source = "hashicorp/local"
+    external = {
+      source = "hashicorp/external"
     }
     time = {
       source = "hashicorp/time"

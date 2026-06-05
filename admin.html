@@ -30,43 +30,108 @@
           <p class="section-note" id="admin-last-updated">Loading operational status...</p>
         </div>
 
-        <div class="admin-metric-grid" id="admin-metric-grid">
-          <div class="admin-metric"><span>Total runs</span><strong>0</strong></div>
-          <div class="admin-metric"><span>Success</span><strong>0</strong></div>
-          <div class="admin-metric"><span>Failed</span><strong>0</strong></div>
-          <div class="admin-metric"><span>Avg duration</span><strong>0 ms</strong></div>
+        <div class="admin-tabs" role="tablist" aria-label="Administration sections">
+          <button class="admin-tab is-active" id="admin-tab-runs" type="button" role="tab" aria-selected="true" aria-controls="admin-panel-runs" data-admin-tab="runs">Runs</button>
+          <button class="admin-tab" id="admin-tab-infra" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-infra" data-admin-tab="infra">Infra</button>
+          <button class="admin-tab" id="admin-tab-logs" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-logs" data-admin-tab="logs">Logs</button>
         </div>
 
-        <div class="admin-layout">
-          <section class="admin-demo-table" aria-label="Usage summary">
-            <h2>Usage summary</h2>
-            <div id="admin-demo-summary">
-              <div class="admin-demo-row">
-                <strong>No demo runs yet</strong>
-                <span>Run a demo to populate usage metrics.</span>
+        <div class="admin-panel is-active" id="admin-panel-runs" role="tabpanel" aria-labelledby="admin-tab-runs">
+          <div class="admin-metric-grid" id="admin-metric-grid">
+            <div class="admin-metric"><span>Total runs</span><strong>0</strong></div>
+            <div class="admin-metric"><span>Success</span><strong>0</strong></div>
+            <div class="admin-metric"><span>Failed</span><strong>0</strong></div>
+            <div class="admin-metric"><span>Avg duration</span><strong>0 ms</strong></div>
+          </div>
+
+          <div class="admin-layout">
+            <section class="admin-demo-table" aria-label="Usage summary">
+              <h2>Usage summary</h2>
+              <div id="admin-demo-summary">
+                <div class="admin-demo-row">
+                  <strong>No demo runs yet</strong>
+                  <span>Run a demo to populate usage metrics.</span>
+                </div>
               </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="admin-panel" id="admin-panel-infra" role="tabpanel" aria-labelledby="admin-tab-infra" hidden>
+          <div class="admin-metric-grid" id="admin-infra-metric-grid">
+            <div class="admin-metric"><span>Status</span><strong>Loading</strong></div>
+            <div class="admin-metric"><span>Resources</span><strong>0</strong></div>
+            <div class="admin-metric"><span>Created</span><strong>0</strong></div>
+            <div class="admin-metric"><span>Issues</span><strong>0</strong></div>
+          </div>
+
+          <section class="admin-runtime-env-panel" aria-label="Runtime environment variables">
+            <div class="admin-run-log-heading">
+              <h2>Runtime environment</h2>
+              <span id="admin-runtime-env-note">Loading variable snapshot...</span>
+            </div>
+            <div class="admin-runtime-env" id="admin-runtime-env">
+              <div class="admin-run-log-empty">Loading runtime variables.</div>
+            </div>
+          </section>
+
+          <section class="admin-infra-panel" aria-label="Terraform and OCI resources">
+            <div class="admin-run-log-heading">
+              <h2>Terraform resources</h2>
+              <label>
+                <span>Status</span>
+                <select id="admin-infra-status-filter" aria-label="Filter infrastructure resources by status">
+                  <option value="all">All</option>
+                  <option value="created">Created</option>
+                  <option value="not-created">Not created</option>
+                  <option value="failed">Failed</option>
+                  <option value="warning">Warning</option>
+                </select>
+              </label>
+            </div>
+            <div class="admin-schema-grid" id="admin-schema-grid">
+              <div class="admin-run-log-empty">Loading infrastructure schema.</div>
+            </div>
+            <div class="admin-resource-list" id="admin-resource-list">
+              <div class="admin-run-log-empty">Loading infrastructure resources.</div>
             </div>
           </section>
         </div>
 
-        <section class="admin-run-log-panel" aria-label="Recent execution logs">
-          <div class="admin-run-log-heading">
-            <h2>Recent execution logs</h2>
-            <label>
-              <span>Status</span>
-              <select id="admin-run-status-filter" aria-label="Filter execution logs by status">
-                <option value="all">All</option>
-                <option value="success">Success</option>
-                <option value="failed">Failed</option>
-                <option value="started">Started</option>
-                <option value="unknown">Unknown</option>
-              </select>
-            </label>
-          </div>
-          <div id="admin-run-logs">
-            <div class="admin-run-log-empty">No execution logs yet.</div>
-          </div>
-        </section>
+        <div class="admin-panel" id="admin-panel-logs" role="tabpanel" aria-labelledby="admin-tab-logs" hidden>
+          <section class="admin-run-log-panel" aria-label="Recent execution logs">
+            <div class="admin-run-log-heading">
+              <h2>Logs</h2>
+              <div class="admin-filter-row">
+                <label>
+                  <span>Source</span>
+                  <select id="admin-log-source-filter" aria-label="Filter logs by source">
+                    <option value="all">All</option>
+                    <option value="demo">Demo</option>
+                    <option value="bootstrap">Bootstrap</option>
+                    <option value="container">Container</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Status</span>
+                  <select id="admin-run-status-filter" aria-label="Filter execution logs by status">
+                    <option value="all">All</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                    <option value="started">Started</option>
+                    <option value="available">Available</option>
+                    <option value="manual">Manual</option>
+                    <option value="unknown">Unknown</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="admin-container-log-note" id="admin-container-log-note">Loading container log access.</div>
+            <div id="admin-run-logs">
+              <div class="admin-run-log-empty">No execution logs yet.</div>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
     <script type="module" src="/src/admin.js"></script>

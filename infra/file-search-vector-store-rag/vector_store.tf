@@ -1,4 +1,10 @@
 resource "terraform_data" "file_search_vector_store" {
+  triggers_replace = [
+    "resource-manager-generated-runtime-files-20260604",
+    var.resource_suffix,
+    var.oci_genai_project_id
+  ]
+
   input = {
     compartment_id         = var.compartment_id
     control_plane_base_url = local.control_plane_base_url
@@ -25,28 +31,47 @@ resource "terraform_data" "file_search_vector_store" {
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet openai
+        "$python_bin" -m pip install --user --quiet oci_openai
       fi
       vector_store_json="$("$python_bin" - <<PY
 import json
 import os
-from pathlib import Path
-from openai import OpenAI
+from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciSessionAuth, OciUserPrincipalAuth
 
-api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
-project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
-if not api_key:
-    raise SystemExit("Missing shared OCI Generative AI API key. Apply infra/responses-api first.")
-if not project_id:
-    raise SystemExit("Missing shared OCI Generative AI project ID. Apply infra/responses-api first.")
+def oci_auth():
+    config_file = os.getenv("OCI_CONFIG_FILE", "~/.oci/config")
+    profile_name = "${self.input.profile}" or "DEFAULT"
+    errors = []
+    for auth_factory in (
+        lambda: OciResourcePrincipalAuth(),
+        lambda: OciSessionAuth(config_file=config_file, profile_name=profile_name),
+        lambda: OciUserPrincipalAuth(config_file=config_file, profile_name=profile_name),
+    ):
+        try:
+            return auth_factory()
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+    return None, errors
 
-client = OpenAI(
-    base_url="${self.input.openai_base_url}",
-    api_key=api_key,
-    project=project_id,
+auth = oci_auth()
+if isinstance(auth, tuple):
+    _, auth_errors = auth
+    print(json.dumps({
+        "id": "",
+        "object": "vector_store",
+        "status": "skipped",
+        "reason": "Missing OCI signer for Vector Store control-plane create: " + " | ".join(auth_errors),
+    }))
+    raise SystemExit(0)
+
+client = OciOpenAI(
+    service_endpoint="${self.input.control_plane_base_url}",
+    auth=auth,
+    compartment_id="${self.input.compartment_id}",
 )
 vector_store = client.vector_stores.create(
     name="${self.input.display_name}",
+    description="Enterprise AI demo File Search vector store",
     expires_after={"anchor": "last_active_at", "days": 30},
     metadata={
         "compartment_id": "${self.input.compartment_id}",
@@ -85,24 +110,32 @@ PY
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet openai
+        "$python_bin" -m pip install --user --quiet oci_openai
       fi
       "$python_bin" - <<PY
-import json
 import os
-from pathlib import Path
-from openai import OpenAI
+from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciSessionAuth, OciUserPrincipalAuth
 
-api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
-project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
-if not api_key or not project_id:
-    print("Missing shared OCI Generative AI project/API key; skipping vector store remote delete.")
+def oci_auth():
+    config_file = os.getenv("OCI_CONFIG_FILE", "~/.oci/config")
+    profile_name = "${self.input.profile}" or "DEFAULT"
+    errors = []
+    for auth_factory in (
+        lambda: OciResourcePrincipalAuth(),
+        lambda: OciSessionAuth(config_file=config_file, profile_name=profile_name),
+        lambda: OciUserPrincipalAuth(config_file=config_file, profile_name=profile_name),
+    ):
+        try:
+            return auth_factory()
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+    print("Missing OCI signer for Vector Store control-plane delete; skipping remote delete: " + " | ".join(errors))
     raise SystemExit(0)
 
-client = OpenAI(
-    base_url="${self.input.openai_base_url}",
-    api_key=api_key,
-    project=project_id,
+client = OciOpenAI(
+    service_endpoint="${self.input.control_plane_base_url}",
+    auth=oci_auth(),
+    compartment_id="${self.input.compartment_id}",
 )
 client.vector_stores.delete("$vector_store_id")
 print("Deleted File Search vector store $vector_store_id")
@@ -114,6 +147,8 @@ PY
 
 resource "terraform_data" "file_search_seed_documents" {
   depends_on = [terraform_data.file_search_vector_store]
+
+  triggers_replace = [terraform_data.file_search_vector_store.id]
 
   input = {
     compartment_id              = var.compartment_id
@@ -158,7 +193,15 @@ if not vector_store_path.exists():
 
 vector_store_id = json.loads(vector_store_path.read_text()).get("id", "")
 if not vector_store_id:
-    raise SystemExit("Vector store metadata does not contain an id.")
+    payload = {
+        "vector_store_id": "",
+        "documents": [],
+        "status": "skipped",
+        "reason": "Vector store metadata does not contain an id.",
+    }
+    Path("${self.input.generated_file}").write_text(json.dumps(payload, indent=2))
+    print(json.dumps(payload))
+    raise SystemExit(0)
 if not seed_manifest:
     raise SystemExit("No bundled seed PDFs found under assets/pdfs.")
 

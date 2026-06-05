@@ -3,6 +3,29 @@ set -euo pipefail
 
 HOSTED_APP_KEY="${1:?HOSTED_APP_KEY is required}"
 
+skip_hosted_deployment() {
+  local reason="$1"
+  local url_var="${HOSTED_APP_KEY}_URL"
+  local deployment_var="${HOSTED_APP_KEY}_DEPLOYMENT_ID"
+
+  echo "Skipping ${HOSTED_APP_KEY} hosted deployment because ${reason}."
+  export "${url_var}="
+  export "${deployment_var}="
+  printf '%s=\n%s=\n' "$url_var" "$deployment_var" | tee "hosted-deployments-${HOSTED_APP_KEY}.env"
+  exit 0
+}
+
+deploy_only_app="${DEPLOY_ONLY_APP:-false}"
+if [ "${deploy_only_app,,}" = "true" ]; then
+  skip_hosted_deployment "DEPLOY_ONLY_APP is true"
+fi
+
+deploy_selector="${APP_DEPLOY:-none}"
+deploy_flag_name="OCI_HA_${HOSTED_APP_KEY}_DEPLOY"
+if [ "${deploy_selector,,}" != "all" ] && [ "${!deploy_flag_name:-false}" != "true" ]; then
+  skip_hosted_deployment "${deploy_flag_name} is not true and APP_DEPLOY is not all"
+fi
+
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY PIP_PROXY PIP_INDEX_URL PIP_EXTRA_INDEX_URL
 if ! oci generative-ai hosted-application create -h >/dev/null 2>&1; then
   python3 -m pip install --user --upgrade --proxy "" --index-url https://pypi.org/simple oci-cli
@@ -39,57 +62,138 @@ image_repo() {
   printf '%s\n' "${image_uri%:*}"
 }
 
-resource_ids_by_display_name() {
+hosted_app_ids_by_display_name() {
   local display_name="$1"
-  local resource_kind="$2"
-  local query_text="query all resources where displayName = '${display_name}'"
-  oci search resource structured-search \
-    --query-text "$query_text" \
+  oci generative-ai hosted-application-collection list-hosted-applications \
+    --compartment-id "$COMPARTMENT_ID" \
+    --display-name "$display_name" \
+    --all \
     --auth resource_principal \
     --region "$OCI_REGION" \
-    --output json | python3 -c 'import json, sys
-display_name = sys.argv[1]
-resource_kind = sys.argv[2].lower()
+    --output json |
+    python3 -c 'import json, sys
 payload = json.load(sys.stdin)
-items = (payload.get("data") or {}).get("items") or payload.get("items") or []
-for item in items:
-    item_name = item.get("display-name") or item.get("displayName") or ""
-    resource_type = (item.get("resource-type") or item.get("resourceType") or "").lower()
-    lifecycle_state = (item.get("lifecycle-state") or item.get("lifecycleState") or "").lower()
-    identifier = item.get("identifier") or ""
-    if item_name == display_name and resource_kind in resource_type and identifier and lifecycle_state not in {"deleted", "deleting"}:
-        print(identifier)' "$display_name" "$resource_kind"
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state not in {"DELETED", "DELETING"}:
+        print(identifier)'
 }
 
-delete_existing_hosted_resources() {
-  local deployment_display="$1"
-  local app_display="$2"
+hosted_deployment_ids_by_app_id() {
+  local app_id="$1"
+  oci generative-ai hosted-deployment-collection list-hosted-deployments \
+    --compartment-id "$COMPARTMENT_ID" \
+    --application-id "$app_id" \
+    --all \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json |
+    python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state not in {"DELETED", "DELETING"}:
+        print(identifier)'
+}
+
+wait_for_hosted_deployment_deleted() {
+  local dep_id="$1"
+  local state
+  local dep_file="/tmp/hosted_deployment_${dep_id##*.}.json"
+
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    if ! oci generative-ai hosted-deployment get \
+      --hosted-deployment-id "$dep_id" \
+      --auth resource_principal \
+      --region "$OCI_REGION" \
+      --output json >"$dep_file" 2>/tmp/hosted_deployment_get.err; then
+      echo "Hosted deployment ${dep_id} is no longer returned by OCI."
+      return 0
+    fi
+    state="$(python3 -c 'import json, sys; print((json.load(open(sys.argv[1])).get("data", {}).get("lifecycle-state") or "").upper())' "$dep_file")"
+    if [ "$state" = "DELETED" ]; then
+      echo "Hosted deployment ${dep_id} is deleted."
+      return 0
+    fi
+    sleep 20
+  done
+
+  echo "Timed out waiting for hosted deployment ${dep_id} to delete." >&2
+  return 1
+}
+
+wait_for_hosted_application_deleted() {
+  local app_id="$1"
+  local state
+  local app_file="/tmp/hosted_application_${app_id##*.}.json"
+
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    if ! oci generative-ai hosted-application get \
+      --hosted-application-id "$app_id" \
+      --auth resource_principal \
+      --region "$OCI_REGION" \
+      --output json >"$app_file" 2>/tmp/hosted_application_get.err; then
+      echo "Hosted application ${app_id} is no longer returned by OCI."
+      return 0
+    fi
+    state="$(python3 -c 'import json, sys; print((json.load(open(sys.argv[1])).get("data", {}).get("lifecycle-state") or "").upper())' "$app_file")"
+    if [ "$state" = "DELETED" ]; then
+      echo "Hosted application ${app_id} is deleted."
+      return 0
+    fi
+    sleep 20
+  done
+
+  echo "Timed out waiting for hosted application ${app_id} to delete." >&2
+  return 1
+}
+
+cleanup_previous_hosted_resources() {
+  local app_display="$1"
+  local current_app_id="$2"
+  local current_dep_id="$3"
   local old_dep_id old_app_id
   local previous_app_ids=()
   local previous_dep_ids=()
 
-  mapfile -t previous_app_ids < <(resource_ids_by_display_name "$app_display" "hostedapplication" || true)
-  mapfile -t previous_dep_ids < <(resource_ids_by_display_name "$deployment_display" "hosteddeployment" || true)
+  mapfile -t previous_app_ids < <(hosted_app_ids_by_display_name "$app_display" || true)
 
-  for old_dep_id in "${previous_dep_ids[@]}"; do
-    if [ -n "$old_dep_id" ]; then
-      oci generative-ai hosted-deployment delete \
-        --hosted-deployment-id "$old_dep_id" \
-        --force \
-        --auth resource_principal \
-        --region "$OCI_REGION" \
-        --wait-for-state SUCCEEDED || true
-    fi
+  for old_app_id in "${previous_app_ids[@]}"; do
+    [ -z "$old_app_id" ] && continue
+    [ "$old_app_id" = "$current_app_id" ] && continue
+    mapfile -t previous_dep_ids < <(hosted_deployment_ids_by_app_id "$old_app_id" || true)
+    for old_dep_id in "${previous_dep_ids[@]}"; do
+      if [ -n "$old_dep_id" ] && [ "$old_dep_id" != "$current_dep_id" ]; then
+        echo "Deleting previous hosted deployment ${old_dep_id} for ${app_display} after replacement."
+        if oci generative-ai hosted-deployment delete \
+          --hosted-deployment-id "$old_dep_id" \
+          --force \
+          --auth resource_principal \
+          --region "$OCI_REGION" \
+          --output json >/tmp/hosted_deployment_delete.json 2>/tmp/hosted_deployment_delete.err; then
+          wait_for_hosted_deployment_deleted "$old_dep_id" || echo "Previous hosted deployment ${old_dep_id} is still deleting; continuing with replacement."
+        else
+          echo "Skipping previous hosted deployment ${old_dep_id}; OCI did not allow deletion."
+        fi
+      fi
+    done
   done
 
   for old_app_id in "${previous_app_ids[@]}"; do
-    if [ -n "$old_app_id" ]; then
-      oci generative-ai hosted-application delete \
+    if [ -n "$old_app_id" ] && [ "$old_app_id" != "$current_app_id" ]; then
+      echo "Deleting previous hosted application ${old_app_id} (${app_display}) after replacement."
+      if oci generative-ai hosted-application delete \
         --hosted-application-id "$old_app_id" \
         --force \
         --auth resource_principal \
         --region "$OCI_REGION" \
-        --wait-for-state SUCCEEDED || true
+        --output json >/tmp/hosted_application_delete.json 2>/tmp/hosted_application_delete.err; then
+        wait_for_hosted_application_deleted "$old_app_id" || echo "Previous hosted application ${old_app_id} is still deleting; continuing with replacement."
+      else
+        echo "Skipping previous hosted application ${old_app_id}; OCI did not allow deletion."
+      fi
     fi
   done
 }
@@ -106,8 +210,6 @@ create_hosted() {
   local networking_json="${7:-}"
   local app_file="/tmp/${key}_hosted_application.json"
   local dep_file="/tmp/${key}_hosted_deployment.json"
-
-  delete_existing_hosted_resources "$deployment_display" "$display"
 
   env_args=()
   if [ -n "$env_json" ] && [ "$env_json" != "[]" ]; then
@@ -168,6 +270,8 @@ create_hosted() {
 
   export "${key}_URL=$(invoke_url "$app_id")"
   export "${key}_DEPLOYMENT_ID=$dep_id"
+
+  cleanup_previous_hosted_resources "$display" "$app_id" "$dep_id" || true
 }
 
 write_exported_variables() {
@@ -178,7 +282,7 @@ write_exported_variables() {
   printf '%s=%s\n' "$deployment_var" "${!deployment_var-}"
 }
 
-openclaw_env="$(python3 -c 'import json, os; print(json.dumps([{"name":"OPENCLAW_GATEWAY_BIND","type":"PLAINTEXT","value":"lan"},{"name":"OPENCLAW_GATEWAY_PORT","type":"PLAINTEXT","value":"18789"},{"name":"OPENCLAW_GATEWAY_TOKEN","type":"PLAINTEXT","value":os.getenv("OPENCLAW_GATEWAY_TOKEN","")}]))')"
+openclaw_env="$(python3 -c 'import json, os; print(json.dumps([{"name":"OPENCLAW_GATEWAY_BIND","type":"PLAINTEXT","value":"lan"},{"name":"OPENCLAW_GATEWAY_PORT","type":"PLAINTEXT","value":"8080"},{"name":"OPENCLAW_GATEWAY_TOKEN","type":"PLAINTEXT","value":os.getenv("OPENCLAW_GATEWAY_TOKEN","")}]))')"
 langfuse_env="$(python3 -c 'import json, os; values={"NEXTAUTH_URL":"http://0.0.0.0:3000","NEXTAUTH_SECRET":os.getenv("LANGFUSE_NEXTAUTH_SECRET",""),"SALT":os.getenv("LANGFUSE_SALT",""),"ENCRYPTION_KEY":os.getenv("LANGFUSE_ENCRYPTION_KEY",""),"DATABASE_URL":os.getenv("LANGFUSE_DATABASE_URL",""),"CLICKHOUSE_URL":os.getenv("LANGFUSE_CLICKHOUSE_URL",""),"CLICKHOUSE_USER":os.getenv("LANGFUSE_CLICKHOUSE_USER",""),"CLICKHOUSE_PASSWORD":os.getenv("LANGFUSE_CLICKHOUSE_PASSWORD",""),"CLICKHOUSE_CLUSTER_ENABLED":"false","LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED":"true","REDIS_CONNECTION_STRING":os.getenv("LANGFUSE_REDIS_CONNECTION_STRING",""),"LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE":"true","LANGFUSE_OCI_AUTH_TYPE":"resource_principal","LANGFUSE_S3_EVENT_UPLOAD_BUCKET":os.getenv("LANGFUSE_S3_EVENT_UPLOAD_BUCKET",""),"LANGFUSE_S3_EVENT_UPLOAD_REGION":os.getenv("LANGFUSE_S3_UPLOAD_REGION","auto"),"LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT":os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT",""),"LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE":"true","LANGFUSE_S3_MEDIA_UPLOAD_BUCKET":os.getenv("LANGFUSE_S3_MEDIA_UPLOAD_BUCKET",""),"LANGFUSE_S3_MEDIA_UPLOAD_REGION":os.getenv("LANGFUSE_S3_UPLOAD_REGION","auto"),"LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT":os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT","")}; print(json.dumps([{"name": name, "type": "PLAINTEXT", "value": value} for name, value in values.items()]))')"
 
 case "$HOSTED_APP_KEY" in

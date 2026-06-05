@@ -33,7 +33,7 @@
           <mxGeometry x="70" y="540" width="270" height="130" as="geometry" />
         </mxCell>
 
-        <mxCell id="idcsClient" value="Terraform-managed IDCS App&#xa;enterprise-ai-demo-n8n-launch-client-fd2ed9&#xa;Confidential client&#xa;Grant: client_credentials" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="idcsClient" value="Terraform-managed IDCS App&#xa;enterprise-ai-demo-hosted-launch-client-fd2ed9&#xa;Confidential client&#xa;Grant: client_credentials" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="465" y="150" width="210" height="100" as="geometry" />
         </mxCell>
         <mxCell id="tokenEndpoint" value="IDCS token endpoint&#xa;/oauth2/v1/token&#xa;Scope: https://genaisolutions.com/read" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">

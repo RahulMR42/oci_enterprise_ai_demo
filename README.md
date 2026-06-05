@@ -11,7 +11,7 @@ Use the button to create the full OCI Resource Manager stack from the latest Git
 | Demo | Runtime | Infrastructure |
 | --- | --- | --- |
 | Responses API | Direct OCI Responses API call through the OpenAI-compatible endpoint | GenAI project and API key |
-| Conversation Store | Local JSON session history plus OCI Responses API | Shared GenAI project |
+| Conversation Store | OCI Conversations API state plus OCI Responses API | Shared GenAI project and generated conversation ID |
 | Guardrails | Local policy checks plus sanitized OCI call | Shared GenAI project |
 | File Search & Vector Store RAG | OCI File Search tool over a provisioned vector store | Vector store and bundled Oracle PDFs |
 | Code Interpreter | OCI Code Interpreter tool | Managed code container |
@@ -22,7 +22,6 @@ Use the button to create the full OCI Resource Manager stack from the latest Git
 | Multi-Model Routing | OCI route candidates, scoring, and selected answer | Shared GenAI project |
 | Hosted Agentic Applications | OCI hosted application and deployment backed by OCIR | OCIR repository, hosted app, hosted deployment |
 | LangGraph Hosted Agent | Hosted LangGraph wrapper image | OCIR repository, hosted app, hosted deployment |
-| n8n Hosted Workflow | Ephemeral hosted n8n workflow UI | Hosted app, hosted deployment, optional IDCS launch client |
 | Langfuse Hosted Observability | Hosted Langfuse UI with OCI-managed dependencies | VCN, private subnet, PostgreSQL, ClickHouse, Redis, Object Storage, hosted app |
 | OpenClaw Hosted Gateway | Hosted gateway demo UI with run controls and next steps | OCIR repository, hosted app, hosted deployment |
 | Governance Center | Local policy controls, audit event, and OCI reviewer summary | Shared GenAI project and shared IAM visibility |
@@ -52,12 +51,12 @@ The portal login username is `oci`. The password is generated in `.oci-portal-pa
 
 ## Provision Infrastructure
 
-Provision the shared project, shared IAM, vector store, code container, NL2SQL resources, and hosted applications before startup:
+Provision the shared project, shared IAM, conversation store, vector store, code container, NL2SQL resources, and hosted applications before startup:
 
 ```bash
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u no_proxy -u NO_PROXY \
   PROVISION_INFRA=true \
-  PROVISION_DEMOS=file-search-vector-store-rag,code-interpreter,nl2sql-sql-search,hosted-agentic-applications \
+  PROVISION_DEMOS=conversation-store,file-search-vector-store-rag,code-interpreter,nl2sql-sql-search,hosted-agentic-applications \
   PORT=5173 \
   ./bash.sh
 ```
@@ -70,7 +69,7 @@ Common variables:
 | `OCI_GENAI_REGION` | `us-chicago-1` | OCI region |
 | `OCI_PROFILE` | `DEFAULT` | OCI CLI profile |
 | `RESOURCE_SUFFIX` | generated or existing Terraform output | Stable suffix for demo resources |
-| `PROVISION_DEMOS` | hosted/vector/code/NL2SQL modules | Comma-separated demo modules to apply |
+| `PROVISION_DEMOS` | conversation/vector/code/NL2SQL/hosted modules | Comma-separated demo modules to apply |
 | `REQUIRE_DEMO_INFRA` | `true` | Stop startup when a selected demo module fails |
 | `OCI_HOSTED_APP_IDCS_DOMAIN_URL` | unset | Existing identity domain URL for hosted app inbound auth |
 | `OCI_HOSTED_APP_IDCS_AUDIENCE` | unset | OAuth audience for hosted app inbound auth |

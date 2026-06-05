@@ -24,9 +24,9 @@ export const aiFeatures = [
     serviceArea: "OCI App Layer",
     summary: "Persist multi-turn chat history so sessions can resume with controlled enterprise context.",
     details:
-      "Runs a live OCI Responses API call with prior turns loaded from a persisted session store. Each run appends the user request and assistant response so the next turn can continue with enterprise context.",
+      "Runs a live OCI Responses API call with OCI Conversations API state. Terraform can create a reusable conversation object, and each run sends the conversation ID so OCI manages session memory across turns.",
     provisioningDetails:
-      "Uses the shared OCI Generative AI project/API key provisioned by Terraform. The demo persists local session state under backend/data for this development run.",
+      "Provision the shared OCI Generative AI project/API key and the conversation-store Terraform module. Startup exports the generated conversation ID as OCI_GENAI_CONVERSATION_ID, and the workbench can create a conversation lazily when one is not supplied.",
     status: "Live API",
     accent: "green",
     terraformPath: "infra/conversation-store",
@@ -35,7 +35,7 @@ export const aiFeatures = [
     demoHref: "#demo-conversation-store",
     docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/responses-api.htm",
     actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["Persisted session state", "Context replay", "Live OCI Responses API call"]
+    capabilities: ["OCI conversation object", "Context replay", "Live OCI Responses API call"]
   },
   {
     id: "guardrails",
@@ -64,7 +64,7 @@ export const aiFeatures = [
     details:
       "Runs a live OCI Responses API request with the File Search tool enabled. The demo requires a configured OCI vector store ID and asks the model to ground its response in indexed enterprise documents.",
     provisioningDetails:
-      "Uses the shared OCI Generative AI project/API key provisioned by Terraform. Provide OCI_GENAI_VECTOR_STORE_ID or paste a Vector Store ID in the workbench before running.",
+      "Uses the shared OCI Generative AI project/API key. The vector store is provisioned by default through Resource Manager and startup paths, bundled Oracle PDFs are seeded, and OCI_GENAI_VECTOR_STORE_ID is exported before running.",
     status: "Live Tool",
     accent: "teal",
     terraformPath: "infra/file-search-vector-store-rag",

@@ -13,7 +13,6 @@ logs
 __pycache__
 *.pyc
 backend/data
-.n8n-hosted-password
 .oci-portal-password
 .resource_suffix
 env

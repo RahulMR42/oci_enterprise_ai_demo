@@ -38,39 +38,19 @@ output "langgraph_hosted_deployment_display_name" {
   value       = local.langgraph_deployment_display_name
 }
 
-output "n8n_hosted_workflow_generated_file" {
-  description = "Generated n8n hosted workflow application/deployment metadata."
-  value       = "${path.module}/.terraform/generated/n8n_hosted_workflow.json"
+output "hosted_app_idcs_launch_client_generated_file" {
+  description = "Generated hosted UI launch IDCS client metadata."
+  value       = "${path.module}/.terraform/generated/hosted_app_idcs_client.json"
 }
 
-output "n8n_container_repository_name" {
-  description = "OCIR repository name used by the n8n hosted workflow image."
-  value       = local.n8n_repository_name
+output "hosted_app_idcs_launch_client_id" {
+  description = "Client ID for the Terraform-managed hosted UI launch confidential app."
+  value       = var.hosted_app_idcs_launch_client_enabled ? local.hosted_app_idcs_client_name : ""
 }
 
-output "n8n_hosted_application_display_name" {
-  description = "n8n OCI Generative AI hosted application display name."
-  value       = local.n8n_application_display_name
-}
-
-output "n8n_hosted_deployment_display_name" {
-  description = "n8n OCI Generative AI hosted deployment display name."
-  value       = local.n8n_deployment_display_name
-}
-
-output "n8n_idcs_launch_client_generated_file" {
-  description = "Generated n8n IDCS launch client metadata."
-  value       = "${path.module}/.terraform/generated/n8n_idcs_client.json"
-}
-
-output "n8n_idcs_launch_client_id" {
-  description = "Client ID for the Terraform-managed n8n launch confidential app."
-  value       = var.n8n_idcs_launch_client_enabled ? local.n8n_idcs_client_name : ""
-}
-
-output "n8n_idcs_launch_client_secret" {
+output "hosted_app_idcs_launch_client_secret" {
   description = "Client secret for the Terraform-managed hosted UI launch confidential app."
-  value       = var.n8n_idcs_launch_client_enabled ? oci_identity_domains_app.n8n_launch_client[0].client_secret : ""
+  value       = var.hosted_app_idcs_launch_client_enabled ? oci_identity_domains_app.hosted_app_launch_client[0].client_secret : ""
   sensitive   = true
 }
 

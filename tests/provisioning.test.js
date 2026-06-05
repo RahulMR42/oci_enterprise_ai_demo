@@ -19,16 +19,19 @@ import {
   sharedResponsesDemoComponents,
   summarizeInfrastructureState,
   normalizeProvisionConfig,
-  n8nExecutionListFallbackPayload,
-  n8nForwardedCookieHeader,
-  n8nPushStreamFallbackPayload,
   rewriteLangfuseLaunchJson,
   rewriteLangfuseLaunchHtml,
-  rewriteN8nLaunchJson,
-  rewriteN8nLaunchHtml,
   proxyResponseHeaders,
+  resolvePayloadHostedRuntime,
+  hostedRuntimeUrl,
+  hostedApplicationIdFromInvokeUrl,
+  readAdminLogSummary,
+  safeEnvironmentSnapshot,
+  selectHostedRuntimeCandidate,
+  summarizeAdminInfrastructureState,
   summarizeDemoRunHistory
 } from "../server.mjs";
+import * as serverModule from "../server.mjs";
 
 test("normalizes provisioning config with OCI defaults", () => {
   const config = normalizeProvisionConfig({});
@@ -119,6 +122,112 @@ test("server exposes redacted administration demo run history", () => {
   assert.match(server, /OCI_PORTAL_RUN_HISTORY_OBJECT/);
 });
 
+test("server exposes non-secret runtime environment variables for administration", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const admin = readFileSync("src/admin.js", "utf8");
+  const html = readFileSync("admin.html", "utf8");
+  const snapshot = safeEnvironmentSnapshot({
+    OCI_GENAI_REGION: "us-chicago-1",
+    OCI_HOSTED_APP_IDCS_DOMAIN_URL: "https://idcs.example.com",
+    OCI_HOSTED_APP_IDCS_CLIENT_SECRET: "secret-client",
+    OCI_GENAI_API_KEY: "secret-api-key",
+    OCI_PORTAL_PASSWORD: "portal-password",
+    PATH: "/usr/bin"
+  });
+
+  assert.deepEqual(
+    snapshot.variables.map((entry) => entry.key),
+    ["OCI_GENAI_REGION", "OCI_HOSTED_APP_IDCS_DOMAIN_URL", "PATH"]
+  );
+  assert.equal(snapshot.hiddenCount, 3);
+  assert.equal(JSON.stringify(snapshot).includes("secret-client"), false);
+  assert.equal(JSON.stringify(snapshot).includes("secret-api-key"), false);
+  assert.equal(JSON.stringify(snapshot).includes("portal-password"), false);
+  assert.match(server, /requestPath === "\/api\/admin\/runtime-env"/);
+  assert.match(admin, /\/api\/admin\/runtime-env/);
+  assert.match(html, /admin-runtime-env/);
+});
+
+test("server exposes redacted administration infrastructure and logs", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const admin = readFileSync("src/admin.js", "utf8");
+  const html = readFileSync("admin.html", "utf8");
+  const infra = summarizeAdminInfrastructureState({
+    status: "created",
+    values: {
+      projectId: "ocid1.generativeaiproject.example",
+      apiKeyAvailable: true
+    },
+    components: [
+      {
+        address: "oci_core_vcn.portal[0]",
+        name: "Portal VCN",
+        status: "created",
+        value: "enterprise-ai-demo-vcn"
+      },
+      {
+        address: "terraform_data.example",
+        name: "Generated Example",
+        status: "created",
+        value: "client_secret=very-sensitive"
+      }
+    ],
+    logs: [
+      {
+        label: "state",
+        status: "success",
+        stdout: "token=very-sensitive",
+        stderr: "ok"
+      }
+    ]
+  });
+
+  assert.equal(infra.summary.totalResources, 2);
+  assert.equal(infra.schema.resourceTypes.some((item) => item.type === "oci_core_vcn"), true);
+  assert.equal(JSON.stringify(infra).includes("very-sensitive"), false);
+  assert.match(server, /requestPath === "\/api\/admin\/infra"/);
+  assert.match(server, /requestPath === "\/api\/admin\/logs"/);
+  assert.match(server, /readAdminLogSummary/);
+  assert.match(server, /summarizeAdminInfrastructureState/);
+  assert.match(server, /redactSensitiveText/);
+  assert.match(admin, /\/api\/admin\/infra/);
+  assert.match(admin, /\/api\/admin\/logs/);
+  assert.match(html, /admin-panel-infra/);
+  assert.match(html, /admin-panel-logs/);
+});
+
+test("administration run history keeps failure details available for troubleshooting", () => {
+  const history = summarizeDemoRunHistory([
+    {
+      featureId: "langfuse-hosted-observability",
+      action: "launch",
+      status: "failed",
+      durationMs: 42,
+      createdAt: "2026-06-01T09:48:48.630Z",
+      error: "IDCS token request failed",
+      request: {
+        method: "GET",
+        path: "/api/langfuse/launch/auth/sign-in",
+        headers: { authorization: "Bearer secret-token" }
+      },
+      diagnostics: {
+        stage: "idcs-token",
+        config: { clientSecretConfigured: true }
+      },
+      upstream: {
+        target: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/auth/sign-in"
+      },
+      stack: "Error: IDCS token request failed\n    at getIdcsAccessToken"
+    }
+  ]);
+
+  const run = history.runs[0];
+  assert.equal(run.error, "IDCS token request failed");
+  assert.equal(run.diagnostics.stage, "idcs-token");
+  assert.equal(run.upstream.target.includes("/auth/sign-in"), true);
+  assert.equal(JSON.stringify(run).includes("secret-token"), false);
+});
+
 test("portal admin route is handled before Langfuse passthrough routes", () => {
   const server = readFileSync("server.mjs", "utf8");
   const adminRouteIndex = server.indexOf('requestPath === "/api/admin/demo-runs"');
@@ -186,6 +295,198 @@ test("Langfuse JSON root-relative routes stay inside the launch proxy", () => {
   assert.equal(rewritten.keep, "https://example.com/");
 });
 
+test("hosted runtime discovery ignores deleted exported applications", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.deleted",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+      url: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/"
+    },
+    envUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/",
+    envDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+    applicationResource: null,
+    deploymentResource: null,
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "");
+  assert.equal(selected.hostedDeploymentId, "");
+  assert.equal(selected.endpoint, "");
+});
+
+test("hosted runtime discovery prefers newest active application over stale exports", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.deleted",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.deleted"
+    },
+    envUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/",
+    envDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+    applicationResource: {
+      identifier: "ocid1.generativeaihostedapplication.active",
+      "lifecycle-state": "ACTIVE",
+      endpoint: "https://active-hosted.example.com/"
+    },
+    deploymentResource: {
+      identifier: "ocid1.generativeaihosteddeployment.active",
+      "lifecycle-state": "ACTIVE"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.active");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.active");
+  assert.equal(selected.endpoint, "https://active-hosted.example.com/");
+});
+
+test("hosted runtime discovery does not synthesize OCI API invoke URLs for browser launch", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.stale",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.stale",
+      endpoint: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.stale/actions/invoke/"
+    },
+    envUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.stale/actions/invoke/",
+    envDeploymentId: "ocid1.generativeaihosteddeployment.stale",
+    applicationResource: {
+      identifier: "ocid1.generativeaihostedapplication.active",
+      "lifecycle-state": "ACTIVE"
+    },
+    deploymentResource: {
+      identifier: "ocid1.generativeaihosteddeployment.active",
+      "lifecycle-state": "ACTIVE"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.active");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.active");
+  assert.equal(selected.endpoint, "");
+});
+
+test("hosted application OCID overrides do not become unauthenticated invoke URLs", () => {
+  const runtime = resolvePayloadHostedRuntime("agentic-control-tower", {
+    hostedAppReference: "ocid1.generativeaihostedapplication.example",
+    region: "us-chicago-1"
+  });
+
+  assert.equal(runtime.kind, "llamaindex");
+  assert.equal(runtime.hostedApplicationId, "ocid1.generativeaihostedapplication.example");
+  assert.equal(runtime.hostedUrl, "");
+});
+
+test("hosted runtime discovery accepts direct get id fields and ignores work request status", () => {
+  assert.equal(typeof serverModule.hostedResourceIsUsable, "function");
+  assert.equal(serverModule.hostedResourceIsUsable({ id: "ocid1.app", status: "SUCCEEDED" }), false);
+  assert.equal(serverModule.hostedResourceIsUsable({ id: "ocid1.app", "lifecycle-state": "ACTIVE" }), true);
+
+  const selected = selectHostedRuntimeCandidate({
+    applicationResource: {
+      id: "ocid1.generativeaihostedapplication.current",
+      "lifecycle-state": "ACTIVE"
+    },
+    deploymentResource: {
+      id: "ocid1.generativeaihosteddeployment.current",
+      "lifecycle-state": "ACTIVE",
+      "hosted-application-id": "ocid1.generativeaihostedapplication.current"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.current");
+  assert.equal(selected.hostedApplicationLifecycleState, "ACTIVE");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.current");
+  assert.equal(selected.hostedDeploymentLifecycleState, "ACTIVE");
+});
+
+test("hosted runtime discovery preserves deleted direct get state without launch endpoint", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.deleted",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+      endpoint:
+        "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/"
+    },
+    applicationResource: {
+      id: "ocid1.generativeaihostedapplication.deleted",
+      "lifecycle-state": "DELETED"
+    },
+    deploymentResource: {
+      id: "ocid1.generativeaihosteddeployment.deleted",
+      "lifecycle-state": "DELETED",
+      "hosted-application-id": "ocid1.generativeaihostedapplication.deleted"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.deleted");
+  assert.equal(selected.hostedApplicationLifecycleState, "DELETED");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.deleted");
+  assert.equal(selected.hostedDeploymentLifecycleState, "DELETED");
+  assert.equal(selected.endpoint, "");
+});
+
+test("hosted runtime launch requires active application and deployment lifecycles", () => {
+  assert.equal(typeof serverModule.hostedRuntimeIsLaunchable, "function");
+  assert.equal(
+    serverModule.hostedRuntimeIsLaunchable({
+      hostedApplicationLifecycleState: "ACTIVE",
+      hostedDeploymentLifecycleState: "ACTIVE"
+    }),
+    true
+  );
+  assert.equal(
+    serverModule.hostedRuntimeIsLaunchable({
+      hostedApplicationLifecycleState: "DELETED",
+      hostedDeploymentLifecycleState: "ACTIVE"
+    }),
+    false
+  );
+});
+
+test("server-side hosted runtimes preserve OCI invoke URLs", () => {
+  const invokeUrl =
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.example/actions/invoke/";
+  const runtime = resolvePayloadHostedRuntime("agentic-control-tower", {
+    hostedAppReference: invokeUrl
+  });
+
+  assert.equal(runtime.kind, "llamaindex");
+  assert.equal(runtime.hostedUrl, invokeUrl);
+  assert.equal(hostedRuntimeUrl("", invokeUrl), invokeUrl);
+  assert.equal(hostedApplicationIdFromInvokeUrl(invokeUrl), "ocid1.generativeaihostedapplication.example");
+});
+
+test("server runtime readers use Resource Manager hosted invoke URLs", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /function readLangfuseLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl/);
+  assert.match(server, /function readOpenClawLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl/);
+  assert.match(server, /finalHostedAgentApplicationId = hostedAgent\.hostedApplicationId \|\| hostedAgentApplicationIdEnv/);
+  assert.match(server, /finalOpenclawHostedUrl = hostedRuntimeUrl\(openclawHostedUrl, openclawHostedUrlEnv\)/);
+});
+
+test("server recovers hosted LlamaIndex metadata and legacy IDCS client exports", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /readLlamaIndexControlTowerMetadata/);
+  assert.match(server, /llamaindex_hosted_application\.json/);
+  assert.match(server, /llamaindex_hosted_deployment\.json/);
+  assert.match(server, /hostedRuntimeIsLaunchable\(metadata\)/);
+  assert.match(server, /legacyIdcsClientFile/);
+  assert.match(server, /\["n", "8", "n_idcs_client\.json"\]\.join\(""\)/);
+});
+
 test("demo process env strips broken proxy variables for OCI Python clients", () => {
   const env = demoProcessEnv(
     {
@@ -216,7 +517,7 @@ test("IDCS demo credential posture is redacted for Python demos", () => {
   const posture = idcsDemoCredentialPosture({
     domainUrl: "https://idcs.example.com",
     tokenUrl: "https://idcs.example.com/oauth2/v1/token",
-    clientId: "enterprise-ai-demo-n8n-launch-ab12cd",
+    clientId: "enterprise-ai-demo-hosted-launch-ab12cd",
     clientSecret: "super-secret",
     audience: "https://genaisolutions.com/",
     scope: "read",
@@ -255,81 +556,6 @@ test("server exposes LlamaIndex launch proxy route", () => {
   assert.match(server, /\/api\/llamaindex\/launch/);
   assert.match(server, /proxyLlamaIndexControlTowerLaunch/);
   assert.match(server, /llamaindex_control_tower\.json/);
-});
-
-test("n8n launch proxy rewrites root-relative UI assets through the proxy path", () => {
-  const html = `<!doctype html><script>window.BASE_PATH = '/';</script><script src="/assets/index.js"></script><link href="/assets/main.css"><link rel="icon" href="/favicon.ico">`;
-  const rewritten = rewriteN8nLaunchHtml(html);
-
-  assert.match(rewritten, /window\.BASE_PATH = '\/api\/n8n\/launch\/';/);
-  assert.match(rewritten, /src="\/api\/n8n\/launch\/assets\/index\.js"/);
-  assert.match(rewritten, /href="\/api\/n8n\/launch\/assets\/main\.css"/);
-  assert.match(rewritten, /href="\/api\/n8n\/launch\/favicon\.ico"/);
-});
-
-test("n8n launch proxy forwards n8n cookies but strips the portal session", () => {
-  const cookie = n8nForwardedCookieHeader("oci_portal_session=portal-token; n8n-auth=n8n-token; theme=dark");
-
-  assert.equal(cookie, "n8n-auth=n8n-token; theme=dark");
-});
-
-test("n8n launch proxy can mask empty execution-list upstream failures", () => {
-  assert.deepEqual(n8nExecutionListFallbackPayload("/api/n8n/launch/rest/executions"), { data: [] });
-  assert.deepEqual(n8nExecutionListFallbackPayload("/api/n8n/launch/rest/executions-current"), { data: [] });
-  assert.equal(n8nExecutionListFallbackPayload("/api/n8n/launch/rest/workflows"), null);
-});
-
-test("n8n launch proxy rewrites advertised editor URLs to the local proxy", () => {
-  const payload = {
-    data: {
-      urlBaseEditor: "http://0.0.0.0:8080",
-      urlBaseWebhook: "http://0.0.0.0:8080/",
-      oauthCallbackUrls: {
-        oauth1: "http://0.0.0.0:8080/rest/oauth1-credential/callback",
-        oauth2: "http://0.0.0.0:8080/rest/oauth2-credential/callback"
-      },
-      pushBackend: "sse"
-    }
-  };
-
-  const rewritten = JSON.parse(rewriteN8nLaunchJson(JSON.stringify(payload), "/api/n8n/launch/rest/settings", "http://127.0.0.1:5175"));
-
-  assert.equal(rewritten.data.urlBaseEditor, "http://127.0.0.1:5175/api/n8n/launch");
-  assert.equal(rewritten.data.urlBaseWebhook, "http://127.0.0.1:5175/api/n8n/launch/");
-  assert.equal(rewritten.data.oauthCallbackUrls.oauth1, "http://127.0.0.1:5175/api/n8n/launch/rest/oauth1-credential/callback");
-  assert.equal(rewritten.data.oauthCallbackUrls.oauth2, "http://127.0.0.1:5175/api/n8n/launch/rest/oauth2-credential/callback");
-});
-
-test("n8n launch proxy preserves hosted onboarding and template settings", () => {
-  const settings = {
-    data: {
-      personalizationSurveyEnabled: true,
-      onboardingCallPromptEnabled: true,
-      templates: {
-        enabled: true,
-        host: "https://api.n8n.io/api/"
-      }
-    }
-  };
-  const newWorkflow = {
-    data: {
-      name: "My workflow",
-      onboardingFlowEnabled: true
-    }
-  };
-
-  const rewrittenSettings = JSON.parse(rewriteN8nLaunchJson(JSON.stringify(settings), "/api/n8n/launch/rest/settings", "http://127.0.0.1:5175"));
-  const rewrittenNewWorkflow = JSON.parse(rewriteN8nLaunchJson(JSON.stringify(newWorkflow), "/api/n8n/launch/rest/workflows/new", "http://127.0.0.1:5175"));
-
-  assert.equal(rewrittenSettings.data.personalizationSurveyEnabled, true);
-  assert.equal(rewrittenSettings.data.onboardingCallPromptEnabled, true);
-  assert.equal(rewrittenSettings.data.templates.enabled, true);
-  assert.equal(rewrittenNewWorkflow.data.onboardingFlowEnabled, true);
-});
-
-test("n8n launch proxy provides a local SSE fallback for the push stream", () => {
-  assert.match(n8nPushStreamFallbackPayload("/api/n8n/launch/rest/push"), /^: connected\n\n/);
-  assert.equal(n8nPushStreamFallbackPayload("/api/n8n/launch/rest/settings"), null);
 });
 
 test("extracts project values from OCI provisioning logs", () => {
@@ -458,17 +684,6 @@ test("parses demo terraform resources into infrastructure component labels", () 
             }
           },
           {
-            address: "terraform_data.n8n_hosted_workflow_automation",
-            type: "terraform_data",
-            name: "n8n_hosted_workflow_automation",
-            values: {
-              input: {
-                hosted_application_display_name: "enterprise-ai-demo-n8n-ab12cd",
-                n8n_basic_auth_password: "do-not-expose"
-              }
-            }
-          },
-          {
             address: "terraform_data.langfuse_hosted_observability",
             type: "terraform_data",
             name: "langfuse_hosted_observability",
@@ -563,7 +778,6 @@ test("parses demo terraform resources into infrastructure component labels", () 
       ["File Search Seed Documents", "created"],
       ["Code Interpreter Container", "created"],
       ["Hosted Agentic Application Module", "created"],
-      ["N8N Hosted Workflow Automation Module", "created"],
       ["Langfuse Hosted Observability Module", "created"],
       ["SQL Search Vault", "created"],
       ["SQL Search Vault Key", "created"],
@@ -730,11 +944,81 @@ test("summarizes tainted terraform resources as failed infrastructure", () => {
 test("run dialog uses provisioned vector store and code container ids", () => {
   const main = readFileSync("src/main.js", "utf8");
 
+  assert.match(main, /conversationId: ""/);
   assert.match(main, /vectorStoreId: ""/);
   assert.match(main, /codeInterpreterContainerId: ""/);
+  assert.match(main, /infraState\.conversationId = values\.conversationId/);
   assert.match(main, /infraState\.vectorStoreId = values\.vectorStoreId/);
   assert.match(main, /infraState\.codeInterpreterContainerId = values\.codeInterpreterContainerId/);
+  assert.match(main, /featureId === "conversation-store"[\s\S]*infraState\.conversationId/);
   assert.match(main, /featureId === "file-search-vector-store-rag"[\s\S]*infraState\.vectorStoreId/);
+  assert.match(main, /conversationId: activeDemoId === "conversation-store"/);
   assert.match(main, /toolResourceId \|\| infraState\.vectorStoreId/);
   assert.match(main, /toolResourceId \|\| infraState\.codeInterpreterContainerId/);
+});
+
+test("run dialog does not expose editable hosted app references", () => {
+  const main = readFileSync("src/main.js", "utf8");
+  const styles = readFileSync("src/styles.css", "utf8");
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.doesNotMatch(main, /responses-hosted-reference-field/);
+  assert.doesNotMatch(main, /responses-hosted-reference-value/);
+  assert.doesNotMatch(main, /shouldSendHostedAppReference/);
+  assert.doesNotMatch(main, /hostedReferenceVisible/);
+  assert.doesNotMatch(styles, /\.demo-dialog\.is-launch-demo \.hosted-reference-field/);
+  assert.match(main, /hostedRuntimeReferences/);
+  assert.match(main, /langfuse-hosted-observability/);
+  assert.match(main, /agentic-control-tower/);
+  assert.match(server, /resolvePayloadHostedRuntime/);
+  assert.match(server, /OCI_HOSTED_AGENT_URL: hostedRuntime\.hostedUrl/);
+  assert.match(server, /OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID: hostedRuntime\.hostedDeploymentId/);
+});
+
+test("hosted application references are displayed on hosted cards instead of generic run payloads", () => {
+  const main = readFileSync("src/main.js", "utf8");
+
+  assert.match(main, /hostedReferenceDetails/);
+  assert.match(main, /class="hosted-card-reference"/);
+  assert.match(main, /visibleRequestPayload/);
+  assert.match(main, /delete visiblePayload\.hostedAppReference/);
+  assert.match(main, /delete visiblePayload\.hostedUrl/);
+});
+
+test("runtime state values ignore non-created hosted placeholder component text", () => {
+  assert.equal(typeof serverModule.componentValueIfCreated, "function");
+  assert.equal(
+    serverModule.componentValueIfCreated({
+      name: "Langfuse Hosted URL",
+      status: "not-created",
+      value: "Run provisioning to create Langfuse hosted URL"
+    }),
+    ""
+  );
+  assert.equal(
+    serverModule.componentValueIfCreated({
+      name: "OpenClaw OCI Hosted Deployment",
+      status: "deleting",
+      value: "ocid1.generativeaihosteddeployment.example"
+    }),
+    ""
+  );
+  assert.equal(
+    serverModule.componentValueIfCreated({
+      name: "LlamaIndex Control Tower Hosted URL",
+      status: "created",
+      value: "https://hosted.example.com/"
+    }),
+    "https://hosted.example.com/"
+  );
+});
+
+test("frontend hosted state hydration does not fall back to placeholder component values", () => {
+  const main = readFileSync("src/main.js", "utf8");
+
+  assert.match(main, /function provisionedComponentValue/);
+  assert.match(main, /provisionedComponentValue\(langfuseUrlComponent\)/);
+  assert.doesNotMatch(main, /values\.langfuseHostedUrl \|\| langfuseUrlComponent\?\.value/);
+  assert.doesNotMatch(main, /values\.openclawHostedUrl \|\| openclawUrlComponent\?\.value/);
+  assert.doesNotMatch(main, /values\.llamaIndexHostedUrl \|\| llamaIndexUrlComponent\?\.value/);
 });

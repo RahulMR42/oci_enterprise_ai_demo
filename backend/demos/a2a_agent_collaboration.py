@@ -34,8 +34,8 @@ def _read_json(path):
 def _agent_card(name, description, runtime, path, skills):
     metadata = _read_json(path)
     env_prefix = "OCI_HOSTED_LANGGRAPH" if "LangGraph" in name else "OCI_HOSTED_AGENT"
-    hosted_deployment_id = metadata.get("hostedDeploymentId", "") or os.getenv(f"{env_prefix}_DEPLOYMENT_ID", "")
-    hosted_url = metadata.get("endpoint") or os.getenv(f"{env_prefix}_URL", "")
+    hosted_deployment_id = os.getenv(f"{env_prefix}_DEPLOYMENT_ID", "") or metadata.get("hostedDeploymentId", "")
+    hosted_url = os.getenv(f"{env_prefix}_URL", "") or metadata.get("endpoint")
     return {
         "name": name,
         "description": description,

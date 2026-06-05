@@ -18,11 +18,6 @@ output "langgraph_container_repository_name" {
   value       = module.hosted_agentic_applications.langgraph_container_repository_name
 }
 
-output "n8n_container_repository_name" {
-  description = "OCIR repository name for the n8n hosted workflow image."
-  value       = module.hosted_agentic_applications.n8n_container_repository_name
-}
-
 output "langfuse_container_repository_name" {
   description = "OCIR repository name for the Langfuse hosted observability image."
   value       = module.hosted_agentic_applications.langfuse_container_repository_name
@@ -64,8 +59,8 @@ output "devops_hosted_deployment_exports" {
 }
 
 output "portal_container_instance_id" {
-  description = "OCI Container Instance OCID for the demo portal."
-  value       = var.portal_container_enabled ? oci_container_instances_container_instance.portal[0].id : ""
+  description = "OCI Container Instance OCID for the demo portal. DevOps creates and rotates this resource during rollout, so Terraform does not own a stable value."
+  value       = ""
 }
 
 output "portal_container_image_uri" {
@@ -98,13 +93,13 @@ output "portal_run_history_object" {
 }
 
 output "portal_public_ip" {
-  description = "Public IP address assigned to the demo portal container instance."
-  value       = var.portal_container_enabled ? data.oci_core_vnic.portal[0].public_ip_address : ""
+  description = "Public IP address assigned to the demo portal load balancer."
+  value       = var.portal_container_enabled ? oci_load_balancer_load_balancer.portal[0].ip_address_details[0].ip_address : ""
 }
 
 output "portal_url" {
-  description = "Public URL for the demo portal container instance."
-  value       = var.portal_container_enabled ? "http://${data.oci_core_vnic.portal[0].public_ip_address}:${var.portal_container_port}" : ""
+  description = "Public URL for the demo portal load balancer."
+  value       = local.portal_url
 }
 
 output "portal_login_user" {
@@ -121,6 +116,11 @@ output "portal_login_password" {
 output "portal_vector_store_id" {
   description = "File Search vector store ID injected into the demo portal."
   value       = var.portal_container_enabled ? local.portal_vector_store_id : ""
+}
+
+output "portal_conversation_id" {
+  description = "OCI Conversations API conversation ID injected into the demo portal."
+  value       = var.portal_container_enabled ? local.portal_conversation_id : ""
 }
 
 output "portal_code_interpreter_container_id" {
@@ -155,5 +155,5 @@ output "langfuse_networking_config_json" {
 
 output "portal_runtime_note" {
   description = "How the local portal consumes Resource Manager-created runtime metadata."
-  value       = "Resource Manager deploys the OCI Container Instance portal directly. Local Node development can still read generated runtime JSON from each Terraform module path after apply."
+  value       = "Resource Manager creates the stable portal load balancer and runtime config. OCI DevOps rolls portal container instances behind the load balancer and runs smoke tests before switching traffic."
 }

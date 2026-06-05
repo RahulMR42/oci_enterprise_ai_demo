@@ -31,9 +31,9 @@ const serviceProfiles = {
 
 const featureOverrides = {
   "conversation-store": {
-    core: "OCI Responses API with conversation replay",
-    data: "Persisted session turns in backend/data",
-    response: "Assistant response plus updated session state"
+    core: "OCI Responses API with OCI Conversations API",
+    data: "Generated conversation ID and OCI-managed turn state",
+    response: "Assistant response plus updated OCI conversation state"
   },
   guardrails: {
     core: "Policy gate before OCI Responses API",
@@ -89,11 +89,6 @@ const featureOverrides = {
     core: "A2A-style coordination across hosted agents",
     data: "Agent cards, task handoff, hosted endpoints",
     response: "Coordinated incident outcome"
-  },
-  "n8n-hosted-workflow-automation": {
-    core: "OCI Hosted Application running n8n",
-    data: "OCIR n8n image, hosted URL, runtime auth settings",
-    response: "Hosted n8n UI in a browser tab"
   },
   "openclaw-hosted-agent-gateway": {
     core: "OCI Hosted Application running OpenClaw",

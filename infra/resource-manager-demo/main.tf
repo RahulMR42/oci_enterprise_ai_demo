@@ -45,7 +45,15 @@ module "code_interpreter" {
 }
 
 module "conversation_store" {
+  count  = var.conversation_store_local_exec_enabled ? 1 : 0
   source = "../conversation-store"
+
+  region               = var.region
+  resource_suffix      = var.resource_suffix
+  oci_genai_project_id = var.oci_genai_project_id
+  oci_genai_api_key    = var.oci_genai_api_key
+
+  depends_on = [module.responses_api]
 }
 
 module "guardrails" {
@@ -80,11 +88,14 @@ module "devops_hosted_image_build" {
   create_github_connection       = var.devops_create_github_connection
   source_access_token_secret_id  = var.devops_source_access_token_secret_id
   ocir_region_key                = var.hosted_app_ocir_region_key
+  image_tag                      = local.devops_image_tag
   idcs_domain_url                = var.idcs_domain_url
   idcs_audience                  = var.idcs_audience
   idcs_scope                     = var.idcs_scope
-  n8n_basic_auth_user            = var.n8n_basic_auth_user
-  n8n_basic_auth_password        = var.n8n_basic_auth_password
+  hosted_app_idcs_client_id      = module.hosted_agentic_applications.hosted_app_idcs_launch_client_id
+  hosted_app_idcs_client_secret  = module.hosted_agentic_applications.hosted_app_idcs_launch_client_secret
+  oci_genai_project_id           = var.oci_genai_project_id
+  oci_genai_api_key              = var.oci_genai_api_key
   openclaw_gateway_token         = var.openclaw_gateway_token
   langfuse_database_url          = try(module.hosted_agentic_applications.langfuse_database_url, "")
   langfuse_clickhouse_url        = try(module.hosted_agentic_applications.langfuse_clickhouse_url, "")
@@ -108,6 +119,24 @@ module "devops_hosted_image_build" {
     ? var.portal_container_repository_id
     : try(oci_artifacts_container_repository.portal[0].id, "")
   )
+  portal_private_subnet_id               = try(oci_core_subnet.portal_private[0].id, "")
+  portal_network_security_group_id       = try(oci_core_network_security_group.portal[0].id, "")
+  portal_load_balancer_id                = try(oci_load_balancer_load_balancer.portal[0].id, "")
+  portal_backend_set_name                = try(oci_load_balancer_backend_set.portal[0].name, "")
+  portal_public_url                      = local.portal_url
+  portal_container_port                  = var.portal_container_port
+  portal_container_shape                 = var.portal_container_shape
+  portal_container_ocpus                 = var.portal_container_ocpus
+  portal_container_memory_gbs            = var.portal_container_memory_gbs
+  portal_auth_password                   = local.portal_auth_password
+  portal_runtime_config_namespace        = data.oci_objectstorage_namespace.portal.namespace
+  portal_runtime_config_bucket           = oci_objectstorage_bucket.portal_config[0].name
+  portal_runtime_config_object           = "portal-runtime-config.json"
+  portal_run_history_namespace           = data.oci_objectstorage_namespace.portal.namespace
+  portal_run_history_bucket              = oci_objectstorage_bucket.portal_config[0].name
+  portal_run_history_object              = "portal-demo-run-summary.json"
+  portal_vector_store_id                 = local.portal_vector_store_id
+  portal_code_interpreter_container_id   = local.portal_code_interpreter_container_id
   shared_policy_id                       = module.shared_demo_security.policy_id
   run_build                              = var.devops_hosted_image_run_build
   deploy_only_app                        = var.deploy_only_app
@@ -132,9 +161,6 @@ module "hosted_agentic_applications" {
   idcs_domain_url                 = var.idcs_domain_url
   idcs_audience                   = var.idcs_audience
   idcs_scope                      = var.idcs_scope
-  n8n_basic_auth_user             = var.n8n_basic_auth_user
-  n8n_basic_auth_password         = var.n8n_basic_auth_password
-  n8n_image_repository_uri        = var.n8n_image_repository_uri
   langfuse_image_repository_uri   = var.langfuse_image_repository_uri
   openclaw_image_repository_uri   = var.openclaw_image_repository_uri
   llamaindex_image_repository_uri = var.llamaindex_image_repository_uri

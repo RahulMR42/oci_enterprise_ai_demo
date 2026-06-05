@@ -50,6 +50,15 @@ resource "oci_core_internet_gateway" "portal" {
   freeform_tags  = local.portal_tags
 }
 
+resource "oci_core_nat_gateway" "portal" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.portal[0].id
+  display_name   = "enterprise-ai-demo-portal-${var.resource_suffix}-nat"
+  freeform_tags  = local.portal_tags
+}
+
 resource "oci_core_route_table" "portal_public" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -62,6 +71,21 @@ resource "oci_core_route_table" "portal_public" {
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
     network_entity_id = oci_core_internet_gateway.portal[0].id
+  }
+}
+
+resource "oci_core_route_table" "portal_private" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.portal[0].id
+  display_name   = "enterprise-ai-demo-portal-${var.resource_suffix}-private-routes"
+  freeform_tags  = local.portal_tags
+
+  route_rules {
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+    network_entity_id = oci_core_nat_gateway.portal[0].id
   }
 }
 
@@ -79,6 +103,20 @@ resource "oci_core_subnet" "portal_public" {
   freeform_tags              = local.portal_tags
 }
 
+resource "oci_core_subnet" "portal_private" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id             = var.compartment_id
+  vcn_id                     = oci_core_vcn.portal[0].id
+  cidr_block                 = var.portal_private_subnet_cidr
+  display_name               = "enterprise-ai-demo-portal-${var.resource_suffix}-private-subnet"
+  dns_label                  = "portalp"
+  prohibit_internet_ingress  = true
+  prohibit_public_ip_on_vnic = true
+  route_table_id             = oci_core_route_table.portal_private[0].id
+  freeform_tags              = local.portal_tags
+}
+
 resource "oci_core_network_security_group" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -88,15 +126,24 @@ resource "oci_core_network_security_group" "portal" {
   freeform_tags  = local.portal_tags
 }
 
+resource "oci_core_network_security_group" "portal_lb" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.portal[0].id
+  display_name   = "enterprise-ai-demo-portal-${var.resource_suffix}-lb-nsg"
+  freeform_tags  = local.portal_tags
+}
+
 resource "oci_core_network_security_group_security_rule" "portal_ingress" {
   count = var.portal_container_enabled ? 1 : 0
 
   network_security_group_id = oci_core_network_security_group.portal[0].id
   direction                 = "INGRESS"
   protocol                  = "6"
-  source                    = "0.0.0.0/0"
+  source                    = var.portal_subnet_cidr
   source_type               = "CIDR_BLOCK"
-  description               = "Allow public HTTP access to the demo portal."
+  description               = "Allow the portal load balancer to reach the demo portal container."
 
   tcp_options {
     destination_port_range {
@@ -117,18 +164,77 @@ resource "oci_core_network_security_group_security_rule" "portal_egress" {
   description               = "Allow the demo portal to reach OCI APIs and external dependencies."
 }
 
-data "local_file" "file_search_vector_store" {
+resource "oci_core_network_security_group_security_rule" "portal_lb_ingress" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  network_security_group_id = oci_core_network_security_group.portal_lb[0].id
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  source                    = "0.0.0.0/0"
+  source_type               = "CIDR_BLOCK"
+  description               = "Allow public HTTP access to the portal load balancer."
+
+  tcp_options {
+    destination_port_range {
+      min = 80
+      max = 80
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "portal_lb_egress" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  network_security_group_id = oci_core_network_security_group.portal_lb[0].id
+  direction                 = "EGRESS"
+  protocol                  = "6"
+  destination               = var.portal_private_subnet_cidr
+  destination_type          = "CIDR_BLOCK"
+  description               = "Allow the portal load balancer to reach the portal container backend."
+
+  tcp_options {
+    destination_port_range {
+      min = var.portal_container_port
+      max = var.portal_container_port
+    }
+  }
+}
+
+data "external" "file_search_vector_store" {
   count = var.portal_container_enabled && var.file_search_local_exec_enabled ? 1 : 0
 
-  filename = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"
+  program = ["python3", "${path.module}/scripts/read_generated_metadata.py"]
+
+  query = {
+    generated_file = local.file_search_vector_store_generated_file
+    id_keys        = "id,vector_store_id"
+  }
 
   depends_on = [module.file_search_vector_store_rag]
 }
 
-data "local_file" "code_interpreter_container" {
+data "external" "conversation_store" {
+  count = var.portal_container_enabled && var.conversation_store_local_exec_enabled ? 1 : 0
+
+  program = ["python3", "${path.module}/scripts/read_generated_metadata.py"]
+
+  query = {
+    generated_file = local.conversation_store_generated_file
+    id_keys        = "id"
+  }
+
+  depends_on = [module.conversation_store]
+}
+
+data "external" "code_interpreter_container" {
   count = var.portal_container_enabled && var.code_interpreter_local_exec_enabled ? 1 : 0
 
-  filename = "${path.module}/../code-interpreter/.terraform/generated/container.json"
+  program = ["python3", "${path.module}/scripts/read_generated_metadata.py"]
+
+  query = {
+    generated_file = local.code_interpreter_container_generated_file
+    id_keys        = "id"
+  }
 
   depends_on = [module.code_interpreter]
 }
@@ -153,6 +259,125 @@ resource "oci_objectstorage_object" "portal_runtime_config" {
   content_type = "application/json"
 }
 
+resource "terraform_data" "portal_runtime_config_generated_values" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  triggers_replace = [
+    var.resource_suffix,
+    var.devops_source_revision,
+    tostring(var.conversation_store_local_exec_enabled),
+    tostring(var.file_search_local_exec_enabled),
+    tostring(var.code_interpreter_local_exec_enabled)
+  ]
+
+  input = {
+    namespace                    = data.oci_objectstorage_namespace.portal.namespace
+    bucket                       = oci_objectstorage_bucket.portal_config[0].name
+    object                       = oci_objectstorage_object.portal_runtime_config[0].object
+    region                       = var.region
+    profile                      = var.profile
+    conversation_store_generated = local.conversation_store_generated_file
+    file_search_vector_store     = local.file_search_vector_store_generated_file
+    code_interpreter_container   = local.code_interpreter_container_generated_file
+    generated_runtime_config     = "${path.module}/.terraform/generated/portal-runtime-config.json"
+    portal_runtime_config_json   = jsonencode(local.portal_runtime_config)
+  }
+
+  depends_on = [
+    oci_objectstorage_object.portal_runtime_config,
+    module.conversation_store,
+    module.file_search_vector_store_rag,
+    module.code_interpreter
+  ]
+
+  provisioner "local-exec" {
+    environment = {
+      PORTAL_RUNTIME_CONFIG_JSON        = self.input.portal_runtime_config_json
+      PORTAL_RUNTIME_CONFIG_NAMESPACE   = self.input.namespace
+      PORTAL_RUNTIME_CONFIG_BUCKET      = self.input.bucket
+      PORTAL_RUNTIME_CONFIG_OBJECT      = self.input.object
+      PORTAL_RUNTIME_CONFIG_OUTPUT_FILE = self.input.generated_runtime_config
+      CONVERSATION_STORE_GENERATED_FILE = self.input.conversation_store_generated
+      FILE_SEARCH_VECTOR_STORE_FILE     = self.input.file_search_vector_store
+      CODE_INTERPRETER_CONTAINER_FILE   = self.input.code_interpreter_container
+    }
+
+    command = <<-EOT
+      set -euo pipefail
+      mkdir -p '${path.module}/.terraform/generated'
+      python3 - <<'PY'
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+def read_json_file(path_value):
+    if not path_value:
+        return {}
+    path = Path(path_value)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+def first_value(payload, *keys):
+    for key in keys:
+        value = str(payload.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+config = json.loads(os.getenv("PORTAL_RUNTIME_CONFIG_JSON") or "{}")
+updates = []
+
+conversation_id = first_value(read_json_file(os.getenv("CONVERSATION_STORE_GENERATED_FILE")), "id")
+if conversation_id:
+    config["conversationId"] = conversation_id
+    updates.append("conversationId")
+
+vector_store_id = first_value(read_json_file(os.getenv("FILE_SEARCH_VECTOR_STORE_FILE")), "id", "vector_store_id")
+if vector_store_id:
+    config["vectorStoreId"] = vector_store_id
+    updates.append("vectorStoreId")
+
+code_container_id = first_value(read_json_file(os.getenv("CODE_INTERPRETER_CONTAINER_FILE")), "id")
+if code_container_id:
+    config["codeInterpreterContainerId"] = code_container_id
+    updates.append("codeInterpreterContainerId")
+
+config["generatedRuntimeConfigUpdatedAt"] = datetime.now(timezone.utc).isoformat()
+output_path = Path(os.environ["PORTAL_RUNTIME_CONFIG_OUTPUT_FILE"])
+output_path.parent.mkdir(parents=True, exist_ok=True)
+output_path.write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
+print("Prepared portal runtime config generated keys: " + (", ".join(updates) if updates else "none"))
+PY
+      oci_auth_args="--auth resource_principal"
+      if [ -n '${self.input.profile}' ]; then
+        oci_auth_args="--profile '${self.input.profile}'"
+      else
+        python3 -m pip install --user --quiet --upgrade oci-cli || true
+        export PATH="$HOME/.local/bin:$PATH"
+      fi
+      if oci os object put \
+        --namespace "$PORTAL_RUNTIME_CONFIG_NAMESPACE" \
+        --bucket-name "$PORTAL_RUNTIME_CONFIG_BUCKET" \
+        --name "$PORTAL_RUNTIME_CONFIG_OBJECT" \
+        --file "$PORTAL_RUNTIME_CONFIG_OUTPUT_FILE" \
+        --content-type application/json \
+        --force \
+        $oci_auth_args \
+        --region '${self.input.region}' \
+        --output json >/dev/null; then
+        echo "Updated portal runtime config generated object."
+      else
+        echo "Skipping portal runtime config generated Object Storage update after Terraform object creation."
+      fi
+    EOT
+  }
+}
+
 resource "oci_objectstorage_object" "portal_run_history" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -167,108 +392,54 @@ resource "oci_objectstorage_object" "portal_run_history" {
   }
 }
 
-resource "oci_container_instances_container_instance" "portal" {
+resource "oci_load_balancer_load_balancer" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
-  availability_domain = data.oci_identity_availability_domains.portal.availability_domains[0].name
-  compartment_id      = var.compartment_id
-  display_name        = local.portal_display_name
-  shape               = var.portal_container_shape
-  freeform_tags       = local.portal_tags
+  compartment_id             = var.compartment_id
+  display_name               = "enterprise-ai-demo-portal-${var.resource_suffix}-lb"
+  shape                      = "flexible"
+  subnet_ids                 = [oci_core_subnet.portal_public[0].id]
+  is_private                 = false
+  network_security_group_ids = [oci_core_network_security_group.portal_lb[0].id]
+  freeform_tags              = local.portal_tags
 
-  shape_config {
-    ocpus         = var.portal_container_ocpus
-    memory_in_gbs = var.portal_container_memory_gbs
+  shape_details {
+    minimum_bandwidth_in_mbps = 10
+    maximum_bandwidth_in_mbps = 10
   }
-
-  vnics {
-    display_name           = "${local.portal_display_name}-vnic"
-    hostname_label         = "portal"
-    is_public_ip_assigned  = true
-    nsg_ids                = [oci_core_network_security_group.portal[0].id]
-    subnet_id              = oci_core_subnet.portal_public[0].id
-    skip_source_dest_check = false
-  }
-
-  containers {
-    display_name = "portal"
-    image_url    = local.portal_container_image_uri
-
-    environment_variables = {
-      HOST                                 = "0.0.0.0"
-      OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID = module.devops_hosted_image_build.build_run_id
-      OCI_GENAI_API_KEY                    = var.oci_genai_api_key
-      OCI_GENAI_CODE_INTERPRETER_CONTAINER = local.portal_code_interpreter_container_id
-      OCI_GENAI_PROJECT_ID                 = var.oci_genai_project_id
-      OCI_GENAI_REGION                     = var.region
-      OCI_GENAI_VECTOR_STORE_ID            = local.portal_vector_store_id
-      OCI_HOSTED_APP_IDCS_AUDIENCE         = var.idcs_audience
-      OCI_HOSTED_APP_IDCS_CLIENT_ID        = module.hosted_agentic_applications.n8n_idcs_launch_client_id
-      OCI_HOSTED_APP_IDCS_CLIENT_SECRET    = module.hosted_agentic_applications.n8n_idcs_launch_client_secret
-      OCI_HOSTED_APP_IDCS_DOMAIN_URL       = var.idcs_domain_url
-      OCI_HOSTED_APP_IDCS_SCOPE            = var.idcs_scope
-      OCI_HOSTED_APP_IDCS_TOKEN_URL        = "${trimsuffix(var.idcs_domain_url, "/")}/oauth2/v1/token"
-      OCI_HOSTED_AGENT_DEPLOYMENT_ID       = local.hosted_deployment_exports.HOSTED_AGENT_DEPLOYMENT_ID
-      OCI_HOSTED_AGENT_URL                 = local.hosted_deployment_exports.HOSTED_AGENT_URL
-      OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID    = local.hosted_deployment_exports.LANGFUSE_DEPLOYMENT_ID
-      OCI_HOSTED_LANGFUSE_URL              = local.hosted_deployment_exports.LANGFUSE_URL
-      OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID   = local.hosted_deployment_exports.LANGGRAPH_DEPLOYMENT_ID
-      OCI_HOSTED_LANGGRAPH_URL             = local.hosted_deployment_exports.LANGGRAPH_URL
-      OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID  = local.hosted_deployment_exports.LLAMAINDEX_DEPLOYMENT_ID
-      OCI_HOSTED_LLAMAINDEX_URL            = local.hosted_deployment_exports.LLAMAINDEX_URL
-      OCI_HOSTED_N8N_DEPLOYMENT_ID         = local.hosted_deployment_exports.N8N_DEPLOYMENT_ID
-      OCI_HOSTED_N8N_URL                   = local.hosted_deployment_exports.N8N_URL
-      OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID    = local.hosted_deployment_exports.OPENCLAW_DEPLOYMENT_ID
-      OCI_HOSTED_OPENCLAW_URL              = local.hosted_deployment_exports.OPENCLAW_URL
-      PORT                                 = tostring(var.portal_container_port)
-      OCI_PORTAL_PASSWORD                  = local.portal_auth_password
-      OCI_PORTAL_RUNTIME_CONFIG_BUCKET     = oci_objectstorage_bucket.portal_config[0].name
-      OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE  = data.oci_objectstorage_namespace.portal.namespace
-      OCI_PORTAL_RUNTIME_CONFIG_OBJECT     = oci_objectstorage_object.portal_runtime_config[0].object
-      OCI_PORTAL_RUN_HISTORY_BUCKET        = oci_objectstorage_bucket.portal_config[0].name
-      OCI_PORTAL_RUN_HISTORY_NAMESPACE     = data.oci_objectstorage_namespace.portal.namespace
-      OCI_PORTAL_RUN_HISTORY_OBJECT        = oci_objectstorage_object.portal_run_history[0].object
-      OCI_RESOURCE_SUFFIX                  = var.resource_suffix
-    }
-
-    health_checks {
-      health_check_type        = "HTTP"
-      name                     = "portal-http"
-      path                     = "/"
-      port                     = var.portal_container_port
-      initial_delay_in_seconds = 60
-      interval_in_seconds      = 30
-      timeout_in_seconds       = 5
-      failure_threshold        = 5
-      success_threshold        = 1
-      failure_action           = "KILL"
-    }
-
-    resource_config {
-      memory_limit_in_gbs = var.portal_container_memory_gbs
-      vcpus_limit         = var.portal_container_ocpus
-    }
-  }
-
-  depends_on = [
-    oci_artifacts_container_repository.portal,
-    module.shared_demo_security,
-    module.file_search_vector_store_rag,
-    module.code_interpreter,
-    module.devops_hosted_image_build,
-    oci_objectstorage_object.portal_runtime_config,
-    oci_objectstorage_object.portal_run_history
-  ]
 }
 
-data "oci_core_vnic" "portal" {
+resource "oci_load_balancer_backend_set" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
-  vnic_id = oci_container_instances_container_instance.portal[0].vnics[0].vnic_id
+  load_balancer_id = oci_load_balancer_load_balancer.portal[0].id
+  name             = "portal-backend"
+  policy           = "ROUND_ROBIN"
+
+  health_checker {
+    protocol          = "HTTP"
+    port              = var.portal_container_port
+    url_path          = "/login"
+    return_code       = 200
+    interval_ms       = 10000
+    retries           = 3
+    timeout_in_millis = 3000
+  }
+}
+
+resource "oci_load_balancer_listener" "portal_http" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  load_balancer_id         = oci_load_balancer_load_balancer.portal[0].id
+  name                     = "portal-http"
+  default_backend_set_name = oci_load_balancer_backend_set.portal[0].name
+  port                     = 80
+  protocol                 = "HTTP"
 }
 
 locals {
   portal_display_name = "enterprise-ai-demo-portal-${var.resource_suffix}"
+  portal_url          = var.portal_container_enabled ? "http://${oci_load_balancer_load_balancer.portal[0].ip_address_details[0].ip_address}" : ""
   portal_tags = {
     "enterprise-ai-demo" = "true"
     "demo"               = "portal"
@@ -278,17 +449,26 @@ locals {
     var.hosted_app_ocir_region_key,
     data.oci_objectstorage_namespace.portal.namespace,
     var.portal_container_repository_name,
-    var.portal_container_image_tag
+    local.devops_image_tag
   )
-  portal_auth_password = var.portal_auth_password != "" ? var.portal_auth_password : random_password.portal_auth[0].result
+  devops_image_tag                          = var.devops_source_revision != "" ? var.devops_source_revision : var.portal_container_image_tag
+  portal_auth_password                      = var.portal_auth_password != "" ? var.portal_auth_password : random_password.portal_auth[0].result
+  conversation_store_generated_file         = "${path.module}/../conversation-store/.terraform/generated/conversation.json"
+  file_search_vector_store_generated_file   = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"
+  code_interpreter_container_generated_file = "${path.module}/../code-interpreter/.terraform/generated/container.json"
+  portal_conversation_id = (
+    var.conversation_store_local_exec_enabled
+    ? try(data.external.conversation_store[0].result.id, "")
+    : ""
+  )
   portal_vector_store_id = (
     var.file_search_local_exec_enabled
-    ? try(jsondecode(data.local_file.file_search_vector_store[0].content).id, "")
+    ? try(data.external.file_search_vector_store[0].result.id, "")
     : ""
   )
   portal_code_interpreter_container_id = (
     var.code_interpreter_local_exec_enabled
-    ? try(jsondecode(data.local_file.code_interpreter_container[0].content).id, "")
+    ? try(data.external.code_interpreter_container[0].result.id, "")
     : ""
   )
   default_hosted_deployment_exports = {
@@ -300,8 +480,6 @@ locals {
     LANGGRAPH_URL              = ""
     LLAMAINDEX_DEPLOYMENT_ID   = ""
     LLAMAINDEX_URL             = ""
-    N8N_DEPLOYMENT_ID          = ""
-    N8N_URL                    = ""
     OPENCLAW_DEPLOYMENT_ID     = ""
     OPENCLAW_URL               = ""
   }
@@ -310,16 +488,42 @@ locals {
     key => tostring(value)
     if contains(keys(local.default_hosted_deployment_exports), key)
   }
+  current_hosted_deployment_exports = module.devops_hosted_image_build.hosted_deployment_exports
+  deploy_all_hosted_applications    = lower(var.app_deploy) == "all"
+  selected_hosted_deployment_export_keys = local.deploy_all_hosted_applications ? keys(local.default_hosted_deployment_exports) : concat(
+    var.oci_ha_hosted_agent_deploy ? ["HOSTED_AGENT_DEPLOYMENT_ID", "HOSTED_AGENT_URL"] : [],
+    var.oci_ha_langgraph_deploy ? ["LANGGRAPH_DEPLOYMENT_ID", "LANGGRAPH_URL"] : [],
+    var.oci_ha_langfuse_deploy ? ["LANGFUSE_DEPLOYMENT_ID", "LANGFUSE_URL"] : [],
+    var.oci_ha_openclaw_deploy ? ["OPENCLAW_DEPLOYMENT_ID", "OPENCLAW_URL"] : [],
+    var.oci_ha_llamaindex_deploy ? ["LLAMAINDEX_DEPLOYMENT_ID", "LLAMAINDEX_URL"] : []
+  )
+  non_empty_current_hosted_deployment_exports = {
+    for key, value in local.current_hosted_deployment_exports :
+    key => tostring(value)
+    if tostring(value) != ""
+  }
+  stale_hosted_deployment_export_keys = var.deploy_only_app ? [] : [
+    for key, value in local.current_hosted_deployment_exports :
+    key if tostring(value) == "" && contains(keys(local.existing_hosted_deployment_exports), key) && contains(local.selected_hosted_deployment_export_keys, key)
+  ]
+  retained_existing_hosted_deployment_exports = {
+    for key, value in local.existing_hosted_deployment_exports :
+    key => value
+    if !contains(local.stale_hosted_deployment_export_keys, key)
+  }
   hosted_deployment_exports = merge(
     local.default_hosted_deployment_exports,
-    local.existing_hosted_deployment_exports,
-    module.devops_hosted_image_build.hosted_deployment_exports
+    local.retained_existing_hosted_deployment_exports,
+    local.non_empty_current_hosted_deployment_exports
   )
   portal_runtime_config = {
     resourceSuffix               = var.resource_suffix
     region                       = var.region
     sourceRevision               = var.devops_source_revision
+    codeSourceRepoUrl            = var.devops_source_repo_url
+    codeSourceBranch             = var.devops_source_branch
     projectId                    = var.oci_genai_project_id
+    conversationId               = local.portal_conversation_id
     vectorStoreId                = local.portal_vector_store_id
     codeInterpreterContainerId   = local.portal_code_interpreter_container_id
     hosted                       = local.hosted_deployment_exports

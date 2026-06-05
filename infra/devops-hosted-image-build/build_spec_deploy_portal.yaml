@@ -1,0 +1,15 @@
+version: 0.1
+component: build
+timeoutInSeconds: 3600
+shell: bash
+failImmediatelyOnError: true
+
+steps:
+  - type: Command
+    name: deploy-portal-container
+    timeoutInSeconds: 3600
+    command: |
+      set -euo pipefail
+
+      chmod +x infra/devops-hosted-image-build/scripts/deploy_portal_container.sh
+      infra/devops-hosted-image-build/scripts/deploy_portal_container.sh

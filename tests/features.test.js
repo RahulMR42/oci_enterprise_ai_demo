@@ -65,6 +65,24 @@ test("demo features provide card and flip-side content", () => {
   }
 });
 
+test("demo catalog does not expose n8n demos or documentation", () => {
+  const catalogText = JSON.stringify(aiFeatures);
+
+  assert.equal(aiFeatures.some((feature) => /n8n/i.test(feature.id)), false);
+  assert.equal(aiFeatures.some((feature) => /n8n/i.test(feature.title)), false);
+  assert.equal(aiFeatures.some((feature) => /docs\.n8n\.io/i.test(feature.docsHref)), false);
+  assert.doesNotMatch(catalogText, /n8n/i);
+});
+
+test("portal stylesheet uses Oracle Redwood palette tokens", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(styles, /--redwood-brand-red:\s*#c74634;/);
+  assert.match(styles, /--redwood-bg:\s*#f7f4ef;/);
+  assert.match(styles, /--redwood-ink:\s*#312d2a;/);
+  assert.doesNotMatch(styles, /#1d4ed8/);
+});
+
 test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   const feature = aiFeatures.find((item) => item.id === "agentic-control-tower");
 
@@ -75,6 +93,26 @@ test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   assert.match(feature.details, /IDCS proxy/);
   assert.match(feature.provisioningDetails, /Terraform-generated IDCS launch client/);
   assert.deepEqual(feature.capabilities, ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]);
+});
+
+test("Conversation Store demo describes OCI-managed Conversations API state", () => {
+  const feature = aiFeatures.find((item) => item.id === "conversation-store");
+
+  assert.ok(feature);
+  assert.equal(feature.title, "Conversation Store");
+  assert.equal(feature.terraformPath, "infra/conversation-store");
+  assert.match(feature.details, /OCI Conversations API/);
+  assert.match(feature.provisioningDetails, /generated conversation ID/);
+  assert.deepEqual(feature.capabilities, ["OCI conversation object", "Context replay", "Live OCI Responses API call"]);
+});
+
+test("File Search demo states that vector store provisioning is required by default", () => {
+  const feature = aiFeatures.find((item) => item.id === "file-search-vector-store-rag");
+
+  assert.ok(feature);
+  assert.match(feature.provisioningDetails, /provisioned by default/);
+  assert.match(feature.provisioningDetails, /OCI_GENAI_VECTOR_STORE_ID/);
+  assert.deepEqual(feature.capabilities, ["File ingestion", "Vector retrieval", "Grounded answers"]);
 });
 
 test("portal exposes mermaid-style flow diagrams for feature cards", () => {
@@ -179,12 +217,27 @@ test("portal opens administration as a separate page", () => {
   assert.match(main, /Administration/);
   assert.match(admin, /admin-metric-grid/);
   assert.doesNotMatch(admin, /admin-connection-grid/);
+  assert.match(adminHtml, /admin-tab-runs/);
+  assert.match(adminHtml, /admin-tab-infra/);
+  assert.match(adminHtml, /admin-tab-logs/);
+  assert.match(adminHtml, /admin-panel-runs/);
+  assert.match(adminHtml, /admin-panel-infra/);
+  assert.match(adminHtml, /admin-panel-logs/);
   assert.match(adminHtml, /admin-demo-table/);
   assert.match(admin, /\/api\/admin\/demo-runs/);
+  assert.match(admin, /\/api\/admin\/infra/);
+  assert.match(admin, /\/api\/admin\/logs/);
   assert.doesNotMatch(admin, /\/api\/features\/responses-api\/state/);
   assert.doesNotMatch(adminHtml, /Hosted application references/);
   assert.match(adminHtml, /admin-run-status-filter/);
+  assert.match(adminHtml, /admin-log-source-filter/);
+  assert.match(adminHtml, /admin-infra-status-filter/);
+  assert.match(adminHtml, /admin-resource-list/);
+  assert.match(adminHtml, /admin-schema-grid/);
+  assert.match(adminHtml, /admin-container-log-note/);
   assert.match(admin, /admin-run-status-filter/);
+  assert.match(admin, /entry\.preview \|\| ""/);
+  assert.match(admin, /component\.value \|\| ""/);
   assert.match(adminHtml, /Usage summary/);
   assert.doesNotMatch(admin, /clientSecret|apiKey|password/i);
   assert.doesNotMatch(main, /id="infra-panel"/);

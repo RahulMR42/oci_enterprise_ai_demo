@@ -110,22 +110,118 @@ variable "portal_container_repository_id" {
   default     = ""
 }
 
+variable "portal_private_subnet_id" {
+  description = "Private subnet OCID where the DevOps portal rollout creates replacement container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_network_security_group_id" {
+  description = "Network security group OCID assigned to DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_load_balancer_id" {
+  description = "Load balancer OCID whose backend set receives DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_backend_set_name" {
+  description = "Load balancer backend set name used for rolling portal container cutovers."
+  type        = string
+  default     = ""
+}
+
+variable "portal_public_url" {
+  description = "Public portal URL used by the DevOps rollout smoke tests after backend cutover."
+  type        = string
+  default     = ""
+}
+
+variable "portal_container_port" {
+  description = "TCP port exposed by the portal container."
+  type        = number
+  default     = 5173
+}
+
+variable "portal_container_shape" {
+  description = "OCI Container Instance shape used by the DevOps portal rollout."
+  type        = string
+  default     = "CI.Standard.E4.Flex"
+}
+
+variable "portal_container_ocpus" {
+  description = "OCPUs assigned to DevOps-created portal container instances."
+  type        = number
+  default     = 1
+}
+
+variable "portal_container_memory_gbs" {
+  description = "Memory assigned to DevOps-created portal container instances."
+  type        = number
+  default     = 4
+}
+
+variable "portal_auth_password" {
+  description = "Portal basic-auth password injected into DevOps-created portal container instances and smoke tests."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "portal_runtime_config_namespace" {
+  description = "Object Storage namespace for the portal runtime config object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_runtime_config_bucket" {
+  description = "Object Storage bucket for the portal runtime config object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_runtime_config_object" {
+  description = "Object Storage object name for the portal runtime config object."
+  type        = string
+  default     = "portal-runtime-config.json"
+}
+
+variable "portal_run_history_namespace" {
+  description = "Object Storage namespace for the portal run history object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_run_history_bucket" {
+  description = "Object Storage bucket for the portal run history object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_run_history_object" {
+  description = "Object Storage object name used by the portal to persist demo run history."
+  type        = string
+  default     = "portal-demo-run-summary.json"
+}
+
+variable "portal_vector_store_id" {
+  description = "File Search vector store ID injected into DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
+variable "portal_code_interpreter_container_id" {
+  description = "Code Interpreter container ID injected into DevOps-created portal container instances."
+  type        = string
+  default     = ""
+}
+
 variable "shared_policy_id" {
   description = "Optional shared IAM policy OCID. Used to order the DevOps build after policy creation."
   type        = string
-  default     = ""
-}
-
-variable "ocir_username" {
-  description = "OCIR username used by the DevOps build to push images."
-  type        = string
-  default     = ""
-}
-
-variable "ocir_auth_token" {
-  description = "OCIR auth token used by the DevOps build to push images."
-  type        = string
-  sensitive   = true
   default     = ""
 }
 
@@ -147,14 +243,27 @@ variable "idcs_scope" {
   default     = ""
 }
 
-variable "n8n_basic_auth_user" {
-  description = "Username for the hosted n8n basic authentication boundary."
+variable "hosted_app_idcs_client_id" {
+  description = "IDCS OAuth client id used by the portal hosted UI launch proxy."
   type        = string
-  default     = "admin"
+  default     = ""
 }
 
-variable "n8n_basic_auth_password" {
-  description = "Password for the hosted n8n basic authentication boundary."
+variable "hosted_app_idcs_client_secret" {
+  description = "IDCS OAuth client secret used by the portal hosted UI launch proxy."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "oci_genai_project_id" {
+  description = "OCI Generative AI project OCID injected into the portal container."
+  type        = string
+  default     = ""
+}
+
+variable "oci_genai_api_key" {
+  description = "OCI Generative AI API key injected into the portal container."
   type        = string
   sensitive   = true
   default     = ""
@@ -265,7 +374,7 @@ variable "run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, build and deliver only the portal image and skip hosted application image delivery and deployment stages so only the portal app container is redeployed."
+  description = "When true, hosted application deployment commands exit as skipped so only the portal app container is redeployed."
   type        = bool
   default     = false
 }
@@ -273,7 +382,7 @@ variable "deploy_only_app" {
 variable "deploy_langfuse_hosted_application" {
   description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted application stages remain disabled."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "app_deploy" {

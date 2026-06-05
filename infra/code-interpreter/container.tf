@@ -1,4 +1,10 @@
 resource "terraform_data" "code_interpreter_container" {
+  triggers_replace = [
+    "resource-manager-generated-runtime-files-20260604",
+    var.resource_suffix,
+    var.oci_genai_project_id
+  ]
+
   input = {
     display_name         = local.container_display_name
     generated_file       = "${path.module}/.terraform/generated/container.json"
