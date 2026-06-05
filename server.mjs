@@ -1526,6 +1526,23 @@ function isOciHostedApplicationInvokeUrl(value = "") {
   );
 }
 
+export function hostedRuntimeUrl(...values) {
+  for (const value of values) {
+    const candidate = String(value || "").trim();
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+export function hostedApplicationIdFromInvokeUrl(value = "") {
+  const match = String(value || "").match(
+    /^https:\/\/application\.generativeai\.[a-z0-9-]+\.oci\.oraclecloud\.com\/[0-9]+\/hostedApplications\/([^/]+)\/actions\/invoke\/?/i
+  );
+  return match?.[1] || "";
+}
+
 function usableHostedLaunchUrl(...values) {
   for (const value of values) {
     const candidate = String(value || "").trim();
@@ -1609,7 +1626,7 @@ function hostedRuntimeEnvOverrides(hostedRuntime = {}) {
 
 function readLangfuseLaunchUrl() {
   const observability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
-  return usableHostedLaunchUrl(
+  return hostedRuntimeUrl(
     observability.url,
     observability.endpoint,
     process.env.OCI_HOSTED_LANGFUSE_URL,
@@ -1619,7 +1636,7 @@ function readLangfuseLaunchUrl() {
 
 function readOpenClawLaunchUrl() {
   const gateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
-  return usableHostedLaunchUrl(
+  return hostedRuntimeUrl(
     gateway.url,
     gateway.endpoint,
     process.env.OCI_HOSTED_OPENCLAW_URL,
@@ -2322,8 +2339,8 @@ function demoRuntimeComponents() {
   const openclawArtifact = openclawDeployment["active-artifact"] || openclawDeployment.active_artifact || {};
   const llamaIndexArtifact = llamaIndexDeployment["active-artifact"] || llamaIndexDeployment.active_artifact || {};
   const llamaIndexLaunchable = hostedRuntimeIsLaunchable(llamaIndexControlTower);
-  const langfuseHostedUrl = usableHostedLaunchUrl(langfuseObservability.url, langfuseObservability.endpoint);
-  const openclawHostedUrl = usableHostedLaunchUrl(openclawGateway.url, openclawGateway.endpoint);
+  const langfuseHostedUrl = hostedRuntimeUrl(langfuseObservability.url, langfuseObservability.endpoint);
+  const openclawHostedUrl = hostedRuntimeUrl(openclawGateway.url, openclawGateway.endpoint);
   const llamaIndexHostedUrl = llamaIndexLaunchable ? llamaIndexControlTower.url || llamaIndexControlTower.endpoint || "" : "";
   const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID");
   const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL");
@@ -2335,19 +2352,27 @@ function demoRuntimeComponents() {
   const langfuseDeploymentIdEnv = process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID");
   const openclawDeploymentIdEnv = process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || portalRuntimeHostedValue("OPENCLAW_DEPLOYMENT_ID");
   const llamaIndexDeploymentIdEnv = process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || portalRuntimeHostedValue("LLAMAINDEX_DEPLOYMENT_ID");
+  const hostedAgentApplicationIdEnv = hostedApplicationIdFromInvokeUrl(hostedAgentUrlEnv);
+  const langGraphApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langGraphHostedUrlEnv);
+  const langfuseApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langfuseHostedUrlEnv);
+  const openclawApplicationIdEnv = hostedApplicationIdFromInvokeUrl(openclawHostedUrlEnv);
   const finalHostedAgentDeploymentId = hostedAgent.hostedDeploymentId || hostedAgentDeploymentIdEnv;
-  const finalHostedAgentUrl = usableHostedLaunchUrl(hostedAgent.endpoint, hostedAgent.url, hostedAgentUrlEnv);
+  const finalHostedAgentApplicationId = hostedAgent.hostedApplicationId || hostedAgentApplicationIdEnv;
+  const finalHostedAgentUrl = hostedRuntimeUrl(hostedAgent.endpoint, hostedAgent.url, hostedAgentUrlEnv);
   const finalLangGraphDeploymentId = langGraphAgent.hostedDeploymentId || langGraphDeploymentIdEnv;
-  const finalLangGraphHostedUrl = usableHostedLaunchUrl(langGraphAgent.endpoint, langGraphAgent.url, langGraphHostedUrlEnv);
+  const finalLangGraphApplicationId = langGraphAgent.hostedApplicationId || langGraphApplicationIdEnv;
+  const finalLangGraphHostedUrl = hostedRuntimeUrl(langGraphAgent.endpoint, langGraphAgent.url, langGraphHostedUrlEnv);
   const finalLangfuseDeploymentId = langfuseObservability.hostedDeploymentId || langfuseDeploymentIdEnv;
   const finalOpenclawDeploymentId = openclawGateway.hostedDeploymentId || openclawDeploymentIdEnv;
   const finalLlamaIndexDeploymentId = llamaIndexControlTower.hostedDeploymentId || llamaIndexDeploymentIdEnv;
+  const finalLangfuseApplicationId = langfuseObservability.hostedApplicationId || langfuseApplicationIdEnv;
+  const finalOpenclawApplicationId = openclawGateway.hostedApplicationId || openclawApplicationIdEnv;
   const finalConversationId = conversation.id || process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId");
   const finalVectorStoreId = vectorStore.id || process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId");
   const finalCodeInterpreterContainerId =
     codeContainer.id || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeValue("codeInterpreterContainerId");
-  const finalLangfuseHostedUrl = usableHostedLaunchUrl(langfuseHostedUrl, langfuseHostedUrlEnv);
-  const finalOpenclawHostedUrl = usableHostedLaunchUrl(openclawHostedUrl, openclawHostedUrlEnv);
+  const finalLangfuseHostedUrl = hostedRuntimeUrl(langfuseHostedUrl, langfuseHostedUrlEnv);
+  const finalOpenclawHostedUrl = hostedRuntimeUrl(openclawHostedUrl, openclawHostedUrlEnv);
   const finalLlamaIndexHostedUrl =
     llamaIndexHostedUrl ||
     llamaIndexHostedUrlEnv ||
@@ -2438,8 +2463,8 @@ function demoRuntimeComponents() {
     component(
       "generated.hosted_agent_application",
       "OCI Hosted Application",
-      hostedAgent.hostedApplicationId ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
-      hostedAgent.hostedApplicationId || "Run provisioning to create hosted application"
+      finalHostedAgentApplicationId ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
+      finalHostedAgentApplicationId || "Run provisioning to create hosted application"
     ),
     component(
       "generated.hosted_agent_application_work_request",
@@ -2486,8 +2511,8 @@ function demoRuntimeComponents() {
     component(
       "generated.langgraph_hosted_agent_application",
       "LangGraph OCI Hosted Application",
-      langGraphAgent.hostedApplicationId ? statusFromLifecycle(langGraphApplication.status, "created") : "not-created",
-      langGraphAgent.hostedApplicationId || "Run provisioning to create LangGraph hosted application"
+      finalLangGraphApplicationId ? statusFromLifecycle(langGraphApplication.status, "created") : "not-created",
+      finalLangGraphApplicationId || "Run provisioning to create LangGraph hosted application"
     ),
     component(
       "generated.langgraph_hosted_agent_deployment",
@@ -2530,8 +2555,8 @@ function demoRuntimeComponents() {
     component(
       "generated.langfuse_hosted_observability_application",
       "Langfuse OCI Hosted Application",
-      langfuseObservability.hostedApplicationId ? statusFromLifecycle(langfuseApplication.status, "created") : "not-created",
-      langfuseObservability.hostedApplicationId || "Run provisioning to create Langfuse hosted application"
+      finalLangfuseApplicationId ? statusFromLifecycle(langfuseApplication.status, "created") : "not-created",
+      finalLangfuseApplicationId || "Run provisioning to create Langfuse hosted application"
     ),
     component(
       "generated.langfuse_hosted_observability_deployment",
@@ -2572,8 +2597,8 @@ function demoRuntimeComponents() {
     component(
       "generated.openclaw_hosted_gateway_application",
       "OpenClaw OCI Hosted Application",
-      openclawGateway.hostedApplicationId ? statusFromLifecycle(openclawApplication.status, "created") : "not-created",
-      openclawGateway.hostedApplicationId || "Run provisioning to create OpenClaw hosted application"
+      finalOpenclawApplicationId ? statusFromLifecycle(openclawApplication.status, "created") : "not-created",
+      finalOpenclawApplicationId || "Run provisioning to create OpenClaw hosted application"
     ),
     component(
       "generated.openclaw_hosted_gateway_deployment",

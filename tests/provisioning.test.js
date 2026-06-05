@@ -23,6 +23,8 @@ import {
   rewriteLangfuseLaunchHtml,
   proxyResponseHeaders,
   resolvePayloadHostedRuntime,
+  hostedRuntimeUrl,
+  hostedApplicationIdFromInvokeUrl,
   readAdminLogSummary,
   safeEnvironmentSnapshot,
   selectHostedRuntimeCandidate,
@@ -461,6 +463,17 @@ test("server-side hosted runtimes preserve OCI invoke URLs", () => {
 
   assert.equal(runtime.kind, "llamaindex");
   assert.equal(runtime.hostedUrl, invokeUrl);
+  assert.equal(hostedRuntimeUrl("", invokeUrl), invokeUrl);
+  assert.equal(hostedApplicationIdFromInvokeUrl(invokeUrl), "ocid1.generativeaihostedapplication.example");
+});
+
+test("server runtime readers use Resource Manager hosted invoke URLs", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /function readLangfuseLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl/);
+  assert.match(server, /function readOpenClawLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl/);
+  assert.match(server, /finalHostedAgentApplicationId = hostedAgent\.hostedApplicationId \|\| hostedAgentApplicationIdEnv/);
+  assert.match(server, /finalOpenclawHostedUrl = hostedRuntimeUrl\(openclawHostedUrl, openclawHostedUrlEnv\)/);
 });
 
 test("server recovers hosted LlamaIndex metadata and legacy IDCS client exports", () => {
