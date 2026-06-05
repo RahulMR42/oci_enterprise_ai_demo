@@ -921,6 +921,7 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /View raw run details/);
   assert.match(main, /langfuse-hosted-observability/);
   assert.match(main, /openclaw-hosted-agent-gateway/);
+  assert.match(main, /agentic-control-tower/);
   assert.match(main, /const hostedUiLaunchDemoIds = \[/);
   assert.match(main, /hostedUiLaunchDemoIds\.includes\(activeDemoId\)/);
   assert.match(main, /hostedUiLaunchDemoIds\.includes\(featureId\)/);
@@ -929,14 +930,18 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /is-launch-demo/);
   assert.match(styles, /\.demo-dialog\.is-launch-demo \.demo-field/);
   assert.match(styles, /\.demo-dialog\.is-launch-demo \.demo-controls label/);
-  assert.match(styles, /\.demo-dialog\.is-launch-demo \.demo-output-grid > section:first-child/);
+  assert.doesNotMatch(styles, /\.demo-dialog\.is-launch-demo \.demo-output-grid > section:first-child/);
+  assert.doesNotMatch(styles, /\.demo-dialog\.is-launch-demo \.more-details-panel/);
   assert.match(styles, /\.oci-source-link\s*\{[^}]*font-size: 0\.72rem;[^}]*text-decoration: underline;/);
+  assert.match(main, /function demoCardActionLabel/);
+  assert.match(main, /demoCardActionLabel\(feature\.id\)/);
   assert.match(main, /document\.getElementById\("responses-run-button"\)\.textContent = defaults\.button \|\| "Run demo"/);
   assert.doesNotMatch(main, /externalLaunchDemos/);
   assert.match(main, /launchExternalDemo\(activeDemoId\)/);
   assert.match(main, /window\.open\(launchTarget/);
   assert.match(main, /\/api\/openclaw\/launch\//);
   assert.match(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
+  assert.match(main, /\/api\/llamaindex\/launch\//);
   assert.match(server, /async function proxyLangfuseLaunch/);
   assert.match(server, /isLangfusePassthroughPath/);
   assert.match(server, /\/api\/auth\//);

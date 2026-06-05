@@ -57,7 +57,8 @@ const defaultDemoRating = 2;
 const maxDemoRating = 3;
 const hostedUiLaunchDemoIds = [
   "langfuse-hosted-observability",
-  "openclaw-hosted-agent-gateway"
+  "openclaw-hosted-agent-gateway",
+  "agentic-control-tower"
 ];
 
 const hostedRuntimeReferences = {
@@ -172,6 +173,10 @@ function randomInitialRunCount() {
 function renderRunCountBadge(featureId) {
   const count = demoRunCount(featureId);
   return `<span class="run-count-badge" data-run-count-feature="${featureId}" aria-label="${count} demo launches" title="${count} demo launches">${count}</span>`;
+}
+
+function demoCardActionLabel(featureId) {
+  return hostedUiLaunchDemoIds.includes(featureId) ? "Launch" : "Run";
 }
 
 function hostedReferenceDetails(featureId) {
@@ -402,9 +407,9 @@ const demoDefaults = {
   },
   "agentic-control-tower": {
     title: "Agentic Control Tower Workbench",
-    prompt: "Coordinate checkout delay triage with evidence review, approval gating, audit recording, and an executive next action.",
-    button: "Run Control Tower Demo",
-    output: "Call the hosted LlamaIndex control tower through the IDCS proxy when provisioned, with local fallback for diagnostics.",
+    prompt: "",
+    button: "Launch",
+    output: "Open the hosted LlamaIndex Control Tower through the IDCS-authenticated launch proxy.",
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -1215,7 +1220,11 @@ function featureCard(feature, index) {
             <span>${feature.serviceArea}</span>
             <div class="front-actions">
               ${hasFlowDiagram ? `<button class="flow-icon-button" type="button" data-show-flow="${feature.id}" aria-label="Show ${feature.title} resource flow" title="Resource flow">Flow</button>` : ""}
-              ${demoDefaults[feature.id] ? `<button class="front-run-button" type="button" data-run-demo="${feature.id}" aria-label="Run ${feature.title} demo" title="Run demo">Run ${renderRunCountBadge(feature.id)}</button>` : ""}
+              ${
+                demoDefaults[feature.id]
+                  ? `<button class="front-run-button" type="button" data-run-demo="${feature.id}" aria-label="${demoCardActionLabel(feature.id)} ${feature.title} demo" title="${demoCardActionLabel(feature.id)} demo">${demoCardActionLabel(feature.id)} ${renderRunCountBadge(feature.id)}</button>`
+                  : ""
+              }
             </div>
           </div>
         </section>
@@ -1374,10 +1383,6 @@ function renderPortal() {
             <label>
               <span>Project OCID</span>
               <input id="responses-project-id-display" placeholder="OCI project OCID" />
-            </label>
-            <label class="hosted-reference-field" id="responses-hosted-reference-field" hidden>
-              <span id="responses-hosted-reference-label">Hosted app reference</span>
-              <input id="responses-hosted-reference-value" placeholder="Optional hosted app URL or OCID" />
             </label>
             <label id="responses-tool-resource-field" hidden>
               <span id="responses-tool-resource-label">Tool Resource ID</span>
@@ -1582,18 +1587,6 @@ function hostedReferenceConfig(featureId) {
   return hostedRuntimeReferences[featureId] || null;
 }
 
-function hostedReferenceValue(featureId) {
-  const config = hostedReferenceConfig(featureId);
-  if (!config) {
-    return "";
-  }
-  return infraState[config.urlKey] || infraState[config.deploymentIdKey] || "";
-}
-
-function shouldSendHostedAppReference(featureId) {
-  return Boolean(hostedReferenceConfig(featureId)) && !hostedUiLaunchDemoIds.includes(featureId);
-}
-
 function visibleRequestPayload(payload = {}) {
   const visiblePayload = { ...payload };
   delete visiblePayload.hostedAppReference;
@@ -1698,13 +1691,6 @@ function openDemoDialog(featureId) {
   renderRunTrace([], { status: "idle" });
   document.getElementById("responses-session-id").value = defaults.sessionId;
   document.getElementById("responses-session-field").hidden = !defaults.sessionVisible;
-  const hostedConfig = hostedReferenceConfig(featureId);
-  const hostedReferenceVisible = Boolean(hostedConfig);
-  document.getElementById("responses-hosted-reference-field").hidden = !hostedReferenceVisible;
-  document.getElementById("responses-hosted-reference-label").textContent = hostedConfig?.label || "Hosted app reference";
-  document.getElementById("responses-hosted-reference-value").placeholder =
-    hostedConfig?.placeholder || "Optional hosted app URL or OCID";
-  document.getElementById("responses-hosted-reference-value").value = hostedReferenceValue(featureId);
   document.getElementById("responses-tool-resource-field").hidden = !defaults.toolResourceVisible;
   document.getElementById("responses-tool-resource-label").textContent = defaults.toolResourceLabel || "Tool Resource ID";
   document.getElementById("responses-tool-resource-id").placeholder = defaults.toolResourcePlaceholder || "Optional tool resource";
@@ -2676,9 +2662,6 @@ document.getElementById("responses-run-button").addEventListener("click", async 
   const temperature = Number.parseFloat(document.getElementById("responses-temperature").value);
   const model = document.getElementById("responses-model").value.trim() || "openai.gpt-oss-120b";
   const toolResourceId = document.getElementById("responses-tool-resource-id").value.trim();
-  const hostedReferenceValue = shouldSendHostedAppReference(activeDemoId)
-    ? document.getElementById("responses-hosted-reference-value").value.trim()
-    : "";
   const conversationId = activeDemoId === "conversation-store" ? toolResourceId || infraState.conversationId : "";
   const vectorStoreId = activeDemoId === "file-search-vector-store-rag" ? toolResourceId || infraState.vectorStoreId : "";
   const codeInterpreterContainer =
@@ -2701,7 +2684,6 @@ document.getElementById("responses-run-button").addEventListener("click", async 
     vectorStoreId,
     codeInterpreterContainer,
     createNewCodeInterpreterContainer,
-    ...(hostedReferenceValue ? { hostedAppReference: hostedReferenceValue } : {}),
     ...getResponsesConfig()
   };
 
@@ -2781,7 +2763,7 @@ document.getElementById("responses-run-button").addEventListener("click", async 
       window.clearInterval(elapsedTimer);
     }
     runButton.disabled = false;
-    runButton.textContent = "Run demo";
+    runButton.textContent = demoDefaults[activeDemoId]?.button || "Run demo";
   }
 });
 
@@ -2804,6 +2786,15 @@ function launchExternalDemo(featureId) {
       hostedDeploymentId: infraState.openclawHostedDeploymentId,
       hostedDeploymentStatus: infraState.openclawHostedDeploymentStatus,
       uiKind: "agent gateway"
+    },
+    "agentic-control-tower": {
+      label: "Agentic Control Tower",
+      shortLabel: "LlamaIndex Control Tower",
+      launchUrl: "/api/llamaindex/launch/",
+      hostedUrl: infraState.llamaIndexHostedUrl,
+      hostedDeploymentId: infraState.llamaIndexHostedDeploymentId,
+      hostedDeploymentStatus: infraState.llamaIndexHostedDeploymentStatus,
+      uiKind: "control tower"
     }
   };
   const config = launchConfigs[featureId];
@@ -2812,14 +2803,12 @@ function launchExternalDemo(featureId) {
   }
 
   const requestedAt = new Date().toLocaleTimeString();
-  const hostedAppReference = document.getElementById("responses-hosted-reference-value").value.trim();
-  const effectiveHostedUrl = hostedAppReference || config.hostedUrl;
-  const launchTarget = hostedAppReference && /^https?:\/\//i.test(hostedAppReference) ? hostedAppReference : config.launchUrl;
+  const effectiveHostedUrl = config.hostedUrl;
+  const launchTarget = config.launchUrl;
   const requestPayload = {
     action: "launch-hosted-url",
     launchUrl: launchTarget,
     hostedUrl: effectiveHostedUrl,
-    hostedAppReference,
     hostedDeploymentId: config.hostedDeploymentId
   };
   document.getElementById("responses-request").textContent = JSON.stringify(visibleRequestPayload(requestPayload), null, 2);
@@ -2847,7 +2836,7 @@ function launchExternalDemo(featureId) {
     return;
   }
 
-  if (!hostedAppReference && config.hostedDeploymentStatus && config.hostedDeploymentStatus !== "created") {
+  if (config.hostedDeploymentStatus && config.hostedDeploymentStatus !== "created") {
     const statusLabel = config.hostedDeploymentStatus.replaceAll("-", " ");
     renderDemoOutput(
       `Hosted deployment is not active for ${config.shortLabel}. Current status: ${statusLabel}. Refresh deployment metadata and redeploy before launching.`
@@ -2879,8 +2868,8 @@ function launchExternalDemo(featureId) {
     status: "success",
     feature: config.label,
     mode: "hosted-ui-launch",
-    relevantOutput: `Opened ${config.shortLabel} through ${hostedAppReference ? "the provided hosted reference" : "the local IDCS-authenticated launch proxy"}.`,
-    launchUrl: hostedAppReference ? "<provided hosted URL>" : launchTarget,
+    relevantOutput: `Opened ${config.shortLabel} through the local IDCS-authenticated launch proxy.`,
+    launchUrl: launchTarget,
     hostedDeploymentId: config.hostedDeploymentId
   });
   renderLiveLogs([

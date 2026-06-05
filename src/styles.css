@@ -1855,18 +1855,12 @@ h1 {
 }
 
 .demo-dialog.is-launch-demo .demo-field,
-.demo-dialog.is-launch-demo .demo-controls label,
-.demo-dialog.is-launch-demo .demo-output-grid > section:first-child,
-.demo-dialog.is-launch-demo .more-details-panel {
+.demo-dialog.is-launch-demo .demo-controls label {
   display: none !important;
 }
 
-.demo-dialog.is-launch-demo .hosted-reference-field {
-  display: grid !important;
-}
-
 .demo-dialog.is-launch-demo .demo-controls {
-  grid-template-columns: minmax(280px, 1fr) minmax(160px, 220px);
+  grid-template-columns: minmax(160px, 220px);
   justify-content: start;
 }
 

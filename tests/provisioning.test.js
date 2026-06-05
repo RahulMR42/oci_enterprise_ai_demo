@@ -957,19 +957,19 @@ test("run dialog uses provisioned vector store and code container ids", () => {
   assert.match(main, /toolResourceId \|\| infraState\.codeInterpreterContainerId/);
 });
 
-test("run dialog exposes editable hosted app references for hosted-backed demos", () => {
+test("run dialog does not expose editable hosted app references", () => {
   const main = readFileSync("src/main.js", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
   const server = readFileSync("server.mjs", "utf8");
 
-  assert.match(main, /hostedReferenceVisible/);
-  assert.match(main, /responses-hosted-reference-field/);
-  assert.match(main, /responses-hosted-reference-value/);
-  assert.match(main, /shouldSendHostedAppReference/);
+  assert.doesNotMatch(main, /responses-hosted-reference-field/);
+  assert.doesNotMatch(main, /responses-hosted-reference-value/);
+  assert.doesNotMatch(main, /shouldSendHostedAppReference/);
+  assert.doesNotMatch(main, /hostedReferenceVisible/);
+  assert.doesNotMatch(styles, /\.demo-dialog\.is-launch-demo \.hosted-reference-field/);
   assert.match(main, /hostedRuntimeReferences/);
   assert.match(main, /langfuse-hosted-observability/);
   assert.match(main, /agentic-control-tower/);
-  assert.match(styles, /\.demo-dialog\.is-launch-demo \.hosted-reference-field/);
   assert.match(server, /resolvePayloadHostedRuntime/);
   assert.match(server, /OCI_HOSTED_AGENT_URL: hostedRuntime\.hostedUrl/);
   assert.match(server, /OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID: hostedRuntime\.hostedDeploymentId/);
