@@ -144,9 +144,11 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   const langgraphDockerfile = read("apps/hosted-langgraph-agent/Dockerfile");
   const langfuseDockerfile = read("apps/hosted-langfuse/Dockerfile");
   const openclawDockerfile = read("apps/hosted-openclaw/Dockerfile");
+  const openclawServer = read("apps/hosted-openclaw/server.mjs");
   const llamaIndexDockerfile = read("apps/hosted-llamaindex-control-tower/Dockerfile");
   const langgraphApp = read("apps/hosted-langgraph-agent/app.py");
   const llamaIndexApp = read("apps/hosted-llamaindex-control-tower/app.py");
+  const hostedDeployScript = read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh");
 
   assert.match(terraform, /resource "terraform_data" "hosted_agentic_application"/);
   assert.match(terraform, /resource "terraform_data" "langgraph_hosted_agentic_application"/);
@@ -263,9 +265,15 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(langfuseDockerfile, /HOSTNAME=0\.0\.0\.0/);
   assert.match(langfuseDockerfile, /PORT=3000/);
   assert.match(langfuseDockerfile, /EXPOSE 3000/);
-  assert.match(openclawDockerfile, /FROM ghcr\.io\/openclaw\/openclaw:latest/);
+  assert.match(openclawDockerfile, /FROM docker\.io\/library\/node:22-alpine/);
   assert.match(openclawDockerfile, /OPENCLAW_GATEWAY_BIND=lan/);
-  assert.match(openclawDockerfile, /EXPOSE 18789/);
+  assert.match(openclawDockerfile, /OPENCLAW_GATEWAY_PORT=8080/);
+  assert.match(openclawDockerfile, /PORT=8080/);
+  assert.match(openclawDockerfile, /COPY server\.mjs \./);
+  assert.match(openclawDockerfile, /CMD \["node", "server\.mjs"\]/);
+  assert.match(openclawDockerfile, /EXPOSE 8080/);
+  assert.match(openclawServer, /runtime: "openclaw-hosted-gateway"/);
+  assert.match(hostedDeployScript, /"name":"OPENCLAW_GATEWAY_PORT","type":"PLAINTEXT","value":"8080"/);
   assert.match(llamaIndexDockerfile, /requirements\.txt/);
   assert.match(llamaIndexDockerfile, /EXPOSE 8080/);
   assert.match(read("apps/hosted-agent/app.py"), /\/\.well-known\/agent-card\.json/);
