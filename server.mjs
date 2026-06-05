@@ -1099,6 +1099,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-hosted-agent-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-hosted-agent-deployment-${resourceSuffix}`,
       runtimeFile: "hosted_agent.json",
+      applicationFile: "hosted_application.json",
+      deploymentFile: "hosted_deployment.json",
       envUrl: process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL"),
       envDeploymentId: process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-agent-${resourceSuffix}`
@@ -1109,6 +1111,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-langgraph-agent-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-langgraph-agent-deployment-${resourceSuffix}`,
       runtimeFile: "langgraph_hosted_agent.json",
+      applicationFile: "langgraph_hosted_application.json",
+      deploymentFile: "langgraph_hosted_deployment.json",
       envUrl: process.env.OCI_HOSTED_LANGGRAPH_URL || portalRuntimeHostedValue("LANGGRAPH_URL"),
       envDeploymentId: process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-langgraph-agent-${resourceSuffix}`
@@ -1119,6 +1123,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-langfuse-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-langfuse-deployment-${resourceSuffix}`,
       runtimeFile: "langfuse_hosted_observability.json",
+      applicationFile: "langfuse_hosted_application.json",
+      deploymentFile: "langfuse_hosted_deployment.json",
       envUrl: process.env.OCI_HOSTED_LANGFUSE_URL || portalRuntimeHostedValue("LANGFUSE_URL"),
       envDeploymentId: process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-langfuse-${resourceSuffix}`
@@ -1129,6 +1135,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-openclaw-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-openclaw-deployment-${resourceSuffix}`,
       runtimeFile: "openclaw_hosted_gateway.json",
+      applicationFile: "openclaw_hosted_application.json",
+      deploymentFile: "openclaw_hosted_deployment.json",
       envUrl: process.env.OCI_HOSTED_OPENCLAW_URL || portalRuntimeHostedValue("OPENCLAW_URL"),
       envDeploymentId: process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || portalRuntimeHostedValue("OPENCLAW_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-openclaw-${resourceSuffix}`
@@ -1139,6 +1147,8 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       applicationDisplayName: `enterprise-ai-demo-llamaindex-control-tower-${resourceSuffix}`,
       deploymentDisplayName: `enterprise-ai-demo-llamaindex-control-tower-deployment-${resourceSuffix}`,
       runtimeFile: "llamaindex_control_tower.json",
+      applicationFile: "llamaindex_hosted_application.json",
+      deploymentFile: "llamaindex_hosted_deployment.json",
       envUrl: process.env.OCI_HOSTED_LLAMAINDEX_URL || portalRuntimeHostedValue("LLAMAINDEX_URL"),
       envDeploymentId: process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || portalRuntimeHostedValue("LLAMAINDEX_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-llamaindex-control-tower-${resourceSuffix}`
@@ -1196,12 +1206,28 @@ async function getHostedResourceById({ label, id, commandArgs }) {
   }
 }
 
-function hostedResourceIsUsable(resource = null) {
+function hostedResourceLifecycleState(resource = null) {
+  if (!resource) {
+    return "";
+  }
+  return String(resource["lifecycle-state"] || resource.lifecycleState || resource.lifecycle_state || "");
+}
+
+function hostedResourceIdentifier(resource = null, entityType = "") {
+  if (!resource) {
+    return "";
+  }
+  const resources = Array.isArray(resource.resources) ? resource.resources : [];
+  const nestedIdentifier = resources.find((item) => item["entity-type"] === entityType && item.identifier)?.identifier || "";
+  return nestedIdentifier || resource.identifier || resource.id || "";
+}
+
+export function hostedResourceIsUsable(resource = null) {
   if (!resource) {
     return false;
   }
-  const lifecycleState = String(resource["lifecycle-state"] || resource.lifecycleState || "").toLowerCase();
-  return lifecycleState && !["deleted", "deleting", "failed"].includes(lifecycleState);
+  const lifecycleState = hostedResourceLifecycleState(resource);
+  return lifecycleState ? statusFromLifecycle(lifecycleState) === "created" : false;
 }
 
 async function discoverHostedResource({ label, displayName, resourceKind }) {
@@ -1242,10 +1268,17 @@ export function selectHostedRuntimeCandidate({
   deploymentDiscoverySucceeded = false,
   region = "us-chicago-1"
 } = {}) {
-  const applicationLifecycleState = applicationResource?.["lifecycle-state"] || applicationResource?.lifecycleState || "";
-  const deploymentLifecycleState = deploymentResource?.["lifecycle-state"] || deploymentResource?.lifecycleState || "";
-  const hostedApplicationId = applicationResource?.identifier || (applicationDiscoverySucceeded ? "" : current.hostedApplicationId || "");
-  const hostedDeploymentId = deploymentResource?.identifier || (deploymentDiscoverySucceeded ? "" : current.hostedDeploymentId || envDeploymentId || "");
+  const applicationLifecycleState = hostedResourceLifecycleState(applicationResource);
+  const deploymentLifecycleState = hostedResourceLifecycleState(deploymentResource);
+  const resourceHostedApplicationId =
+    hostedResourceIdentifier(applicationResource, "HOSTED_APPLICATION") ||
+    deploymentResource?.["hosted-application-id"] ||
+    deploymentResource?.hostedApplicationId ||
+    "";
+  const hostedApplicationId = resourceHostedApplicationId || (applicationDiscoverySucceeded ? "" : current.hostedApplicationId || "");
+  const hostedDeploymentId =
+    hostedResourceIdentifier(deploymentResource, "HOSTED_DEPLOYMENT") ||
+    (deploymentDiscoverySucceeded ? "" : current.hostedDeploymentId || envDeploymentId || "");
   const endpoint = hostedLaunchEndpointFromResource(applicationResource) || (applicationDiscoverySucceeded ? "" : usableHostedLaunchUrl(current.url, current.endpoint, envUrl));
 
   return {
@@ -1265,9 +1298,21 @@ async function discoverGeneratedHostedRuntimeState() {
   for (const definition of hostedRuntimeDiscoveryDefinitions()) {
     const targetFile = join(hostedDir, definition.runtimeFile);
     const current = readJsonFile(targetFile);
+    const generatedApplication = readJsonFile(join(hostedDir, definition.applicationFile)).data || {};
+    const generatedDeployment = readJsonFile(join(hostedDir, definition.deploymentFile)).data || {};
+    const seededCurrent = {
+      ...current,
+      hostedApplicationId:
+        current.hostedApplicationId ||
+        hostedResourceIdentifier(generatedApplication, "HOSTED_APPLICATION") ||
+        generatedDeployment["hosted-application-id"] ||
+        generatedDeployment.hostedApplicationId ||
+        "",
+      hostedDeploymentId: current.hostedDeploymentId || hostedResourceIdentifier(generatedDeployment, "HOSTED_DEPLOYMENT") || ""
+    };
     const currentApplication = await getHostedResourceById({
       label: `${definition.label} hosted application`,
-      id: current.hostedApplicationId,
+      id: seededCurrent.hostedApplicationId,
       commandArgs: (id) => ["generative-ai", "hosted-application", "get", "--hosted-application-id", id]
     });
     if (currentApplication.result?.status !== "skipped") {
@@ -1275,7 +1320,7 @@ async function discoverGeneratedHostedRuntimeState() {
     }
     const currentDeployment = await getHostedResourceById({
       label: `${definition.label} hosted deployment`,
-      id: current.hostedDeploymentId || definition.envDeploymentId,
+      id: seededCurrent.hostedDeploymentId || definition.envDeploymentId,
       commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id]
     });
     if (currentDeployment.result?.status !== "skipped") {
@@ -1303,24 +1348,24 @@ async function discoverGeneratedHostedRuntimeState() {
     logs.push(deploymentDiscovery.result);
 
     const selected = selectHostedRuntimeCandidate({
-      current,
+      current: seededCurrent,
       envUrl: definition.envUrl,
       envDeploymentId: definition.envDeploymentId,
-      applicationResource: applicationDiscovery.resource || (currentApplicationUsable ? currentApplication.resource : null),
-      deploymentResource: deploymentDiscovery.resource || (currentDeploymentUsable ? currentDeployment.resource : null),
+      applicationResource: applicationDiscovery.resource || currentApplication.resource,
+      deploymentResource: deploymentDiscovery.resource || currentDeployment.resource,
       applicationDiscoverySucceeded: applicationDiscovery.result?.status === "success",
       deploymentDiscoverySucceeded: deploymentDiscovery.result?.status === "success",
       region: definition.region
     });
 
-    if (selected.hostedApplicationId || selected.hostedDeploymentId || selected.endpoint || current.hostedApplicationId || current.hostedDeploymentId || current.url || current.endpoint || definition.envUrl || definition.envDeploymentId) {
+    if (selected.hostedApplicationId || selected.hostedDeploymentId || selected.endpoint || seededCurrent.hostedApplicationId || seededCurrent.hostedDeploymentId || seededCurrent.url || seededCurrent.endpoint || definition.envUrl || definition.envDeploymentId) {
       writeFileSync(
         targetFile,
         JSON.stringify(
           {
-            ...current,
-            runtime: current.runtime || definition.runtime,
-            repositoryName: current.repositoryName || definition.repositoryName,
+            ...seededCurrent,
+            runtime: seededCurrent.runtime || definition.runtime,
+            repositoryName: seededCurrent.repositoryName || definition.repositoryName,
             hostedApplicationId: selected.hostedApplicationId,
             hostedApplicationDisplayName: definition.applicationDisplayName,
             hostedApplicationLifecycleState: selected.hostedApplicationLifecycleState,
@@ -1351,6 +1396,7 @@ async function refreshGeneratedRuntimeState() {
   const langGraphAgent = readJsonFile(langGraphRuntimeFile);
   const langfuseObservability = readJsonFile(langfuseRuntimeFile);
   const openclawGateway = readJsonFile(openclawRuntimeFile);
+  const llamaIndexControlTower = readLlamaIndexControlTowerMetadata();
 
   const refreshLogs = await Promise.all([
     refreshHostedJsonFile({
@@ -1416,6 +1462,22 @@ async function refreshGeneratedRuntimeState() {
       commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
       runtimeFile: openclawRuntimeFile,
       runtimeKey: "hostedDeploymentLifecycleState"
+    }),
+    refreshHostedJsonFile({
+      label: "OCI LlamaIndex hosted application refresh",
+      id: llamaIndexControlTower.hostedApplicationId,
+      targetFile: join(hostedDir, "llamaindex_hosted_application.json"),
+      commandArgs: (id) => ["generative-ai", "hosted-application", "get", "--hosted-application-id", id],
+      runtimeFile: join(hostedDir, "llamaindex_control_tower.json"),
+      runtimeKey: "hostedApplicationLifecycleState"
+    }),
+    refreshHostedJsonFile({
+      label: "OCI LlamaIndex hosted deployment refresh",
+      id: llamaIndexControlTower.hostedDeploymentId,
+      targetFile: join(hostedDir, "llamaindex_hosted_deployment.json"),
+      commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
+      runtimeFile: join(hostedDir, "llamaindex_control_tower.json"),
+      runtimeKey: "hostedDeploymentLifecycleState"
     })
   ]);
 
@@ -1446,6 +1508,10 @@ function component(address, name, status, value) {
     status,
     value
   };
+}
+
+export function componentValueIfCreated(component = {}) {
+  return component.status === "created" ? String(component.value || "") : "";
 }
 
 function hostedApplicationInvokeUrl(hostedApplicationId, region = "us-chicago-1") {
@@ -1503,7 +1569,7 @@ export function resolvePayloadHostedRuntime(featureId = "", payload = {}) {
   }
 
   if (/^https?:\/\//i.test(reference)) {
-    return { kind, hostedUrl: usableHostedLaunchUrl(reference), hostedDeploymentId: "", hostedApplicationId: "" };
+    return { kind, hostedUrl: reference, hostedDeploymentId: "", hostedApplicationId: "" };
   }
   if (reference.startsWith("ocid1.generativeaihostedapplication.")) {
     return {
@@ -1562,21 +1628,75 @@ function readOpenClawLaunchUrl() {
 }
 
 function readLlamaIndexControlTowerMetadata() {
-  return readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_control_tower.json"));
+  const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
+  const metadata = readJsonFile(join(hostedDir, "llamaindex_control_tower.json"));
+  const application = readJsonFile(join(hostedDir, "llamaindex_hosted_application.json")).data || {};
+  const deployment = readJsonFile(join(hostedDir, "llamaindex_hosted_deployment.json")).data || {};
+  const applicationLifecycleState = metadata.hostedApplicationLifecycleState || hostedResourceLifecycleState(application);
+  const rawApplicationId =
+    hostedResourceIdentifier(application, "HOSTED_APPLICATION") ||
+    deployment["hosted-application-id"] ||
+    deployment.hostedApplicationId ||
+    "";
+  const useGeneratedDeployment = Boolean(metadata.hostedDeploymentId || metadata.hostedApplicationId || applicationLifecycleState);
+  const deploymentLifecycleState =
+    metadata.hostedDeploymentLifecycleState || (useGeneratedDeployment ? hostedResourceLifecycleState(deployment) : "");
+  const hostedApplicationId =
+    metadata.hostedApplicationId || (applicationLifecycleState ? rawApplicationId : "");
+  const hostedDeploymentId =
+    metadata.hostedDeploymentId || (useGeneratedDeployment ? hostedResourceIdentifier(deployment, "HOSTED_DEPLOYMENT") : "");
+  const launchable = hostedRuntimeIsLaunchable({
+    hostedApplicationLifecycleState: applicationLifecycleState,
+    hostedDeploymentLifecycleState: deploymentLifecycleState
+  });
+  const endpoint =
+    launchable
+      ? metadata.endpoint ||
+        metadata.url ||
+        hostedLaunchEndpointFromResource(application) ||
+        hostedLaunchEndpointFromResource(deployment) ||
+        (hostedApplicationId ? hostedApplicationInvokeUrl(hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1") : "")
+      : "";
+
+  return {
+    ...metadata,
+    runtime: metadata.runtime || "llamaindex",
+    hostedApplicationId,
+    hostedApplicationDisplayName: metadata.hostedApplicationDisplayName || application["display-name"] || application.displayName || "",
+    hostedApplicationLifecycleState: applicationLifecycleState,
+    hostedDeploymentId,
+    hostedDeploymentDisplayName: metadata.hostedDeploymentDisplayName || deployment["display-name"] || deployment.displayName || "",
+    hostedDeploymentLifecycleState: deploymentLifecycleState,
+    endpoint,
+    url: endpoint
+  };
+}
+
+export function hostedRuntimeIsLaunchable(metadata = {}) {
+  return (
+    statusFromLifecycle(metadata.hostedApplicationLifecycleState) === "created" &&
+    statusFromLifecycle(metadata.hostedDeploymentLifecycleState) === "created"
+  );
 }
 
 function readLlamaIndexControlTowerLaunchUrl() {
-  const controlTower = readLlamaIndexControlTowerMetadata();
-  return usableHostedLaunchUrl(
-    controlTower.url,
-    controlTower.endpoint,
-    process.env.OCI_HOSTED_LLAMAINDEX_URL,
-    portalRuntimeHostedValue("LLAMAINDEX_URL")
+  const metadata = readLlamaIndexControlTowerMetadata();
+  return (
+    (hostedRuntimeIsLaunchable(metadata) ? metadata.endpoint || metadata.url : "") ||
+    process.env.OCI_HOSTED_LLAMAINDEX_URL ||
+    portalRuntimeHostedValue("LLAMAINDEX_URL") ||
+    (hostedRuntimeIsLaunchable(metadata) && metadata.hostedApplicationId
+      ? hostedApplicationInvokeUrl(metadata.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+      : "")
   );
 }
 
 function readHostedAppIdcsLaunchConfig() {
-  const generated = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_app_idcs_client.json"));
+  const legacyIdcsClientFile = ["n", "8", "n_idcs_client.json"].join("");
+  const generated = {
+    ...readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], legacyIdcsClientFile)),
+    ...readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_app_idcs_client.json"))
+  };
   const domainUrl = String(
     process.env.IDCS_DOMAIN_URL ||
       process.env.OCI_HOSTED_APP_IDCS_DOMAIN_URL ||
@@ -2189,7 +2309,6 @@ function demoRuntimeComponents() {
   const langGraphApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_application.json")).data || {};
   const langfuseApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_application.json")).data || {};
   const openclawApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_application.json")).data || {};
-  const llamaIndexApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_hosted_application.json")).data || {};
   const hostedDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_deployment.json")).data || {};
   const langGraphDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_deployment.json")).data || {};
   const langfuseDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_deployment.json")).data || {};
@@ -2202,9 +2321,10 @@ function demoRuntimeComponents() {
   const langfuseArtifact = langfuseDeployment["active-artifact"] || langfuseDeployment.active_artifact || {};
   const openclawArtifact = openclawDeployment["active-artifact"] || openclawDeployment.active_artifact || {};
   const llamaIndexArtifact = llamaIndexDeployment["active-artifact"] || llamaIndexDeployment.active_artifact || {};
+  const llamaIndexLaunchable = hostedRuntimeIsLaunchable(llamaIndexControlTower);
   const langfuseHostedUrl = usableHostedLaunchUrl(langfuseObservability.url, langfuseObservability.endpoint);
   const openclawHostedUrl = usableHostedLaunchUrl(openclawGateway.url, openclawGateway.endpoint);
-  const llamaIndexHostedUrl = usableHostedLaunchUrl(llamaIndexControlTower.url, llamaIndexControlTower.endpoint);
+  const llamaIndexHostedUrl = llamaIndexLaunchable ? llamaIndexControlTower.url || llamaIndexControlTower.endpoint || "" : "";
   const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID");
   const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL");
   const langGraphDeploymentIdEnv = process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID");
@@ -2228,7 +2348,12 @@ function demoRuntimeComponents() {
     codeContainer.id || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeValue("codeInterpreterContainerId");
   const finalLangfuseHostedUrl = usableHostedLaunchUrl(langfuseHostedUrl, langfuseHostedUrlEnv);
   const finalOpenclawHostedUrl = usableHostedLaunchUrl(openclawHostedUrl, openclawHostedUrlEnv);
-  const finalLlamaIndexHostedUrl = usableHostedLaunchUrl(llamaIndexHostedUrl, llamaIndexHostedUrlEnv);
+  const finalLlamaIndexHostedUrl =
+    llamaIndexHostedUrl ||
+    llamaIndexHostedUrlEnv ||
+    (llamaIndexLaunchable && llamaIndexControlTower.hostedApplicationId
+      ? hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
+      : "");
 
   return [
     component(
@@ -2289,13 +2414,13 @@ function demoRuntimeComponents() {
     component(
       "generated.llamaindex_control_tower_hosted_application",
       "LlamaIndex Control Tower Hosted Application",
-      llamaIndexControlTower.hostedApplicationId ? statusFromLifecycle(lifecycleValue(llamaIndexApplication), "created") : "not-created",
+      llamaIndexControlTower.hostedApplicationId ? statusFromLifecycle(llamaIndexControlTower.hostedApplicationLifecycleState, "created") : "not-created",
       llamaIndexControlTower.hostedApplicationId || "Run provisioning to create LlamaIndex hosted application"
     ),
     component(
       "generated.llamaindex_control_tower_hosted_deployment",
       "LlamaIndex Control Tower Hosted Deployment",
-      finalLlamaIndexDeploymentId ? statusFromLifecycle(lifecycleValue(llamaIndexDeployment), "created") : "not-created",
+      finalLlamaIndexDeploymentId ? statusFromLifecycle(llamaIndexControlTower.hostedDeploymentLifecycleState, "created") : "not-created",
       finalLlamaIndexDeploymentId || "Run provisioning to create LlamaIndex hosted deployment"
     ),
     component(
@@ -2524,6 +2649,8 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
     })
   ];
   const components = mergeInfrastructureComponents(currentState.resources, runtimeComponents);
+  const runtimeValue = (name) => componentValueIfCreated(runtimeComponents.find((component) => component.name === name));
+  const runtimeStatus = (name) => runtimeComponents.find((component) => component.name === name)?.status || "";
   return {
     feature: "OCI Responses API",
     action: "state",
@@ -2532,32 +2659,32 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
     values: {
       ...summarizeInfrastructureState(currentState.resources, provisionedDetails).values,
       conversationId:
-        runtimeComponents.find((component) => component.name === "OCI Conversation Store")?.value ||
+        runtimeValue("OCI Conversation Store") ||
         portalRuntimeConfig.conversationId ||
         "",
       vectorStoreId:
-        runtimeComponents.find((component) => component.name === "File Search Vector Store")?.value ||
+        runtimeValue("File Search Vector Store") ||
         portalRuntimeConfig.vectorStoreId ||
         "",
       codeInterpreterContainerId:
-        runtimeComponents.find((component) => component.name === "Code Interpreter Container")?.value ||
+        runtimeValue("Code Interpreter Container") ||
         portalRuntimeConfig.codeInterpreterContainerId ||
         "",
-      hostedAgentUrl: runtimeComponents.find((component) => component.name === "OCI Hosted Agent URL")?.value || "",
-      hostedAgentDeploymentId: runtimeComponents.find((component) => component.name === "OCI Hosted Deployment")?.value || "",
-      hostedAgentDeploymentStatus: runtimeComponents.find((component) => component.name === "OCI Hosted Deployment")?.status || "",
-      langGraphHostedUrl: runtimeComponents.find((component) => component.name === "LangGraph Hosted Agent URL")?.value || "",
-      langGraphHostedDeploymentId: runtimeComponents.find((component) => component.name === "LangGraph OCI Hosted Deployment")?.value || "",
-      langGraphHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "LangGraph OCI Hosted Deployment")?.status || "",
-      langfuseHostedUrl: runtimeComponents.find((component) => component.name === "Langfuse Hosted URL")?.value || "",
-      langfuseHostedDeploymentId: runtimeComponents.find((component) => component.name === "Langfuse OCI Hosted Deployment")?.value || "",
-      langfuseHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "Langfuse OCI Hosted Deployment")?.status || "",
-      openclawHostedUrl: runtimeComponents.find((component) => component.name === "OpenClaw Hosted URL")?.value || "",
-      openclawHostedDeploymentId: runtimeComponents.find((component) => component.name === "OpenClaw OCI Hosted Deployment")?.value || "",
-      openclawHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "OpenClaw OCI Hosted Deployment")?.status || "",
-      llamaIndexHostedUrl: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted URL")?.value || "",
-      llamaIndexHostedDeploymentId: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted Deployment")?.value || "",
-      llamaIndexHostedDeploymentStatus: runtimeComponents.find((component) => component.name === "LlamaIndex Control Tower Hosted Deployment")?.status || "",
+      hostedAgentUrl: runtimeValue("OCI Hosted Agent URL"),
+      hostedAgentDeploymentId: runtimeValue("OCI Hosted Deployment"),
+      hostedAgentDeploymentStatus: runtimeStatus("OCI Hosted Deployment"),
+      langGraphHostedUrl: runtimeValue("LangGraph Hosted Agent URL"),
+      langGraphHostedDeploymentId: runtimeValue("LangGraph OCI Hosted Deployment"),
+      langGraphHostedDeploymentStatus: runtimeStatus("LangGraph OCI Hosted Deployment"),
+      langfuseHostedUrl: runtimeValue("Langfuse Hosted URL"),
+      langfuseHostedDeploymentId: runtimeValue("Langfuse OCI Hosted Deployment"),
+      langfuseHostedDeploymentStatus: runtimeStatus("Langfuse OCI Hosted Deployment"),
+      openclawHostedUrl: runtimeValue("OpenClaw Hosted URL"),
+      openclawHostedDeploymentId: runtimeValue("OpenClaw OCI Hosted Deployment"),
+      openclawHostedDeploymentStatus: runtimeStatus("OpenClaw OCI Hosted Deployment"),
+      llamaIndexHostedUrl: runtimeValue("LlamaIndex Control Tower Hosted URL"),
+      llamaIndexHostedDeploymentId: runtimeValue("LlamaIndex Control Tower Hosted Deployment"),
+      llamaIndexHostedDeploymentStatus: runtimeStatus("LlamaIndex Control Tower Hosted Deployment"),
       codeSourceRepoUrl: portalRuntimeConfig.codeSourceRepoUrl || process.env.OCI_CODE_SOURCE_REPO_URL || "",
       codeSourceBranch: portalRuntimeConfig.codeSourceBranch || process.env.OCI_CODE_SOURCE_BRANCH || ""
     },

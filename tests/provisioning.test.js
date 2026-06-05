@@ -29,6 +29,7 @@ import {
   summarizeAdminInfrastructureState,
   summarizeDemoRunHistory
 } from "../server.mjs";
+import * as serverModule from "../server.mjs";
 
 test("normalizes provisioning config with OCI defaults", () => {
   const config = normalizeProvisionConfig({});
@@ -376,6 +377,101 @@ test("hosted application OCID overrides do not become unauthenticated invoke URL
   assert.equal(runtime.kind, "llamaindex");
   assert.equal(runtime.hostedApplicationId, "ocid1.generativeaihostedapplication.example");
   assert.equal(runtime.hostedUrl, "");
+});
+
+test("hosted runtime discovery accepts direct get id fields and ignores work request status", () => {
+  assert.equal(typeof serverModule.hostedResourceIsUsable, "function");
+  assert.equal(serverModule.hostedResourceIsUsable({ id: "ocid1.app", status: "SUCCEEDED" }), false);
+  assert.equal(serverModule.hostedResourceIsUsable({ id: "ocid1.app", "lifecycle-state": "ACTIVE" }), true);
+
+  const selected = selectHostedRuntimeCandidate({
+    applicationResource: {
+      id: "ocid1.generativeaihostedapplication.current",
+      "lifecycle-state": "ACTIVE"
+    },
+    deploymentResource: {
+      id: "ocid1.generativeaihosteddeployment.current",
+      "lifecycle-state": "ACTIVE",
+      "hosted-application-id": "ocid1.generativeaihostedapplication.current"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.current");
+  assert.equal(selected.hostedApplicationLifecycleState, "ACTIVE");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.current");
+  assert.equal(selected.hostedDeploymentLifecycleState, "ACTIVE");
+});
+
+test("hosted runtime discovery preserves deleted direct get state without launch endpoint", () => {
+  const selected = selectHostedRuntimeCandidate({
+    current: {
+      hostedApplicationId: "ocid1.generativeaihostedapplication.deleted",
+      hostedDeploymentId: "ocid1.generativeaihosteddeployment.deleted",
+      endpoint:
+        "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.deleted/actions/invoke/"
+    },
+    applicationResource: {
+      id: "ocid1.generativeaihostedapplication.deleted",
+      "lifecycle-state": "DELETED"
+    },
+    deploymentResource: {
+      id: "ocid1.generativeaihosteddeployment.deleted",
+      "lifecycle-state": "DELETED",
+      "hosted-application-id": "ocid1.generativeaihostedapplication.deleted"
+    },
+    applicationDiscoverySucceeded: true,
+    deploymentDiscoverySucceeded: true,
+    region: "us-chicago-1"
+  });
+
+  assert.equal(selected.hostedApplicationId, "ocid1.generativeaihostedapplication.deleted");
+  assert.equal(selected.hostedApplicationLifecycleState, "DELETED");
+  assert.equal(selected.hostedDeploymentId, "ocid1.generativeaihosteddeployment.deleted");
+  assert.equal(selected.hostedDeploymentLifecycleState, "DELETED");
+  assert.equal(selected.endpoint, "");
+});
+
+test("hosted runtime launch requires active application and deployment lifecycles", () => {
+  assert.equal(typeof serverModule.hostedRuntimeIsLaunchable, "function");
+  assert.equal(
+    serverModule.hostedRuntimeIsLaunchable({
+      hostedApplicationLifecycleState: "ACTIVE",
+      hostedDeploymentLifecycleState: "ACTIVE"
+    }),
+    true
+  );
+  assert.equal(
+    serverModule.hostedRuntimeIsLaunchable({
+      hostedApplicationLifecycleState: "DELETED",
+      hostedDeploymentLifecycleState: "ACTIVE"
+    }),
+    false
+  );
+});
+
+test("server-side hosted runtimes preserve OCI invoke URLs", () => {
+  const invokeUrl =
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.example/actions/invoke/";
+  const runtime = resolvePayloadHostedRuntime("agentic-control-tower", {
+    hostedAppReference: invokeUrl
+  });
+
+  assert.equal(runtime.kind, "llamaindex");
+  assert.equal(runtime.hostedUrl, invokeUrl);
+});
+
+test("server recovers hosted LlamaIndex metadata and legacy IDCS client exports", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /readLlamaIndexControlTowerMetadata/);
+  assert.match(server, /llamaindex_hosted_application\.json/);
+  assert.match(server, /llamaindex_hosted_deployment\.json/);
+  assert.match(server, /hostedRuntimeIsLaunchable\(metadata\)/);
+  assert.match(server, /legacyIdcsClientFile/);
+  assert.match(server, /\["n", "8", "n_idcs_client\.json"\]\.join\(""\)/);
 });
 
 test("demo process env strips broken proxy variables for OCI Python clients", () => {
@@ -874,4 +970,42 @@ test("hosted application references are displayed on hosted cards instead of gen
   assert.match(main, /visibleRequestPayload/);
   assert.match(main, /delete visiblePayload\.hostedAppReference/);
   assert.match(main, /delete visiblePayload\.hostedUrl/);
+});
+
+test("runtime state values ignore non-created hosted placeholder component text", () => {
+  assert.equal(typeof serverModule.componentValueIfCreated, "function");
+  assert.equal(
+    serverModule.componentValueIfCreated({
+      name: "Langfuse Hosted URL",
+      status: "not-created",
+      value: "Run provisioning to create Langfuse hosted URL"
+    }),
+    ""
+  );
+  assert.equal(
+    serverModule.componentValueIfCreated({
+      name: "OpenClaw OCI Hosted Deployment",
+      status: "deleting",
+      value: "ocid1.generativeaihosteddeployment.example"
+    }),
+    ""
+  );
+  assert.equal(
+    serverModule.componentValueIfCreated({
+      name: "LlamaIndex Control Tower Hosted URL",
+      status: "created",
+      value: "https://hosted.example.com/"
+    }),
+    "https://hosted.example.com/"
+  );
+});
+
+test("frontend hosted state hydration does not fall back to placeholder component values", () => {
+  const main = readFileSync("src/main.js", "utf8");
+
+  assert.match(main, /function provisionedComponentValue/);
+  assert.match(main, /provisionedComponentValue\(langfuseUrlComponent\)/);
+  assert.doesNotMatch(main, /values\.langfuseHostedUrl \|\| langfuseUrlComponent\?\.value/);
+  assert.doesNotMatch(main, /values\.openclawHostedUrl \|\| openclawUrlComponent\?\.value/);
+  assert.doesNotMatch(main, /values\.llamaIndexHostedUrl \|\| llamaIndexUrlComponent\?\.value/);
 });

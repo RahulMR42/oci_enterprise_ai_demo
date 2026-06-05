@@ -2545,6 +2545,10 @@ function updateInfraStatus(status) {
   infraState.status = status;
 }
 
+function provisionedComponentValue(component) {
+  return component?.status === "created" ? component.value || "" : "";
+}
+
 function applyProvisionedValues(result) {
   const values = result.values || {};
   const config = result.config || {};
@@ -2566,40 +2570,39 @@ function applyProvisionedValues(result) {
   const llamaIndexUrlComponent = componentByName("LlamaIndex Control Tower Hosted URL");
   const llamaIndexDeploymentComponent = componentByName("LlamaIndex Control Tower Hosted Deployment");
   const projectId = values.projectId || config.projectId || infraState.projectId;
-  const projectDisplayName = values.projectDisplayName || projectComponent?.value || config.projectDisplayName || infraState.projectDisplayName;
+  const projectDisplayName = values.projectDisplayName || provisionedComponentValue(projectComponent) || config.projectDisplayName || infraState.projectDisplayName;
 
   infraState.projectId = projectId;
   infraState.projectDisplayName = projectDisplayName;
   infraState.sourceRepoUrl = values.codeSourceRepoUrl || config.codeSourceRepoUrl || infraState.sourceRepoUrl;
   infraState.sourceBranch = values.codeSourceBranch || config.codeSourceBranch || infraState.sourceBranch;
-  infraState.resourceSuffix = values.resourceSuffix || suffixComponent?.value || projectDisplayName.split("-").pop() || infraState.resourceSuffix;
+  infraState.resourceSuffix = values.resourceSuffix || provisionedComponentValue(suffixComponent) || projectDisplayName.split("-").pop() || infraState.resourceSuffix;
   infraState.apiKeyAvailable = Boolean(values.apiKeyAvailable);
-  infraState.conversationId = values.conversationId || conversationComponent?.value || infraState.conversationId;
-  infraState.vectorStoreId = values.vectorStoreId || vectorStoreComponent?.value || infraState.vectorStoreId;
-  infraState.codeInterpreterContainerId = values.codeInterpreterContainerId || codeContainerComponent?.value || infraState.codeInterpreterContainerId;
-  infraState.hostedAgentUrl = values.hostedAgentUrl || hostedAgentUrlComponent?.value || infraState.hostedAgentUrl;
-  infraState.hostedAgentDeploymentId =
-    values.hostedAgentDeploymentId || hostedAgentDeploymentComponent?.value || infraState.hostedAgentDeploymentId;
+  infraState.conversationId = values.conversationId || provisionedComponentValue(conversationComponent);
+  infraState.vectorStoreId = values.vectorStoreId || provisionedComponentValue(vectorStoreComponent);
+  infraState.codeInterpreterContainerId = values.codeInterpreterContainerId || provisionedComponentValue(codeContainerComponent);
+  infraState.hostedAgentUrl = values.hostedAgentUrl || provisionedComponentValue(hostedAgentUrlComponent);
+  infraState.hostedAgentDeploymentId = values.hostedAgentDeploymentId || provisionedComponentValue(hostedAgentDeploymentComponent);
   infraState.hostedAgentDeploymentStatus =
-    values.hostedAgentDeploymentStatus || hostedAgentDeploymentComponent?.status || infraState.hostedAgentDeploymentStatus;
-  infraState.langGraphHostedUrl = values.langGraphHostedUrl || langGraphUrlComponent?.value || infraState.langGraphHostedUrl;
+    values.hostedAgentDeploymentStatus || hostedAgentDeploymentComponent?.status || "";
+  infraState.langGraphHostedUrl = values.langGraphHostedUrl || provisionedComponentValue(langGraphUrlComponent);
   infraState.langGraphHostedDeploymentId =
-    values.langGraphHostedDeploymentId || langGraphDeploymentComponent?.value || infraState.langGraphHostedDeploymentId;
+    values.langGraphHostedDeploymentId || provisionedComponentValue(langGraphDeploymentComponent);
   infraState.langGraphHostedDeploymentStatus =
-    values.langGraphHostedDeploymentStatus || langGraphDeploymentComponent?.status || infraState.langGraphHostedDeploymentStatus;
-  infraState.langfuseHostedUrl = values.langfuseHostedUrl || langfuseUrlComponent?.value || infraState.langfuseHostedUrl;
-  infraState.langfuseHostedDeploymentId = values.langfuseHostedDeploymentId || langfuseDeploymentComponent?.value || infraState.langfuseHostedDeploymentId;
+    values.langGraphHostedDeploymentStatus || langGraphDeploymentComponent?.status || "";
+  infraState.langfuseHostedUrl = values.langfuseHostedUrl || provisionedComponentValue(langfuseUrlComponent);
+  infraState.langfuseHostedDeploymentId = values.langfuseHostedDeploymentId || provisionedComponentValue(langfuseDeploymentComponent);
   infraState.langfuseHostedDeploymentStatus =
-    values.langfuseHostedDeploymentStatus || langfuseDeploymentComponent?.status || infraState.langfuseHostedDeploymentStatus;
-  infraState.openclawHostedUrl = values.openclawHostedUrl || openclawUrlComponent?.value || infraState.openclawHostedUrl;
-  infraState.openclawHostedDeploymentId = values.openclawHostedDeploymentId || openclawDeploymentComponent?.value || infraState.openclawHostedDeploymentId;
+    values.langfuseHostedDeploymentStatus || langfuseDeploymentComponent?.status || "";
+  infraState.openclawHostedUrl = values.openclawHostedUrl || provisionedComponentValue(openclawUrlComponent);
+  infraState.openclawHostedDeploymentId = values.openclawHostedDeploymentId || provisionedComponentValue(openclawDeploymentComponent);
   infraState.openclawHostedDeploymentStatus =
-    values.openclawHostedDeploymentStatus || openclawDeploymentComponent?.status || infraState.openclawHostedDeploymentStatus;
-  infraState.llamaIndexHostedUrl = values.llamaIndexHostedUrl || llamaIndexUrlComponent?.value || infraState.llamaIndexHostedUrl;
+    values.openclawHostedDeploymentStatus || openclawDeploymentComponent?.status || "";
+  infraState.llamaIndexHostedUrl = values.llamaIndexHostedUrl || provisionedComponentValue(llamaIndexUrlComponent);
   infraState.llamaIndexHostedDeploymentId =
-    values.llamaIndexHostedDeploymentId || llamaIndexDeploymentComponent?.value || infraState.llamaIndexHostedDeploymentId;
+    values.llamaIndexHostedDeploymentId || provisionedComponentValue(llamaIndexDeploymentComponent);
   infraState.llamaIndexHostedDeploymentStatus =
-    values.llamaIndexHostedDeploymentStatus || llamaIndexDeploymentComponent?.status || infraState.llamaIndexHostedDeploymentStatus;
+    values.llamaIndexHostedDeploymentStatus || llamaIndexDeploymentComponent?.status || "";
 
   document.getElementById("responses-project-id-display").value = projectId;
   updateInfraStatus(result.status || "not-created");
