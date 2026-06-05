@@ -449,8 +449,9 @@ locals {
     var.hosted_app_ocir_region_key,
     data.oci_objectstorage_namespace.portal.namespace,
     var.portal_container_repository_name,
-    var.portal_container_image_tag
+    local.devops_image_tag
   )
+  devops_image_tag                          = var.devops_source_revision != "" ? var.devops_source_revision : var.portal_container_image_tag
   portal_auth_password                      = var.portal_auth_password != "" ? var.portal_auth_password : random_password.portal_auth[0].result
   conversation_store_generated_file         = "${path.module}/../conversation-store/.terraform/generated/conversation.json"
   file_search_vector_store_generated_file   = "${path.module}/../file-search-vector-store-rag/.terraform/generated/vector_store.json"

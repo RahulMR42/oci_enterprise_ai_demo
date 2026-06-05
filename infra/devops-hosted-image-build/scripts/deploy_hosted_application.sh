@@ -150,9 +150,10 @@ wait_for_hosted_application_deleted() {
   return 1
 }
 
-delete_existing_hosted_resources() {
-  local deployment_display="$1"
-  local app_display="$2"
+cleanup_previous_hosted_resources() {
+  local app_display="$1"
+  local current_app_id="$2"
+  local current_dep_id="$3"
   local old_dep_id old_app_id
   local previous_app_ids=()
   local previous_dep_ids=()
@@ -161,31 +162,38 @@ delete_existing_hosted_resources() {
 
   for old_app_id in "${previous_app_ids[@]}"; do
     [ -z "$old_app_id" ] && continue
+    [ "$old_app_id" = "$current_app_id" ] && continue
     mapfile -t previous_dep_ids < <(hosted_deployment_ids_by_app_id "$old_app_id" || true)
     for old_dep_id in "${previous_dep_ids[@]}"; do
-      if [ -n "$old_dep_id" ]; then
-        echo "Deleting existing hosted deployment ${old_dep_id} for ${app_display} before replacement."
-        oci generative-ai hosted-deployment delete \
+      if [ -n "$old_dep_id" ] && [ "$old_dep_id" != "$current_dep_id" ]; then
+        echo "Deleting previous hosted deployment ${old_dep_id} for ${app_display} after replacement."
+        if oci generative-ai hosted-deployment delete \
           --hosted-deployment-id "$old_dep_id" \
           --force \
           --auth resource_principal \
           --region "$OCI_REGION" \
-          --output json >/tmp/hosted_deployment_delete.json || true
-        wait_for_hosted_deployment_deleted "$old_dep_id"
+          --output json >/tmp/hosted_deployment_delete.json 2>/tmp/hosted_deployment_delete.err; then
+          wait_for_hosted_deployment_deleted "$old_dep_id" || echo "Previous hosted deployment ${old_dep_id} is still deleting; continuing with replacement."
+        else
+          echo "Skipping previous hosted deployment ${old_dep_id}; OCI did not allow deletion."
+        fi
       fi
     done
   done
 
   for old_app_id in "${previous_app_ids[@]}"; do
-    if [ -n "$old_app_id" ]; then
-      echo "Deleting existing hosted application ${old_app_id} (${app_display}) before replacement."
-      oci generative-ai hosted-application delete \
+    if [ -n "$old_app_id" ] && [ "$old_app_id" != "$current_app_id" ]; then
+      echo "Deleting previous hosted application ${old_app_id} (${app_display}) after replacement."
+      if oci generative-ai hosted-application delete \
         --hosted-application-id "$old_app_id" \
         --force \
         --auth resource_principal \
         --region "$OCI_REGION" \
-        --output json >/tmp/hosted_application_delete.json || true
-      wait_for_hosted_application_deleted "$old_app_id"
+        --output json >/tmp/hosted_application_delete.json 2>/tmp/hosted_application_delete.err; then
+        wait_for_hosted_application_deleted "$old_app_id" || echo "Previous hosted application ${old_app_id} is still deleting; continuing with replacement."
+      else
+        echo "Skipping previous hosted application ${old_app_id}; OCI did not allow deletion."
+      fi
     fi
   done
 }
@@ -202,8 +210,6 @@ create_hosted() {
   local networking_json="${7:-}"
   local app_file="/tmp/${key}_hosted_application.json"
   local dep_file="/tmp/${key}_hosted_deployment.json"
-
-  delete_existing_hosted_resources "$deployment_display" "$display"
 
   env_args=()
   if [ -n "$env_json" ] && [ "$env_json" != "[]" ]; then
@@ -264,6 +270,8 @@ create_hosted() {
 
   export "${key}_URL=$(invoke_url "$app_id")"
   export "${key}_DEPLOYMENT_ID=$dep_id"
+
+  cleanup_previous_hosted_resources "$display" "$app_id" "$dep_id" || true
 }
 
 write_exported_variables() {

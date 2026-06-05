@@ -824,17 +824,20 @@ test("server refresh discovers hosted runtime metadata when generated files are 
   assert.match(portalRollout, /OCI_HOSTED_APP_IDCS_TOKEN_URL/);
 });
 
-test("DevOps hosted deployment replaces old hosted apps instead of accumulating duplicates", () => {
+test("DevOps hosted deployment creates replacements before best-effort cleanup", () => {
   const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_hosted.yaml");
   const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh");
   const portalContainer = read("infra/resource-manager-demo/portal_container.tf");
+  const resourceManager = read("infra/resource-manager-demo/main.tf");
 
   assert.match(buildSpec, /deploy_hosted_application\.sh HOSTED_AGENT/);
   assert.match(deployScript, /case "\$HOSTED_APP_KEY" in/);
   assert.match(deployScript, /Skipping \$\{HOSTED_APP_KEY\} hosted deployment/);
   assert.match(deployScript, /\$\{deploy_selector,,\}.*!= "all"/);
   assert.match(deployScript, /OCI_HA_\$\{HOSTED_APP_KEY\}_DEPLOY/);
-  assert.match(deployScript, /delete_existing_hosted_resources "\$deployment_display" "\$display"/);
+  assert.doesNotMatch(deployScript, /delete_existing_hosted_resources "\$deployment_display" "\$display"/);
+  assert.match(deployScript, /cleanup_previous_hosted_resources "\$display" "\$app_id" "\$dep_id"/);
+  assert.match(deployScript, /OCI did not allow deletion/);
   assert.match(deployScript, /create_hosted HOSTED_AGENT/);
   assert.match(deployScript, /create_hosted LANGGRAPH/);
   assert.match(deployScript, /create_hosted LANGFUSE/);
@@ -847,12 +850,14 @@ test("DevOps hosted deployment replaces old hosted apps instead of accumulating 
   assert.match(deployScript, /--display-name "\$display_name"/);
   assert.match(deployScript, /--application-id "\$app_id"/);
   assert.doesNotMatch(deployScript, /raw-request/);
-  assert.match(deployScript, /delete_existing_hosted_resources/);
+  assert.match(deployScript, /cleanup_previous_hosted_resources/);
   assert.match(deployScript, /hosted-application delete/);
   assert.match(deployScript, /hosted-deployment delete/);
   assert.doesNotMatch(deployScript, /"\$old_app_id" != "\$new_app_id"/);
   assert.doesNotMatch(deployScript, /"\$old_dep_id" != "\$new_dep_id"/);
   assert.doesNotMatch(deployScript, /^display_name = sys\.argv\[1\]$/m);
+  assert.match(resourceManager, /image_tag\s+=\s+local\.devops_image_tag/);
+  assert.match(portalContainer, /devops_image_tag\s+=\s+var\.devops_source_revision != "" \? var\.devops_source_revision : var\.portal_container_image_tag/);
   assert.match(portalContainer, /non_empty_current_hosted_deployment_exports/);
   assert.match(portalContainer, /stale_hosted_deployment_export_keys/);
   assert.match(portalContainer, /stale_hosted_deployment_export_keys\s+=\s+var\.deploy_only_app\s+\?\s+\[\]\s+:/);

@@ -88,6 +88,7 @@ module "devops_hosted_image_build" {
   create_github_connection       = var.devops_create_github_connection
   source_access_token_secret_id  = var.devops_source_access_token_secret_id
   ocir_region_key                = var.hosted_app_ocir_region_key
+  image_tag                      = local.devops_image_tag
   idcs_domain_url                = var.idcs_domain_url
   idcs_audience                  = var.idcs_audience
   idcs_scope                     = var.idcs_scope
