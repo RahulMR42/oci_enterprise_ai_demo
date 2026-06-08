@@ -1,7 +1,18 @@
 {
   "name": "OCI Enterprise AI Portal Change Log",
-  "generatedAt": "2026-06-08T11:22:16Z",
+  "generatedAt": "2026-06-08T12:50:50Z",
   "entries": [
+    {
+      "version": "0.0.23",
+      "releasedAt": "2026-06-08T12:50:50Z",
+      "localTime": "2026-06-08T18:20:50+0530",
+      "summary": "Force Resource Manager regeneration for generated demo runtime resources.",
+      "changes": [
+        "Conversation Store, File Search seed documents, and Code Interpreter now use a refreshed Terraform replacement token so Resource Manager reruns local-exec and recreates generated runtime metadata.",
+        "The deployment enables File Search local-exec so bundled PDF seed documents are uploaded and visible in the infrastructure pane.",
+        "Portal and administration assets now use version 0.0.23."
+      ]
+    },
     {
       "version": "0.0.22",
       "releasedAt": "2026-06-08T11:22:16Z",

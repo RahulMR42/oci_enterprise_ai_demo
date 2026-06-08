@@ -1,6 +1,6 @@
 resource "terraform_data" "file_search_vector_store" {
   triggers_replace = [
-    "resource-manager-generated-runtime-files-20260605",
+    "resource-manager-generated-runtime-files-20260608",
     var.resource_suffix,
     var.oci_genai_project_id
   ]

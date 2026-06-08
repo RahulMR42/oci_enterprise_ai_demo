@@ -11,7 +11,7 @@ test("file search terraform owns vector store provisioning contract", () => {
 
   assert.match(terraform, /resource "terraform_data" "file_search_vector_store"/);
   assert.match(terraform, /triggers_replace\s+=\s+\[[\s\S]*var\.resource_suffix[\s\S]*var\.oci_genai_project_id/);
-  assert.match(terraform, /resource-manager-generated-runtime-files-20260605/);
+  assert.match(terraform, /resource-manager-generated-runtime-files-20260608/);
   assert.match(terraform, /resource "terraform_data" "file_search_seed_documents"/);
   assert.match(terraform, /resource "terraform_data" "file_search_seed_documents"[\s\S]*triggers_replace\s+=\s+\[terraform_data\.file_search_vector_store\.id\]/);
   assert.match(terraform, /from openai import OpenAI/);
@@ -41,7 +41,7 @@ test("code interpreter terraform owns container provisioning contract", () => {
   const terraform = read("infra/code-interpreter/container.tf");
 
   assert.match(terraform, /resource "terraform_data" "code_interpreter_container"/);
-  assert.match(terraform, /triggers_replace\s+=\s+\[[\s\S]*resource-manager-generated-runtime-files-20260605/);
+  assert.match(terraform, /triggers_replace\s+=\s+\[[\s\S]*resource-manager-generated-runtime-files-20260608/);
   assert.match(terraform, /containers\.create/);
   assert.match(terraform, /existing_container/);
   assert.match(terraform, /client\.containers\.list/);
@@ -346,7 +346,7 @@ test("conversation store terraform provisions an OCI Conversations API object", 
 
   assert.match(terraform, /resource "terraform_data" "conversation_store"/);
   assert.match(terraform, /resource "terraform_data" "conversation_store"[\s\S]*triggers_replace\s+=\s+\[[\s\S]*var\.resource_suffix[\s\S]*var\.oci_genai_project_id/);
-  assert.match(terraform, /resource "terraform_data" "conversation_store"[\s\S]*resource-manager-generated-runtime-files-20260605/);
+  assert.match(terraform, /resource "terraform_data" "conversation_store"[\s\S]*resource-manager-generated-runtime-files-20260608/);
   assert.match(terraform, /client\.conversations\.create/);
   assert.match(terraform, /existing_conversation/);
   assert.match(terraform, /client\.conversations\.list/);
@@ -675,6 +675,18 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(deployDocs, /Keep `file_search_local_exec_enabled=true` on first-time deployments/);
   assert.match(deployDocs, /Keep `code_interpreter_local_exec_enabled=true` on first-time deployments/);
   assert.match(releaseWorkflow, /infra\/resource-manager-demo\/schema\.yaml/);
+});
+
+test("generated runtime local-exec modules can be forced to refresh in Resource Manager", () => {
+  const terraform = [
+    read("infra/conversation-store/conversation.tf"),
+    read("infra/file-search-vector-store-rag/vector_store.tf"),
+    read("infra/code-interpreter/container.tf")
+  ].join("\n");
+
+  assert.match(terraform, /resource "terraform_data" "conversation_store"[\s\S]*resource-manager-generated-runtime-files-20260608/);
+  assert.match(terraform, /resource "terraform_data" "file_search_vector_store"[\s\S]*resource-manager-generated-runtime-files-20260608/);
+  assert.match(terraform, /resource "terraform_data" "code_interpreter_container"[\s\S]*resource-manager-generated-runtime-files-20260608/);
 });
 
 test("DevOps rolls portal container through load balancer with smoke tests", () => {
