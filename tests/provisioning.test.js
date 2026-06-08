@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -57,14 +59,15 @@ test("creates a six character resource suffix", () => {
 test("protects portal requests with login session and username oci", () => {
   const authorization = `Basic ${Buffer.from("oci:test-password").toString("base64")}`;
   const sessions = new Set();
-  const token = createPortalSession(sessions);
+  const identities = new Map();
+  const token = createPortalSessionForIdentity(bootstrapPortalIdentity(), sessions, identities);
 
   assert.deepEqual(parseBasicAuthHeader(authorization), {
     username: "oci",
     password: "test-password"
   });
   assert.equal(parseCookies(`oci_portal_session=${token}`).oci_portal_session, token);
-  assert.equal(isAuthorizedRequest({ headers: { cookie: `oci_portal_session=${token}` } }, "test-password", sessions), true);
+  assert.equal(isAuthorizedRequest({ headers: { cookie: `oci_portal_session=${token}` } }, "test-password", sessions, identities), true);
   assert.equal(isAuthorizedRequest({ headers: { authorization } }, "test-password"), true);
   assert.equal(isAuthorizedRequest({ headers: { authorization } }, "different-password"), false);
   assert.equal(isAuthorizedRequest({ headers: {} }, "test-password", sessions), false);
@@ -89,6 +92,63 @@ test("portal sessions resolve bootstrap and protected-user identities", () => {
   assert.equal(isAuthorizedRequest({ headers: { cookie: `oci_portal_session=${token}` } }, "test-password", sessions, identities), true);
   assert.equal(isAdminIdentity(resolved), false);
   assert.equal(isAdminIdentity(bootstrapPortalIdentity()), true);
+});
+
+test("unmapped portal session tokens do not authorize as admin", () => {
+  const sessions = new Set();
+  const identities = new Map();
+  const token = createPortalSession(sessions);
+  const request = { headers: { cookie: `oci_portal_session=${token}` } };
+  const resolved = resolvePortalIdentity(request, {
+    password: "test-password",
+    sessions,
+    sessionIdentities: identities
+  });
+
+  assert.equal(resolved, null);
+  assert.equal(isAuthorizedRequest(request, "test-password", sessions, identities), false);
+  assert.equal(isAdminIdentity(resolved), false);
+});
+
+test("auth store command failures return generic client-safe errors", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "portal-auth-store-"));
+  const nonzeroScript = join(tempDir, "nonzero.py");
+  const invalidJsonScript = join(tempDir, "invalid-json.py");
+  const logs = [];
+  const originalError = console.error;
+
+  writeFileSync(
+    nonzeroScript,
+    [
+      "import sys",
+      "print('password=raw-stdout-secret')",
+      "print('client_secret=raw-stderr-secret', file=sys.stderr)",
+      "sys.exit(2)",
+      ""
+    ].join("\n")
+  );
+  writeFileSync(invalidJsonScript, "print('password=raw-json-secret')\n");
+  console.error = (...args) => logs.push(args.join(" "));
+
+  try {
+    const nonzero = callPortalAuthStore(
+      "login",
+      { email: "user@example.com", password: "request-password-secret" },
+      { env: process.env, script: nonzeroScript }
+    );
+    const invalidJson = callPortalAuthStore("login", {}, { env: process.env, script: invalidJsonScript });
+    const clientOutput = JSON.stringify([nonzero, invalidJson]);
+
+    assert.equal(nonzero.status, "failed");
+    assert.equal(invalidJson.status, "failed");
+    assert.equal(nonzero.error, invalidJson.error);
+    assert.match(nonzero.error, /authentication is unavailable/i);
+    assert.doesNotMatch(clientOutput, /raw-stdout-secret|raw-stderr-secret|raw-json-secret|request-password-secret/);
+    assert.doesNotMatch(logs.join("\n"), /raw-stdout-secret|raw-stderr-secret|raw-json-secret|request-password-secret/);
+  } finally {
+    console.error = originalError;
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("server exposes login, forgot password, and logout routes", () => {

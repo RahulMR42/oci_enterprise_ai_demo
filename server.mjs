@@ -32,6 +32,7 @@ const demoGeneratedDirs = {
 };
 const pythonExecutable = existsSync(join(root, "env/bin/python")) ? join(root, "env/bin/python") : "python3";
 const portalAuthStoreScript = process.env.OCI_PORTAL_AUTH_STORE_SCRIPT || join(root, "backend/portal_auth_store.py");
+const portalAuthStoreClientError = "Protected user authentication is unavailable.";
 const portalRuntimeConfigObject = {
   namespace: process.env.OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE || "",
   bucket: process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
@@ -549,7 +550,8 @@ export function bootstrapPortalIdentity() {
 }
 
 export function isAdminIdentity(identity = {}) {
-  return identity.role === "admin" || identity.authType === "bootstrap";
+  const candidate = identity || {};
+  return candidate.role === "admin" || candidate.authType === "bootstrap";
 }
 
 export function createPortalSessionForIdentity(
@@ -568,7 +570,7 @@ export function resolvePortalIdentity(
 ) {
   const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
   if (sessionToken && sessions.has(sessionToken)) {
-    return sessionIdentities.get(sessionToken) || bootstrapPortalIdentity();
+    return sessionIdentities.get(sessionToken) || null;
   }
 
   const credentials = parseBasicAuthHeader(request.headers.authorization || "");
@@ -588,20 +590,42 @@ export function isAuthorizedRequest(
   return Boolean(resolvePortalIdentity(request, { password, sessions, sessionIdentities }));
 }
 
-export function callPortalAuthStore(action, payload = {}, { env = process.env } = {}) {
-  const result = spawnSync(pythonExecutable, [portalAuthStoreScript], {
+function logPortalAuthStoreFailure(action, diagnostics = {}) {
+  const sanitized = Object.fromEntries(
+    Object.entries(diagnostics).map(([key, value]) => [key, redactSensitiveText(String(value ?? "").slice(0, 4000))])
+  );
+  console.error(`[portal-auth-store] ${redactSensitiveText(String(action || "unknown"))} failed`, sanitized);
+}
+
+function portalAuthStoreFailure() {
+  return { ok: false, status: "failed", error: portalAuthStoreClientError };
+}
+
+export function callPortalAuthStore(action, payload = {}, { env = process.env, script = portalAuthStoreScript } = {}) {
+  const result = spawnSync(pythonExecutable, [script], {
     cwd: root,
     encoding: "utf8",
     env: demoProcessEnv(env),
     input: JSON.stringify({ action, payload })
   });
   if (result.status !== 0) {
-    return { ok: false, status: "failed", error: result.stderr || `Auth store command failed with status ${result.status}` };
+    logPortalAuthStoreFailure(action, {
+      status: result.status,
+      error: result.error?.message || "",
+      stderr: result.stderr || "",
+      stdout: result.stdout || ""
+    });
+    return portalAuthStoreFailure();
   }
   try {
     return JSON.parse(result.stdout || "{}");
   } catch (error) {
-    return { ok: false, status: "failed", error: `Auth store returned invalid JSON: ${error.message}` };
+    logPortalAuthStoreFailure(action, {
+      error: error.message,
+      stderr: result.stderr || "",
+      stdout: result.stdout || ""
+    });
+    return portalAuthStoreFailure();
   }
 }
 
@@ -3764,8 +3788,10 @@ export const server = createServer(async (request, response) => {
   if (request.method === "POST" && requestPath === "/logout") {
     const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
     if (sessionToken) {
-      const identity = portalSessionIdentities.get(sessionToken) || bootstrapPortalIdentity();
-      callPortalAuthStore("close_session", { sessionToken, identity });
+      const identity = portalSessionIdentities.get(sessionToken);
+      if (identity) {
+        callPortalAuthStore("close_session", { sessionToken, identity });
+      }
       portalSessionIdentities.delete(sessionToken);
       portalSessionTokens.delete(sessionToken);
     }
