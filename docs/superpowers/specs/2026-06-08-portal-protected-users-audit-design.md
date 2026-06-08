@@ -174,7 +174,9 @@ The UI should keep the current compact admin style and add only relevant control
 
 ## Infrastructure
 
-Extend the Resource Manager/DevOps wiring to pass the existing Autonomous Database details from the stack into the portal deployment:
+Reuse the same Autonomous Database created by the `infra/nl2sql-sql-search` module. Do not create a second database for portal users or audit logs.
+
+Extend the Resource Manager/DevOps wiring to pass the NL2SQL Autonomous Database details from the stack into the portal deployment:
 
 - database connect string,
 - database username,
