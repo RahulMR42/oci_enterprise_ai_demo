@@ -135,6 +135,9 @@ module "devops_hosted_image_build" {
   portal_run_history_namespace           = data.oci_objectstorage_namespace.portal.namespace
   portal_run_history_bucket              = oci_objectstorage_bucket.portal_config[0].name
   portal_run_history_object              = "portal-demo-run-summary.json"
+  portal_change_log_namespace            = data.oci_objectstorage_namespace.portal.namespace
+  portal_change_log_bucket               = oci_objectstorage_bucket.portal_config[0].name
+  portal_change_log_object               = "portal-change-log.json"
   portal_vector_store_id                 = local.portal_vector_store_id
   portal_conversation_id                 = local.portal_conversation_id
   portal_code_interpreter_container_id   = local.portal_code_interpreter_container_id

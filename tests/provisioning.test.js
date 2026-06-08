@@ -150,6 +150,39 @@ test("server exposes non-secret runtime environment variables for administration
   assert.match(html, /admin-runtime-env/);
 });
 
+test("administration exposes object-storage backed portal change log", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const admin = readFileSync("src/admin.js", "utf8");
+  const html = readFileSync("admin.html", "utf8");
+  const terraform = readFileSync("infra/resource-manager-demo/portal_container.tf", "utf8");
+  const moduleMain = readFileSync("infra/resource-manager-demo/main.tf", "utf8");
+  const devopsMain = readFileSync("infra/devops-hosted-image-build/main.tf", "utf8");
+  const devopsVariables = readFileSync("infra/devops-hosted-image-build/variables.tf", "utf8");
+  const portalScript = readFileSync("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh", "utf8");
+  const changeLog = JSON.parse(readFileSync("change-log.json", "utf8"));
+
+  assert.equal(changeLog.name, "OCI Enterprise AI Portal Change Log");
+  assert.ok(Array.isArray(changeLog.entries));
+  assert.ok(changeLog.entries.some((entry) => /launch/i.test(entry.summary || "")));
+  assert.match(server, /portalChangeLogObject/);
+  assert.match(server, /readPortalChangeLog/);
+  assert.match(server, /requestPath === "\/api\/admin\/change-log"/);
+  assert.match(server, /OCI_PORTAL_CHANGE_LOG_OBJECT/);
+  assert.match(admin, /\/api\/admin\/change-log/);
+  assert.match(admin, /renderChangeLog/);
+  assert.match(html, /admin-tab-changes/);
+  assert.match(html, /admin-panel-changes/);
+  assert.match(html, /admin-change-log/);
+  assert.match(terraform, /resource "oci_objectstorage_object" "portal_change_log"/);
+  assert.match(terraform, /portal-change-log\.json/);
+  assert.match(terraform, /file\("\$\{path\.module\}\/\.\.\/\.\.\/change-log\.json"\)/);
+  assert.match(moduleMain, /portal_change_log_namespace/);
+  assert.match(moduleMain, /portal_change_log_object\s+=\s+"portal-change-log\.json"/);
+  assert.match(devopsMain, /PORTAL_CHANGE_LOG_NAMESPACE/);
+  assert.match(devopsVariables, /variable "portal_change_log_object"/);
+  assert.match(portalScript, /OCI_PORTAL_CHANGE_LOG_OBJECT/);
+});
+
 test("server exposes redacted administration infrastructure and logs", () => {
   const server = readFileSync("server.mjs", "utf8");
   const admin = readFileSync("src/admin.js", "utf8");
@@ -992,14 +1025,15 @@ test("run dialog does not expose editable hosted app references", () => {
   assert.match(server, /OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID: hostedRuntime\.hostedDeploymentId/);
 });
 
-test("hosted application demos keep run action and expose separate launch button", () => {
+test("hosted application demos expose launch button inside the run window", () => {
   const main = readFileSync("src/main.js", "utf8");
 
   assert.match(main, /const hostedApplicationLaunchConfigs = \{/);
   assert.match(main, /id="responses-launch-button"/);
   assert.match(main, /hostedApplicationLaunchConfig\(featureId\)/);
   assert.match(main, /const isLaunchOnly = launchOnlyDemoIds\.has\(featureId\)/);
-  assert.match(main, /responses-launch-button"\)\.hidden = !launchConfig \|\| isLaunchOnly/);
+  assert.match(main, /responses-run-button"\)\.hidden = isLaunchOnly/);
+  assert.match(main, /responses-launch-button"\)\.hidden = !launchConfig/);
   assert.match(main, /responses-launch-button"\)\.addEventListener\("click"/);
   assert.match(main, /\/api\/hosted\/launch\/hosted-agentic-applications\//);
   assert.match(main, /\/api\/hosted\/launch\/langgraph-hosted-agent-mcp\//);
@@ -1024,6 +1058,35 @@ test("hosted UI demos launch directly without synthetic run launch flow", () => 
   assert.doesNotMatch(main, /Run Launch Flow/);
   assert.doesNotMatch(main, /hosted-launch-flow/);
   assert.doesNotMatch(main, /runHostedLaunchFlow/);
+});
+
+test("all hosted deployment UI demos expose launch controls and card references", () => {
+  const main = readFileSync("src/main.js", "utf8");
+  const hostedDemoIds = [
+    "hosted-agentic-applications",
+    "langgraph-hosted-agent-mcp",
+    "a2a-agent-collaboration",
+    "langfuse-hosted-observability",
+    "openclaw-hosted-agent-gateway",
+    "agentic-control-tower"
+  ];
+
+  for (const featureId of hostedDemoIds) {
+    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*launchUrl:`));
+    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*hostedUrlKey:`));
+    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*deploymentIdKey:`));
+    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*button: "(?:Run [^"]+|Launch)"`));
+  }
+
+  assert.match(main, /hostedApplicationLaunchConfig\(featureId\)/);
+  assert.match(main, /document\.getElementById\("responses-run-button"\)\.hidden = isLaunchOnly/);
+  assert.match(main, /document\.getElementById\("responses-launch-button"\)\.hidden = !launchConfig/);
+  assert.match(main, /if \(launchOnlyDemoIds\.has\(activeDemoId\)\)[\s\S]*launchExternalDemo\(activeDemoId\)/);
+  assert.match(main, /document\.getElementById\("responses-launch-button"\)\.addEventListener\("click"[\s\S]*launchExternalDemo\(activeDemoId\)/);
+  assert.match(main, /hostedReferenceDetails\(feature\.id\)/);
+  assert.match(main, /class="hosted-card-reference"/);
+  assert.match(main, /Launch \$\{launchConfig\.shortLabel\}/);
+  assert.doesNotMatch(main, /Run Launch Flow/);
 });
 
 test("generic hosted launch proxy routes through IDCS authenticated invoke URL", () => {

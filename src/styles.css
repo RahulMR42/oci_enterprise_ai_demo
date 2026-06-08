@@ -1008,6 +1008,49 @@ h1 {
   gap: 8px;
 }
 
+.admin-change-log {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-change-entry {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(49, 45, 42, 0.08);
+  border-radius: 8px;
+  background: var(--redwood-bg-soft);
+}
+
+.admin-change-entry div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-change-entry strong {
+  color: var(--redwood-ink);
+}
+
+.admin-change-entry time,
+.admin-change-entry p,
+.admin-change-entry li {
+  color: var(--redwood-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.admin-change-entry p,
+.admin-change-entry ul {
+  margin: 0;
+}
+
+.admin-change-entry ul {
+  padding-left: 18px;
+}
+
 .admin-resource-row {
   display: grid;
   grid-template-columns: minmax(170px, 0.9fr) 126px 104px minmax(220px, 1.4fr);
@@ -1996,6 +2039,12 @@ h1 {
   border: 1px solid rgba(199, 70, 52, 0.38);
   color: var(--redwood-brand-red);
   background: #ffffff;
+}
+
+.demo-dialog.is-launch-only.has-hosted-launch .secondary-run-action {
+  border: 0;
+  color: #ffffff;
+  background: var(--redwood-brand-red);
 }
 
 .demo-dialog.has-hosted-launch .secondary-run-action[hidden] {

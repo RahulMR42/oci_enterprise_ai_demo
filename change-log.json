@@ -1,0 +1,28 @@
+{
+  "name": "OCI Enterprise AI Portal Change Log",
+  "generatedAt": "2026-06-08T05:45:11Z",
+  "entries": [
+    {
+      "version": "0.0.18",
+      "releasedAt": "2026-06-08T05:45:11Z",
+      "localTime": "2026-06-08T11:15:11+0530",
+      "summary": "Fix hosted UI launch actions and add administration change tracking.",
+      "changes": [
+        "Every hosted deployment UI demo now exposes Launch inside the run window, and UI-only hosted demos use Launch as the only visible action.",
+        "The run dialog header is limited to Documentation and OCI wiring diagram links.",
+        "Launch-only hosted demos hide prompt, model, project, and temperature fields.",
+        "Portal and administration assets include a version query string to avoid stale browser caches.",
+        "Administration includes an Object Storage-backed change log view."
+      ]
+    },
+    {
+      "version": "0.0.17",
+      "releasedAt": "2026-06-05T16:45:31Z",
+      "summary": "Hosted deployment infrastructure rollout.",
+      "changes": [
+        "Resource Manager apply deployed the hosted application infrastructure and portal runtime metadata.",
+        "Portal version shown on the login page was 0.0.17."
+      ]
+    }
+  ]
+}

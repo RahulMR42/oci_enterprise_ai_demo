@@ -207,6 +207,24 @@ variable "portal_run_history_object" {
   default     = "portal-demo-run-summary.json"
 }
 
+variable "portal_change_log_namespace" {
+  description = "Object Storage namespace for the portal administration change log object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_change_log_bucket" {
+  description = "Object Storage bucket for the portal administration change log object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_change_log_object" {
+  description = "Object Storage object name used by the portal administration page to load release changes."
+  type        = string
+  default     = "portal-change-log.json"
+}
+
 variable "portal_vector_store_id" {
   description = "File Search vector store ID injected into DevOps-created portal container instances."
   type        = string

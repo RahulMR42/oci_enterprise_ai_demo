@@ -92,6 +92,11 @@ output "portal_run_history_object" {
   value       = var.portal_container_enabled ? oci_objectstorage_object.portal_run_history[0].object : ""
 }
 
+output "portal_change_log_object" {
+  description = "Object name for the portal administration change log."
+  value       = var.portal_container_enabled ? oci_objectstorage_object.portal_change_log[0].object : ""
+}
+
 output "portal_public_ip" {
   description = "Public IP address assigned to the demo portal load balancer."
   value       = var.portal_container_enabled ? oci_load_balancer_load_balancer.portal[0].ip_address_details[0].ip_address : ""

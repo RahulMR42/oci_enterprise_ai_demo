@@ -392,6 +392,16 @@ resource "oci_objectstorage_object" "portal_run_history" {
   }
 }
 
+resource "oci_objectstorage_object" "portal_change_log" {
+  count = var.portal_container_enabled ? 1 : 0
+
+  namespace    = data.oci_objectstorage_namespace.portal.namespace
+  bucket       = oci_objectstorage_bucket.portal_config[0].name
+  object       = "portal-change-log.json"
+  content      = file("${path.module}/../../change-log.json")
+  content_type = "application/json"
+}
+
 resource "oci_load_balancer_load_balancer" "portal" {
   count = var.portal_container_enabled ? 1 : 0
 
@@ -554,6 +564,9 @@ locals {
     runHistoryObjectNamespace        = data.oci_objectstorage_namespace.portal.namespace
     runHistoryObjectBucket           = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
     runHistoryObjectName             = "portal-demo-run-summary.json"
+    changeLogObjectNamespace         = data.oci_objectstorage_namespace.portal.namespace
+    changeLogObjectBucket            = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    changeLogObjectName              = "portal-change-log.json"
     runtimeConfigObjectNamespace     = data.oci_objectstorage_namespace.portal.namespace
     runtimeConfigObjectBucket        = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
     runtimeConfigObjectName          = "portal-runtime-config.json"

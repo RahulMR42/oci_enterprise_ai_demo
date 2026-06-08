@@ -98,6 +98,9 @@ env = {
     "OCI_PORTAL_RUN_HISTORY_NAMESPACE": os.environ.get("PORTAL_RUN_HISTORY_NAMESPACE", ""),
     "OCI_PORTAL_RUN_HISTORY_BUCKET": os.environ.get("PORTAL_RUN_HISTORY_BUCKET", ""),
     "OCI_PORTAL_RUN_HISTORY_OBJECT": os.environ.get("PORTAL_RUN_HISTORY_OBJECT", "portal-demo-run-summary.json"),
+    "OCI_PORTAL_CHANGE_LOG_NAMESPACE": os.environ.get("PORTAL_CHANGE_LOG_NAMESPACE", ""),
+    "OCI_PORTAL_CHANGE_LOG_BUCKET": os.environ.get("PORTAL_CHANGE_LOG_BUCKET", ""),
+    "OCI_PORTAL_CHANGE_LOG_OBJECT": os.environ.get("PORTAL_CHANGE_LOG_OBJECT", "portal-change-log.json"),
     "OCI_RESOURCE_SUFFIX": os.environ["RESOURCE_SUFFIX"],
 }
 env = {k: str(v) for k, v in env.items() if str(v).strip()}

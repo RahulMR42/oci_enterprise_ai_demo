@@ -633,6 +633,18 @@ resource "oci_devops_build_run" "this" {
       value = var.portal_run_history_object
     }
     items {
+      name  = "PORTAL_CHANGE_LOG_NAMESPACE"
+      value = var.portal_change_log_namespace
+    }
+    items {
+      name  = "PORTAL_CHANGE_LOG_BUCKET"
+      value = var.portal_change_log_bucket
+    }
+    items {
+      name  = "PORTAL_CHANGE_LOG_OBJECT"
+      value = var.portal_change_log_object
+    }
+    items {
       name  = "PORTAL_VECTOR_STORE_ID"
       value = var.portal_vector_store_id != null && var.portal_vector_store_id != "" ? var.portal_vector_store_id : " "
     }

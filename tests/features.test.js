@@ -209,6 +209,7 @@ test("portal stores star-only ratings and card run counts locally", () => {
 
 test("portal opens administration as a separate page", () => {
   const main = readFileSync("src/main.js", "utf8");
+  const indexHtml = readFileSync("index.html", "utf8");
   const adminHtml = readFileSync("admin.html", "utf8");
   const admin = readFileSync("src/admin.js", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
@@ -216,8 +217,11 @@ test("portal opens administration as a separate page", () => {
   assert.match(main, /href="\/admin\.html"/);
   assert.match(main, /target="_blank"/);
   assert.doesNotMatch(main, /id="administration"/);
+  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.18"/);
+  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.18"/);
   assert.match(adminHtml, /id="administration"/);
-  assert.match(adminHtml, /src="\/src\/admin\.js"/);
+  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.18"/);
+  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.18"/);
   assert.match(admin, /loadAdministrationDashboard/);
   assert.match(main, /Administration/);
   assert.match(admin, /admin-metric-grid/);
@@ -225,13 +229,17 @@ test("portal opens administration as a separate page", () => {
   assert.match(adminHtml, /admin-tab-runs/);
   assert.match(adminHtml, /admin-tab-infra/);
   assert.match(adminHtml, /admin-tab-logs/);
+  assert.match(adminHtml, /admin-tab-changes/);
   assert.match(adminHtml, /admin-panel-runs/);
   assert.match(adminHtml, /admin-panel-infra/);
   assert.match(adminHtml, /admin-panel-logs/);
+  assert.match(adminHtml, /admin-panel-changes/);
   assert.match(adminHtml, /admin-demo-table/);
+  assert.match(adminHtml, /admin-change-log/);
   assert.match(admin, /\/api\/admin\/demo-runs/);
   assert.match(admin, /\/api\/admin\/infra/);
   assert.match(admin, /\/api\/admin\/logs/);
+  assert.match(admin, /\/api\/admin\/change-log/);
   assert.doesNotMatch(admin, /\/api\/features\/responses-api\/state/);
   assert.doesNotMatch(adminHtml, /Hosted application references/);
   assert.match(adminHtml, /admin-run-status-filter/);
@@ -250,4 +258,5 @@ test("portal opens administration as a separate page", () => {
   assert.doesNotMatch(main, /id="infra-action-logs"/);
   assert.match(styles, /\.admin-section/);
   assert.match(styles, /\.admin-demo-row/);
+  assert.match(styles, /\.admin-change-entry/);
 });

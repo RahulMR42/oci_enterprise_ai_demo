@@ -1755,8 +1755,9 @@ function openDemoDialog(featureId) {
   document.getElementById("responses-project-field").hidden = isLaunchOnly;
   document.getElementById("responses-temperature-field").hidden = isLaunchOnly;
   document.getElementById("responses-model").value = defaults.model || "openai.gpt-oss-120b";
+  document.getElementById("responses-run-button").hidden = isLaunchOnly;
   document.getElementById("responses-run-button").textContent = defaults.button || "Run demo";
-  document.getElementById("responses-launch-button").hidden = !launchConfig || isLaunchOnly;
+  document.getElementById("responses-launch-button").hidden = !launchConfig;
   document.getElementById("responses-launch-button").textContent = launchConfig
     ? `Launch ${launchConfig.shortLabel}`
     : "Launch hosted app";

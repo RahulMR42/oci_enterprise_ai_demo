@@ -40,6 +40,11 @@ const portalRunHistoryObject = {
   bucket: process.env.OCI_PORTAL_RUN_HISTORY_BUCKET || process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
   object: process.env.OCI_PORTAL_RUN_HISTORY_OBJECT || "portal-demo-run-summary.json"
 };
+const portalChangeLogObject = {
+  namespace: process.env.OCI_PORTAL_CHANGE_LOG_NAMESPACE || process.env.OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE || "",
+  bucket: process.env.OCI_PORTAL_CHANGE_LOG_BUCKET || process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
+  object: process.env.OCI_PORTAL_CHANGE_LOG_OBJECT || "portal-change-log.json"
+};
 let portalRuntimeConfigCache = {
   value: {},
   expiresAt: 0
@@ -415,6 +420,27 @@ function writePersistentDemoRunRecord(record = {}) {
     updatedAt: new Date().toISOString(),
     metrics: summarizeDemoRunHistory(next).metrics,
     runs: next
+  });
+}
+
+export function readPortalChangeLog() {
+  const localPath = join(root, "change-log.json");
+  const localPayload = existsSync(localPath) ? JSON.parse(readFileSync(localPath, "utf8")) : {};
+  const objectPayload = readObjectStorageJson(portalChangeLogObject);
+  const payload = Object.keys(objectPayload).length ? objectPayload : localPayload;
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  return redactForDemoLog({
+    name: payload.name || "OCI Enterprise AI Portal Change Log",
+    generatedAt: payload.generatedAt || new Date().toISOString(),
+    source: hasObjectStorageReference(portalChangeLogObject) && Object.keys(objectPayload).length ? "object-storage" : "local-file",
+    object: hasObjectStorageReference(portalChangeLogObject)
+      ? {
+          namespace: portalChangeLogObject.namespace,
+          bucket: portalChangeLogObject.bucket,
+          name: portalChangeLogObject.object
+        }
+      : {},
+    entries
   });
 }
 
@@ -3734,6 +3760,22 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && requestPath === "/api/admin/change-log") {
+    try {
+      sendJson(response, 200, readPortalChangeLog());
+    } catch (error) {
+      sendJson(response, 500, {
+        name: "OCI Enterprise AI Portal Change Log",
+        generatedAt: new Date().toISOString(),
+        source: "unavailable",
+        object: {},
+        entries: [],
+        error: error.message
+      });
+    }
+    return;
+  }
+
   if (isLangfusePassthroughPath(requestPath)) {
     await proxyLangfuseLaunch(request, response, parsedUrl);
     return;
@@ -3744,7 +3786,8 @@ export const server = createServer(async (request, response) => {
   const extension = extname(pathToServe);
 
   response.writeHead(200, {
-    "Content-Type": contentTypes[extension] ?? "application/octet-stream"
+    "Content-Type": contentTypes[extension] ?? "application/octet-stream",
+    "Cache-Control": "no-store"
   });
 
   createReadStream(pathToServe).pipe(response);

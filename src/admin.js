@@ -19,6 +19,7 @@ function formatElapsedTime(milliseconds) {
 }
 
 const adminState = {
+  changeLog: {},
   history: {},
   infra: {},
   logs: {},
@@ -112,6 +113,33 @@ function renderRuntimeEnv(snapshot = {}) {
     : `<div class="admin-run-log-empty">No non-confidential runtime variables are available.</div>`;
 }
 
+function renderChangeLog(changeLog = {}) {
+  const entries = Array.isArray(changeLog.entries) ? changeLog.entries : [];
+  const object = changeLog.object || {};
+  const objectLabel = object.bucket && object.name ? `${object.bucket}/${object.name}` : "local file";
+  const updatedAt = changeLog.generatedAt ? `Updated: ${changeLog.generatedAt}` : "Updated: unavailable";
+  document.getElementById("admin-change-log-note").textContent = `${updatedAt}. Source: ${changeLog.source || "unknown"} (${objectLabel}).`;
+  document.getElementById("admin-change-log").innerHTML = entries.length
+    ? entries
+        .map(
+          (entry) => `
+            <article class="admin-change-entry">
+              <div>
+                <strong>Version ${escapeHtml(entry.version || "unknown")}</strong>
+                <time>${escapeHtml(entry.releasedAt || entry.localTime || "")}</time>
+              </div>
+              <p>${escapeHtml(entry.summary || "")}</p>
+              <ul>
+                ${(Array.isArray(entry.changes) ? entry.changes : [])
+                  .map((change) => `<li>${escapeHtml(change)}</li>`)
+                  .join("")}
+              </ul>
+            </article>`
+        )
+        .join("")
+    : `<div class="admin-run-log-empty">No change log entries are available.</div>`;
+}
+
 function renderInfrastructure(infra = {}) {
   const summary = infra.summary || {};
   document.getElementById("admin-infra-metric-grid").innerHTML = [
@@ -174,21 +202,24 @@ export async function loadAdministrationDashboard() {
   const refreshButton = document.getElementById("admin-refresh-button");
   refreshButton.disabled = true;
   try {
-    const [history, runtimeEnv, infra, logs] = await Promise.all([
+    const [history, runtimeEnv, infra, logs, changeLog] = await Promise.all([
       fetchJson("/api/admin/demo-runs"),
       fetchJson("/api/admin/runtime-env"),
       fetchJson("/api/admin/infra"),
-      fetchJson("/api/admin/logs")
+      fetchJson("/api/admin/logs"),
+      fetchJson("/api/admin/change-log")
     ]);
     adminState.history = history;
     adminState.runtimeEnv = runtimeEnv;
     adminState.infra = infra;
     adminState.logs = logs;
+    adminState.changeLog = changeLog;
     renderMetrics(history);
     renderUsage(history);
     renderRuntimeEnv(runtimeEnv);
     renderInfrastructure(infra);
     renderRunLogs(logs);
+    renderChangeLog(changeLog);
   } catch (error) {
     document.getElementById("admin-last-updated").textContent = `Administration load failed: ${error.message}`;
   } finally {

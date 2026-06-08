@@ -798,11 +798,14 @@ test("administration page is separate while runtime metadata stays available", (
   assert.match(adminHtml, /admin-tab-runs/);
   assert.match(adminHtml, /admin-tab-infra/);
   assert.match(adminHtml, /admin-tab-logs/);
+  assert.match(adminHtml, /admin-tab-changes/);
   assert.match(adminHtml, /admin-panel-runs/);
   assert.match(adminHtml, /admin-panel-infra/);
   assert.match(adminHtml, /admin-panel-logs/);
+  assert.match(adminHtml, /admin-panel-changes/);
   assert.match(adminHtml, /admin-demo-table/);
   assert.match(adminHtml, /admin-run-log-panel/);
+  assert.match(adminHtml, /admin-change-log/);
   assert.match(adminHtml, /admin-infra-panel/);
   assert.match(adminHtml, /admin-resource-list/);
   assert.match(adminHtml, /admin-schema-grid/);
@@ -814,6 +817,7 @@ test("administration page is separate while runtime metadata stays available", (
   assert.match(admin, /admin-run-status-filter/);
   assert.match(admin, /\/api\/admin\/infra/);
   assert.match(admin, /\/api\/admin\/logs/);
+  assert.match(admin, /\/api\/admin\/change-log/);
   assert.match(admin, /entry\.status \|\| "unknown"/);
   assert.match(admin, /entry\.preview \|\| ""/);
   assert.match(admin, /component\.status \|\| "unknown"/);
@@ -824,6 +828,7 @@ test("administration page is separate while runtime metadata stays available", (
   assert.doesNotMatch(main, /infra-component-type-filter/);
   assert.match(styles, /\.admin-metric-grid/);
   assert.match(styles, /\.admin-run-log/);
+  assert.match(styles, /\.admin-change-entry/);
 });
 
 test("server refresh discovers hosted runtime metadata when generated files are absent", () => {

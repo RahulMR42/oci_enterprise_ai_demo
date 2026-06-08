@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Administration | OCI Enterprise AI Portal</title>
-    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/styles.css?v=0.0.18" />
   </head>
   <body>
     <main class="admin-page" id="administration">
@@ -34,6 +34,7 @@
           <button class="admin-tab is-active" id="admin-tab-runs" type="button" role="tab" aria-selected="true" aria-controls="admin-panel-runs" data-admin-tab="runs">Runs</button>
           <button class="admin-tab" id="admin-tab-infra" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-infra" data-admin-tab="infra">Infra</button>
           <button class="admin-tab" id="admin-tab-logs" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-logs" data-admin-tab="logs">Logs</button>
+          <button class="admin-tab" id="admin-tab-changes" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-changes" data-admin-tab="changes">Changes</button>
         </div>
 
         <div class="admin-panel is-active" id="admin-panel-runs" role="tabpanel" aria-labelledby="admin-tab-runs">
@@ -132,8 +133,20 @@
             </div>
           </section>
         </div>
+
+        <div class="admin-panel" id="admin-panel-changes" role="tabpanel" aria-labelledby="admin-tab-changes" hidden>
+          <section class="admin-run-log-panel" aria-label="Portal change log">
+            <div class="admin-run-log-heading">
+              <h2>Change log</h2>
+              <span id="admin-change-log-note">Loading release changes...</span>
+            </div>
+            <div class="admin-change-log" id="admin-change-log">
+              <div class="admin-run-log-empty">Loading portal change log.</div>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
-    <script type="module" src="/src/admin.js"></script>
+    <script type="module" src="/src/admin.js?v=0.0.18"></script>
   </body>
 </html>
