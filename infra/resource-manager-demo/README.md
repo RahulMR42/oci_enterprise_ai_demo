@@ -46,6 +46,8 @@ Set `portal_container_enabled=true` to deploy the portal behind an OCI public lo
 
 Launch proxy routes such as Langfuse use the load balancer host seen by the portal request. The portal container receives the Resource Manager-created demo IDs, hosted deployment URLs, hosted deployment IDs, region, project ID, API key, Object Storage runtime config location, and portal password through DevOps build arguments and container environment variables.
 
+The Resource Manager stack reuses the NL2SQL Autonomous Database for portal protected users and audit logs. OCI DevOps runs the `bootstrap-portal-auth-schema` stage before portal rollout; that stage invokes `backend/portal_auth_store.py` with `{"action":"init_schema"}` so `PORTAL_PROTECTED_USERS`, `PORTAL_AUTH_SESSIONS`, and `PORTAL_AUDIT_EVENTS` exist before the portal container receives traffic. For local-only runs outside Resource Manager, run the same `init_schema` command with `OCI_PORTAL_AUTH_DB_DSN`, `OCI_PORTAL_AUTH_DB_USER`, and either `OCI_PORTAL_AUTH_DB_PASSWORD` or `OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID` set.
+
 If `portal_container_repository_id` is empty, the stack creates `portal_container_repository_name`. If a repository already exists, pass its OCID through `portal_container_repository_id` so the stack adopts the repository for image delivery without trying to recreate it.
 
 Useful outputs for login and validation:

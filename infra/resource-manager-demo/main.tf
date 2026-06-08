@@ -129,6 +129,9 @@ module "devops_hosted_image_build" {
   portal_container_ocpus                 = var.portal_container_ocpus
   portal_container_memory_gbs            = var.portal_container_memory_gbs
   portal_auth_password                   = local.portal_auth_password
+  portal_auth_db_dsn                     = module.nl2sql_sql_search.autonomous_database_connection_string
+  portal_auth_db_user                    = module.nl2sql_sql_search.database_user_name
+  portal_auth_db_password_secret_id      = module.nl2sql_sql_search.database_password_secret_id
   portal_runtime_config_namespace        = data.oci_objectstorage_namespace.portal.namespace
   portal_runtime_config_bucket           = oci_objectstorage_bucket.portal_config[0].name
   portal_runtime_config_object           = "portal-runtime-config.json"

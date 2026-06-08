@@ -123,6 +123,37 @@ test("nl2sql terraform includes autonomous database and db tools but no local IA
   assert.doesNotMatch(terraform, /variable "autonomous_database_admin_password"/);
 });
 
+test("portal protected users reuse the nl2sql autonomous database", () => {
+  const nl2sqlOutputs = read("infra/nl2sql-sql-search/outputs.tf");
+  const resourceManagerMain = read("infra/resource-manager-demo/main.tf");
+  const resourceManagerReadme = read("infra/resource-manager-demo/README.md");
+  const devopsVariables = read("infra/devops-hosted-image-build/variables.tf");
+  const devopsMain = read("infra/devops-hosted-image-build/main.tf");
+  const bootstrapBuildSpec = read("infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml");
+  const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh");
+
+  assert.match(nl2sqlOutputs, /output "autonomous_database_connection_string"/);
+  assert.match(nl2sqlOutputs, /value\s+=\s+local\.sql_search_connection_string/);
+  assert.match(nl2sqlOutputs, /output "database_user_name"/);
+  assert.match(resourceManagerMain, /portal_auth_db_dsn\s+=\s+module\.nl2sql_sql_search\.autonomous_database_connection_string/);
+  assert.match(resourceManagerMain, /portal_auth_db_user\s+=\s+module\.nl2sql_sql_search\.database_user_name/);
+  assert.match(resourceManagerMain, /portal_auth_db_password_secret_id\s+=\s+module\.nl2sql_sql_search\.database_password_secret_id/);
+  assert.match(devopsVariables, /variable "portal_auth_db_dsn"/);
+  assert.match(devopsVariables, /variable "portal_auth_db_password_secret_id"/);
+  assert.match(devopsMain, /PORTAL_AUTH_DB_DSN/);
+  assert.match(devopsMain, /PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
+  assert.match(devopsMain, /bootstrap_portal_auth_schema/);
+  assert.match(devopsMain, /build_spec_bootstrap_portal_auth_schema\.yaml/);
+  assert.match(devopsMain, /oci_devops_build_pipeline_stage\.deploy_portal[\s\S]*depends_on\s+=\s+\[[\s\S]*oci_devops_build_pipeline_stage\.bootstrap_portal_auth_schema/);
+  assert.match(bootstrapBuildSpec, /backend\/portal_auth_store\.py/);
+  assert.match(bootstrapBuildSpec, /"action": "init_schema"/);
+  assert.match(deployScript, /OCI_PORTAL_AUTH_DB_DSN/);
+  assert.match(deployScript, /OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
+  assert.match(resourceManagerReadme, /bootstrap-portal-auth-schema/);
+  assert.match(resourceManagerReadme, /init_schema/);
+  assert.doesNotMatch(resourceManagerMain, /module "portal_auth_database"/);
+});
+
 test("hosted agent terraform creates OCIR repository and OCI hosted deployment", () => {
   const hostedAppIdcsClient = read("infra/hosted-agentic-applications/hosted_app_idcs_client.tf");
   const terraform = [

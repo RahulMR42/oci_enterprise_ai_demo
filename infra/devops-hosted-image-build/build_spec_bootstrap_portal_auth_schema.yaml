@@ -1,0 +1,17 @@
+version: 0.1
+component: build
+timeoutInSeconds: 900
+shell: bash
+failImmediatelyOnError: true
+
+steps:
+  - type: Command
+    name: bootstrap-portal-auth-schema
+    timeoutInSeconds: 900
+    command: |
+      set -euo pipefail
+      unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY PIP_PROXY PIP_INDEX_URL PIP_EXTRA_INDEX_URL
+      python3 -m venv /tmp/portal-auth-schema-venv
+      /tmp/portal-auth-schema-venv/bin/python -m pip install --no-cache-dir --upgrade pip
+      /tmp/portal-auth-schema-venv/bin/python -m pip install --no-cache-dir --index-url https://pypi.org/simple -r requirements.txt
+      printf '{"action": "init_schema", "payload": {}}\n' | /tmp/portal-auth-schema-venv/bin/python backend/portal_auth_store.py

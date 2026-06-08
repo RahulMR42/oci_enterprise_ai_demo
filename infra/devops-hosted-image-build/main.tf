@@ -260,6 +260,21 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Load balancer backend set updated by the rolling portal deployment stage."
     }
     items {
+      name          = "PORTAL_AUTH_DB_DSN"
+      default_value = var.portal_auth_db_dsn
+      description   = "NL2SQL Autonomous Database connection string used by portal protected-user auth."
+    }
+    items {
+      name          = "PORTAL_AUTH_DB_USER"
+      default_value = var.portal_auth_db_user
+      description   = "NL2SQL Autonomous Database user for portal protected-user auth."
+    }
+    items {
+      name          = "PORTAL_AUTH_DB_PASSWORD_SECRET_ID"
+      default_value = var.portal_auth_db_password_secret_id
+      description   = "OCI Vault secret OCID containing the NL2SQL Autonomous Database password."
+    }
+    items {
       name          = "SHARED_POLICY_ID"
       default_value = var.shared_policy_id
       description   = "Shared IAM policy dependency marker."
@@ -486,6 +501,48 @@ resource "oci_devops_build_pipeline_stage" "provision_generated_runtime" {
   depends_on = [oci_devops_build_pipeline_stage.deliver_image]
 }
 
+resource "oci_devops_build_pipeline_stage" "bootstrap_portal_auth_schema" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "bootstrap-portal-auth-schema"
+  description                        = "Initializes the portal protected-user auth schema in the NL2SQL Autonomous Database before rollout."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 900
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
+    }
+    items {
+      id = oci_devops_build_pipeline_stage.provision_generated_runtime[0].id
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 1
+    memory_in_gbs     = 8
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [oci_devops_build_pipeline_stage.provision_generated_runtime]
+}
+
 resource "oci_devops_build_pipeline_stage" "deploy_portal" {
   count = var.enabled ? 1 : 0
 
@@ -505,6 +562,9 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
     }
     items {
       id = oci_devops_build_pipeline_stage.provision_generated_runtime[0].id
+    }
+    items {
+      id = oci_devops_build_pipeline_stage.bootstrap_portal_auth_schema[0].id
     }
     dynamic "items" {
       for_each = oci_devops_build_pipeline_stage.deploy_hosted
@@ -532,9 +592,11 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
     }
   }
 
+  # oci_devops_build_pipeline_stage.deploy_portal must stay after bootstrap_portal_auth_schema so protected-user tables exist before traffic.
   depends_on = [
     oci_devops_build_pipeline_stage.deliver_image,
-    oci_devops_build_pipeline_stage.provision_generated_runtime
+    oci_devops_build_pipeline_stage.provision_generated_runtime,
+    oci_devops_build_pipeline_stage.bootstrap_portal_auth_schema
   ]
 }
 
@@ -652,6 +714,18 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "PORTAL_AUTH_PASSWORD"
       value = var.portal_auth_password
+    }
+    items {
+      name  = "PORTAL_AUTH_DB_DSN"
+      value = var.portal_auth_db_dsn
+    }
+    items {
+      name  = "PORTAL_AUTH_DB_USER"
+      value = var.portal_auth_db_user
+    }
+    items {
+      name  = "PORTAL_AUTH_DB_PASSWORD_SECRET_ID"
+      value = var.portal_auth_db_password_secret_id
     }
     items {
       name  = "PORTAL_RUNTIME_CONFIG_NAMESPACE"
@@ -800,6 +874,7 @@ resource "oci_devops_build_run" "this" {
     oci_devops_build_pipeline_stage.deliver_image,
     oci_devops_build_pipeline_stage.deploy_hosted,
     oci_devops_build_pipeline_stage.provision_generated_runtime,
+    oci_devops_build_pipeline_stage.bootstrap_portal_auth_schema,
     oci_devops_build_pipeline_stage.deploy_portal,
     oci_logging_log.devops,
     terraform_data.seed_devops_repository

@@ -171,6 +171,25 @@ variable "portal_auth_password" {
   default     = ""
 }
 
+variable "portal_auth_db_dsn" {
+  description = "NL2SQL Autonomous Database connection string used by portal protected-user auth."
+  type        = string
+  default     = ""
+}
+
+variable "portal_auth_db_user" {
+  description = "NL2SQL Autonomous Database user for portal protected-user auth."
+  type        = string
+  default     = "ADMIN"
+}
+
+variable "portal_auth_db_password_secret_id" {
+  description = "OCI Vault secret OCID containing the NL2SQL Autonomous Database password."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "portal_runtime_config_namespace" {
   description = "Object Storage namespace for the portal runtime config object."
   type        = string

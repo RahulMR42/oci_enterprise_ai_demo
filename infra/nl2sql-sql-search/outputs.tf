@@ -8,6 +8,16 @@ output "autonomous_database_name" {
   value       = oci_database_autonomous_database.sql_search.db_name
 }
 
+output "autonomous_database_connection_string" {
+  description = "TLS connection string for the NL2SQL Autonomous Database reused by the portal auth store."
+  value       = local.sql_search_connection_string
+}
+
+output "database_user_name" {
+  description = "Database user name for Database Tools and portal auth store access."
+  value       = var.database_user_name
+}
+
 output "database_tools_enrichment_connection_id" {
   description = "Database Tools enrichment connection OCID."
   value       = local.create_database_tools_connections ? oci_database_tools_database_tools_connection.enrichment[0].id : ""

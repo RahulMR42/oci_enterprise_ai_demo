@@ -77,6 +77,16 @@ output "portal_container_repository_id" {
   ) : ""
 }
 
+output "portal_auth_database_id" {
+  description = "NL2SQL Autonomous Database reused by the portal protected-user auth store."
+  value       = module.nl2sql_sql_search.autonomous_database_id
+}
+
+output "portal_auth_database_name" {
+  description = "NL2SQL Autonomous Database name reused by the portal protected-user auth store."
+  value       = module.nl2sql_sql_search.autonomous_database_name
+}
+
 output "portal_runtime_config_bucket" {
   description = "Object Storage bucket holding non-sensitive portal runtime config and run summaries."
   value       = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
