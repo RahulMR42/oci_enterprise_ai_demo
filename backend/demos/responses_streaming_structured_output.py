@@ -40,10 +40,26 @@ def _event_delta(event, event_json):
     event_type = getattr(event, "type", event_json.get("type", ""))
     if event_type == "response.output_text.delta":
         return getattr(event, "delta", "") or event_json.get("delta", "")
-    if "delta" in event_json and isinstance(event_json["delta"], str):
-        return event_json["delta"]
+    if event_type == "response.output_text.done":
+        return getattr(event, "text", "") or event_json.get("text", "")
     output = event_json.get("output_text")
     return output if isinstance(output, str) else ""
+
+
+def _parse_structured_output(output):
+    if not output:
+        return None
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError:
+        start = output.find("{")
+        end = output.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+        try:
+            return json.loads(output[start : end + 1])
+        except json.JSONDecodeError:
+            return None
 
 
 def _stream_response(client, request):
@@ -124,10 +140,7 @@ def run_demo(payload):
             chunks.append(delta)
 
     output = "".join(chunks).strip()
-    try:
-        structured_output = json.loads(output) if output else None
-    except json.JSONDecodeError:
-        structured_output = None
+    structured_output = _parse_structured_output(output)
 
     result["output"] = output
     result["structuredOutput"] = structured_output

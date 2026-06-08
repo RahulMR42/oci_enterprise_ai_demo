@@ -1,7 +1,18 @@
 {
   "name": "OCI Enterprise AI Portal Change Log",
-  "generatedAt": "2026-06-08T09:45:12Z",
+  "generatedAt": "2026-06-08T10:41:55Z",
   "entries": [
+    {
+      "version": "0.0.21",
+      "releasedAt": "2026-06-08T10:41:55Z",
+      "localTime": "2026-06-08T16:11:55+0530",
+      "summary": "Fix Responses streaming parser for structured-output demos.",
+      "changes": [
+        "Responses Streaming + Structured Output now ignores reasoning deltas and aggregates only response output-text deltas.",
+        "Structured output parsing now recovers the JSON object from the streamed final output when the provider includes surrounding text.",
+        "Portal and administration assets now use version 0.0.21."
+      ]
+    },
     {
       "version": "0.0.20",
       "releasedAt": "2026-06-08T09:45:12Z",

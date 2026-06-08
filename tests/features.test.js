@@ -168,6 +168,15 @@ test("LangGraph and Locus executable demos load their SDKs", () => {
   assert.match(requirements, /locus-sdk\[oci\]==0\.2\.0b26/);
 });
 
+test("Responses streaming demo does not mix reasoning deltas into structured output", () => {
+  const streamingBackend = readFileSync("backend/demos/responses_streaming_structured_output.py", "utf8");
+
+  assert.match(streamingBackend, /event_type == "response\.output_text\.delta"/);
+  assert.match(streamingBackend, /def _parse_structured_output\(output\):/);
+  assert.doesNotMatch(streamingBackend, /"delta" in event_json/);
+  assert.doesNotMatch(streamingBackend, /response\.reasoning_text\.delta/);
+});
+
 test("portal exposes mermaid-style flow diagrams for feature cards", () => {
   const main = readFileSync("src/main.js", "utf8");
 
@@ -267,11 +276,11 @@ test("portal opens administration as a separate page", () => {
   assert.match(main, /href="\/admin\.html"/);
   assert.match(main, /target="_blank"/);
   assert.doesNotMatch(main, /id="administration"/);
-  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.20"/);
-  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.20"/);
+  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.21"/);
+  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.21"/);
   assert.match(adminHtml, /id="administration"/);
-  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.20"/);
-  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.20"/);
+  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.21"/);
+  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.21"/);
   assert.match(admin, /loadAdministrationDashboard/);
   assert.match(main, /Administration/);
   assert.match(admin, /admin-metric-grid/);
