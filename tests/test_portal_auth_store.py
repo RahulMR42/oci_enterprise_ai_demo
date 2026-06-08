@@ -1,0 +1,74 @@
+import json
+import subprocess
+import sys
+import unittest
+
+from backend import portal_auth_store as store
+
+
+class PortalAuthStoreCoreTests(unittest.TestCase):
+    def test_normalize_email_requires_email_shape(self):
+        self.assertEqual(store.normalize_email("  User.Name@Example.COM "), "user.name@example.com")
+        with self.assertRaises(ValueError):
+            store.normalize_email("not-an-email")
+
+    def test_password_hash_uses_random_salts_and_constant_verification(self):
+        first = store.hash_password("correct horse battery staple")
+        second = store.hash_password("correct horse battery staple")
+        self.assertEqual(first["hashAlgorithm"], "PBKDF2-HMAC-SHA256")
+        self.assertGreaterEqual(first["hashIterations"], 210000)
+        self.assertNotEqual(first["passwordSalt"], second["passwordSalt"])
+        self.assertNotEqual(first["passwordHash"], second["passwordHash"])
+        self.assertTrue(store.verify_password("correct horse battery staple", first))
+        self.assertFalse(store.verify_password("wrong password value", first))
+
+    def test_redact_details_removes_sensitive_values(self):
+        details = store.redact_details({
+            "featureId": "responses-api",
+            "password": "plain",
+            "nested": {"authorization": "Bearer secret-token", "status": "success"},
+        })
+        serialized = json.dumps(details)
+        self.assertIn("responses-api", serialized)
+        self.assertIn("success", serialized)
+        self.assertNotIn("plain", serialized)
+        self.assertNotIn("secret-token", serialized)
+
+    def test_build_activity_filters_accepts_user_duration_feature_event_status(self):
+        where, binds = store.build_activity_filters({
+            "userEmail": "USER@EXAMPLE.COM",
+            "from": "2026-06-08T00:00:00Z",
+            "to": "2026-06-08T23:59:59Z",
+            "featureId": "responses-api",
+            "eventType": "demo_run",
+            "status": "success",
+        })
+        self.assertIn("LOWER(user_email) = :user_email", where)
+        self.assertIn("created_at >= TO_TIMESTAMP_TZ(:from_ts", where)
+        self.assertIn("created_at <= TO_TIMESTAMP_TZ(:to_ts", where)
+        self.assertEqual(binds["user_email"], "user@example.com")
+        self.assertEqual(binds["feature_id"], "responses-api")
+        self.assertEqual(binds["event_type"], "demo_run")
+        self.assertEqual(binds["status"], "success")
+
+
+class PortalAuthStoreCommandTests(unittest.TestCase):
+    def run_command(self, payload):
+        result = subprocess.run(
+            [sys.executable, "backend/portal_auth_store.py"],
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_status_reports_disabled_without_adb_env(self):
+        response = self.run_command({"action": "status", "payload": {}})
+        self.assertEqual(response["status"], "disabled")
+        self.assertEqual(response["configured"], False)
+
+
+if __name__ == "__main__":
+    unittest.main()
