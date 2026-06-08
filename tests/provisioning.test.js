@@ -998,7 +998,8 @@ test("hosted application demos keep run action and expose separate launch button
   assert.match(main, /const hostedApplicationLaunchConfigs = \{/);
   assert.match(main, /id="responses-launch-button"/);
   assert.match(main, /hostedApplicationLaunchConfig\(featureId\)/);
-  assert.match(main, /responses-launch-button"\)\.hidden = !launchConfig/);
+  assert.match(main, /const isLaunchOnly = launchOnlyDemoIds\.has\(featureId\)/);
+  assert.match(main, /responses-launch-button"\)\.hidden = !launchConfig \|\| isLaunchOnly/);
   assert.match(main, /responses-launch-button"\)\.addEventListener\("click"/);
   assert.match(main, /\/api\/hosted\/launch\/hosted-agentic-applications\//);
   assert.match(main, /\/api\/hosted\/launch\/langgraph-hosted-agent-mcp\//);
@@ -1006,8 +1007,23 @@ test("hosted application demos keep run action and expose separate launch button
   assert.match(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
   assert.match(main, /\/api\/openclaw\/launch\//);
   assert.match(main, /\/api\/llamaindex\/launch\//);
-  assert.match(main, /return "Run"/);
+  assert.match(main, /return launchOnlyDemoIds\.has\(featureId\) \? "Launch" : "Run"/);
   assert.doesNotMatch(main, /hostedUiLaunchDemoIds\.includes\(activeDemoId\)/);
+});
+
+test("hosted UI demos launch directly without synthetic run launch flow", () => {
+  const main = readFileSync("src/main.js", "utf8");
+
+  assert.match(main, /const launchOnlyDemoIds = new Set/);
+  assert.match(main, /return launchOnlyDemoIds\.has\(featureId\) \? "Launch" : "Run"/);
+  assert.match(main, /launchOnlyDemoIds\.has\(activeDemoId\)/);
+  assert.match(main, /"langfuse-hosted-observability"[\s\S]*button: "Launch"/);
+  assert.match(main, /"openclaw-hosted-agent-gateway"[\s\S]*button: "Launch"/);
+  assert.match(main, /launchExternalDemo\(activeDemoId\)/);
+  assert.match(main, /window\.open\(launchTarget/);
+  assert.doesNotMatch(main, /Run Launch Flow/);
+  assert.doesNotMatch(main, /hosted-launch-flow/);
+  assert.doesNotMatch(main, /runHostedLaunchFlow/);
 });
 
 test("generic hosted launch proxy routes through IDCS authenticated invoke URL", () => {

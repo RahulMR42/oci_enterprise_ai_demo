@@ -112,6 +112,8 @@ const hostedApplicationLaunchConfigs = {
   }
 };
 
+const launchOnlyDemoIds = new Set(["langfuse-hosted-observability", "openclaw-hosted-agent-gateway"]);
+
 const hostedRuntimeReferences = {
   "hosted-agentic-applications": {
     label: "Hosted agent reference",
@@ -227,7 +229,7 @@ function renderRunCountBadge(featureId) {
 }
 
 function demoCardActionLabel(featureId) {
-  return "Run";
+  return launchOnlyDemoIds.has(featureId) ? "Launch" : "Run";
 }
 
 function hostedApplicationLaunchConfig(featureId) {
@@ -453,7 +455,8 @@ const demoDefaults = {
     title: "Langfuse Hosted Observability",
     prompt: "",
     button: "Launch",
-    output: "Open the minimal Langfuse hosted deployment in a new browser tab.",
+    output: "Open the hosted Langfuse observability UI through the IDCS-authenticated portal proxy.",
+    promptVisible: false,
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -463,7 +466,8 @@ const demoDefaults = {
     title: "OpenClaw Hosted Agent Gateway",
     prompt: "",
     button: "Launch",
-    output: "Open the hosted OpenClaw Control UI in a new browser tab.",
+    output: "Open the hosted OpenClaw agent gateway UI through the IDCS-authenticated portal proxy.",
+    promptVisible: false,
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -471,9 +475,9 @@ const demoDefaults = {
   },
   "agentic-control-tower": {
     title: "Agentic Control Tower Workbench",
-    prompt: "",
-    button: "Launch",
-    output: "Open the hosted LlamaIndex Control Tower through the IDCS-authenticated launch proxy.",
+    prompt: "Coordinate incident triage across planning, tool review, approval, memory, and audit before drafting the final response.",
+    button: "Run Control Tower Flow",
+    output: "Run the hosted LlamaIndex workflow through the backend, or launch the hosted Control Tower UI through the IDCS-authenticated proxy.",
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -1431,7 +1435,7 @@ function renderPortal() {
           </div>
         </div>
         <div class="demo-body" id="responses-demo-body">
-          <label class="demo-field" for="responses-prompt">
+          <label class="demo-field" id="responses-prompt-field" for="responses-prompt">
             <span>Prompt</span>
             <textarea id="responses-prompt" rows="5">Summarize this support note: database latency increased after deployment and customers are seeing slower checkout confirmations.</textarea>
           </label>
@@ -1440,11 +1444,11 @@ function renderPortal() {
               <span>Session ID</span>
               <input id="responses-session-id" value="" />
             </label>
-            <label>
+            <label id="responses-model-field">
               <span>OCI Responses model</span>
               <input id="responses-model" value="openai.gpt-oss-120b" />
             </label>
-            <label>
+            <label id="responses-project-field">
               <span>Project OCID</span>
               <input id="responses-project-id-display" placeholder="OCI project OCID" />
             </label>
@@ -1456,7 +1460,7 @@ function renderPortal() {
               <input id="responses-code-container-refresh" type="checkbox" />
               <span>Create new container</span>
             </label>
-            <label>
+            <label id="responses-temperature-field">
               <span>Temperature</span>
               <input id="responses-temperature" type="number" min="0" max="1" step="0.1" value="0.2" />
             </label>
@@ -1722,10 +1726,11 @@ function openDemoDialog(featureId) {
   const defaults = demoDefaults[featureId] || demoDefaults["responses-api"];
   const feature = aiFeatures.find((item) => item.id === featureId) || aiFeatures[0];
   const launchConfig = hostedApplicationLaunchConfig(featureId);
+  const isLaunchOnly = launchOnlyDemoIds.has(featureId);
   activeDemoId = featureId;
-  document
-    .getElementById("responses-demo-dialog")
-    .classList.toggle("has-hosted-launch", Boolean(launchConfig));
+  const dialog = document.getElementById("responses-demo-dialog");
+  dialog.classList.toggle("has-hosted-launch", Boolean(launchConfig));
+  dialog.classList.toggle("is-launch-only", isLaunchOnly);
   document.getElementById("demo-dialog-title").textContent = defaults.title;
   document.getElementById("demo-details-summary").textContent = feature.details || feature.summary;
   document.getElementById("demo-details-use-case").textContent = `Use case: ${feature.sampleUseCase}`;
@@ -1745,9 +1750,13 @@ function openDemoDialog(featureId) {
     wiringLink.removeAttribute("aria-label");
   }
   document.getElementById("responses-prompt").value = defaults.prompt;
+  document.getElementById("responses-prompt-field").hidden = defaults.promptVisible === false;
+  document.getElementById("responses-model-field").hidden = isLaunchOnly;
+  document.getElementById("responses-project-field").hidden = isLaunchOnly;
+  document.getElementById("responses-temperature-field").hidden = isLaunchOnly;
   document.getElementById("responses-model").value = defaults.model || "openai.gpt-oss-120b";
   document.getElementById("responses-run-button").textContent = defaults.button || "Run demo";
-  document.getElementById("responses-launch-button").hidden = !launchConfig;
+  document.getElementById("responses-launch-button").hidden = !launchConfig || isLaunchOnly;
   document.getElementById("responses-launch-button").textContent = launchConfig
     ? `Launch ${launchConfig.shortLabel}`
     : "Launch hosted app";
@@ -1776,7 +1785,7 @@ function openDemoDialog(featureId) {
         : "";
   document.getElementById("responses-tool-resource-id").value = defaults.toolResourceId || provisionedToolResourceId || "";
   syncDemoInfraFields();
-  document.getElementById("responses-demo-dialog").showModal();
+  dialog.showModal();
 }
 
 function writeActionLogs(action, payload, targetId = "responses-action-logs") {
@@ -2722,6 +2731,12 @@ document.getElementById("flow-close-button").addEventListener("click", () => {
 });
 
 document.getElementById("responses-run-button").addEventListener("click", async () => {
+  if (launchOnlyDemoIds.has(activeDemoId)) {
+    incrementFeatureRunCount(activeDemoId);
+    launchExternalDemo(activeDemoId);
+    return;
+  }
+
   const runButton = document.getElementById("responses-run-button");
   const actionLogs = document.getElementById("responses-action-logs");
   const prompt = document.getElementById("responses-prompt").value;

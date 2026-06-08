@@ -905,6 +905,9 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /run-notice-dialog/);
   assert.match(main, /responses-live-logs/);
   assert.match(main, /responses-code-container-refresh/);
+  assert.match(main, /id="responses-model-field"/);
+  assert.match(main, /id="responses-project-field"/);
+  assert.match(main, /id="responses-temperature-field"/);
   assert.match(main, /createNewCodeInterpreterContainer/);
   assert.match(main, /demo-details-doc-link/);
   assert.match(main, /demo-details-wiring-link/);
@@ -914,6 +917,13 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /OCI wiring diagram/);
   assert.match(main, /demo-header-copy/);
   assert.match(main, /action="\/logout"/);
+  assert.doesNotMatch(main, /demo-quick-actions/);
+  assert.doesNotMatch(main, /demo-flow-button/);
+  assert.doesNotMatch(main, /demo-code-button/);
+  assert.doesNotMatch(main, /demo-logs-button/);
+  assert.doesNotMatch(main, /demo-run-count-shell/);
+  assert.match(main, /demo-details-doc-link/);
+  assert.match(main, /demo-details-wiring-link/);
   assert.match(main, /Relevant Output/);
   assert.match(main, /data-output-view="markdown"/);
   assert.match(main, /data-output-view="json"/);
@@ -951,6 +961,10 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /function demoCardActionLabel/);
   assert.match(main, /demoCardActionLabel\(feature\.id\)/);
   assert.match(main, /document\.getElementById\("responses-run-button"\)\.textContent = defaults\.button \|\| "Run demo"/);
+  assert.match(main, /classList\.toggle\("is-launch-only", isLaunchOnly\)/);
+  assert.match(main, /responses-model-field"\)\.hidden = isLaunchOnly/);
+  assert.match(main, /responses-project-field"\)\.hidden = isLaunchOnly/);
+  assert.match(main, /responses-temperature-field"\)\.hidden = isLaunchOnly/);
   assert.doesNotMatch(main, /externalLaunchDemos/);
   assert.match(main, /launchExternalDemo\(activeDemoId\)/);
   assert.doesNotMatch(main, /hostedUiLaunchDemoIds\.includes\(activeDemoId\)/);
@@ -982,6 +996,9 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(styles, /\.response-output \.relevant-output\.markdown-output/);
   assert.match(styles, /\.relevant-json-output/);
   assert.match(styles, /\.more-details-panel/);
+  assert.doesNotMatch(styles, /\.demo-quick-actions/);
+  assert.match(styles, /\.demo-dialog\.is-launch-only \.demo-controls/);
+  assert.match(styles, /\.demo-controls label\[hidden\]/);
   assert.match(styles, /\.demo-doc-link/);
   assert.match(styles, /\.demo-wiring-link\[hidden\]/);
   assert.match(styles, /\.demo-header-copy/);

@@ -1867,6 +1867,11 @@ h1 {
   display: none !important;
 }
 
+.demo-field[hidden],
+.demo-controls label[hidden] {
+  display: none !important;
+}
+
 .demo-field span,
 .demo-controls span,
 .config-panel span {
@@ -1979,10 +1984,22 @@ h1 {
   font-weight: 950;
 }
 
+.demo-dialog.is-launch-only .demo-controls {
+  grid-template-columns: minmax(180px, 240px);
+}
+
+.demo-dialog.is-launch-only .demo-controls button {
+  width: 100%;
+}
+
 .demo-dialog.has-hosted-launch .secondary-run-action {
   border: 1px solid rgba(199, 70, 52, 0.38);
   color: var(--redwood-brand-red);
   background: #ffffff;
+}
+
+.demo-dialog.has-hosted-launch .secondary-run-action[hidden] {
+  display: none;
 }
 
 .demo-dialog.has-hosted-launch .secondary-run-action:hover,
