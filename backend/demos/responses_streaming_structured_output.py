@@ -52,14 +52,42 @@ def _parse_structured_output(output):
     try:
         return json.loads(output)
     except json.JSONDecodeError:
-        start = output.find("{")
-        end = output.rfind("}")
-        if start == -1 or end == -1 or end <= start:
+        object_text = _first_json_object(output)
+        if not object_text:
             return None
         try:
-            return json.loads(output[start : end + 1])
+            return json.loads(object_text)
         except json.JSONDecodeError:
             return None
+
+
+def _first_json_object(output):
+    start = output.find("{")
+    if start == -1:
+        return ""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for index, char in enumerate(output[start:], start=start):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return output[start : index + 1]
+    return ""
 
 
 def _stream_response(client, request):

@@ -1,7 +1,18 @@
 {
   "name": "OCI Enterprise AI Portal Change Log",
-  "generatedAt": "2026-06-08T10:41:55Z",
+  "generatedAt": "2026-06-08T11:22:16Z",
   "entries": [
+    {
+      "version": "0.0.22",
+      "releasedAt": "2026-06-08T11:22:16Z",
+      "localTime": "2026-06-08T16:52:21+0530",
+      "summary": "Fix duplicated streaming JSON parsing for structured-output demos.",
+      "changes": [
+        "Responses Streaming + Structured Output now extracts the first complete balanced JSON object when OCI streaming emits adjacent duplicate output objects.",
+        "Added a parser-level regression test for duplicated streamed structured output.",
+        "Portal and administration assets now use version 0.0.22."
+      ]
+    },
     {
       "version": "0.0.21",
       "releasedAt": "2026-06-08T10:41:55Z",
