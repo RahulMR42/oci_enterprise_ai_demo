@@ -242,6 +242,47 @@ test("demo run history includes redacted user identity metadata", () => {
   assert.equal(JSON.stringify(history).includes("secret"), false);
 });
 
+test("portal audit session ids use public ids instead of raw cookie tokens", () => {
+  const rawCookieToken = "raw-cookie-token-password=super-secret-token";
+  const publicSessionId = "sess_public123";
+  const request = {
+    headers: {
+      cookie: `oci_portal_session=${encodeURIComponent(rawCookieToken)}`
+    }
+  };
+  const sessionAuditIds = new Map([[rawCookieToken, publicSessionId]]);
+  const sessionId = serverModule.portalAuditSessionIdForRequest?.(request, { sessionAuditIds }) || "";
+  const history = summarizeDemoRunHistory([
+    {
+      featureId: "responses-api",
+      status: "success",
+      durationMs: 100,
+      createdAt: "2026-06-08T12:00:00.000Z",
+      userId: "usr_123",
+      userEmail: "user@example.com",
+      authType: "protected_user",
+      sessionId,
+      request: { password: rawCookieToken, prompt: "hello" }
+    }
+  ]);
+  const rawSessionHistory = summarizeDemoRunHistory([
+    {
+      featureId: "responses-api",
+      status: "success",
+      durationMs: 100,
+      createdAt: "2026-06-08T12:00:00.000Z",
+      sessionId: rawCookieToken,
+      request: { prompt: "hello" }
+    }
+  ]);
+
+  assert.equal(sessionId, publicSessionId);
+  assert.equal(history.runs[0].sessionId, publicSessionId);
+  assert.equal(JSON.stringify(history).includes(rawCookieToken), false);
+  assert.equal(rawSessionHistory.runs[0].sessionId, "");
+  assert.equal(JSON.stringify(rawSessionHistory).includes(rawCookieToken), false);
+});
+
 test("server records audit events for demo runs and hosted launches", () => {
   const server = readFileSync("server.mjs", "utf8");
 
@@ -249,6 +290,40 @@ test("server records audit events for demo runs and hosted launches", () => {
   assert.match(server, /eventType: "demo_run"/);
   assert.match(server, /eventType: "hosted_launch"/);
   assert.match(server, /runFeatureDemo\(runMatch\[1\], payload, \{ identity/);
+});
+
+test("server stores public audit session ids returned by open_session", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /const portalSessionAuditIds = new Map\(\)/);
+  assert.match(server, /storePortalSessionAuditId\(token, .*openSession/);
+  assert.match(server, /portalAuditSessionIdForRequest\(request\)/);
+  assert.match(server, /portalSessionAuditIds\.delete\(sessionToken\)/);
+  assert.doesNotMatch(server, /const sessionId = parseCookies\(request\.headers\.cookie \|\| ""\)\[portalSessionCookie\] \|\| ""/);
+});
+
+test("portal audit helper returns sanitized failures without leaking details", () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = serverModule.recordPortalAuditEvent?.(
+      {
+        eventType: "demo_run",
+        details: { password: "super-secret-token" }
+      },
+      {
+        writeEvent: () => {
+          throw new Error("password=super-secret-token");
+        }
+      }
+    );
+
+    assert.equal(result?.status, "failed");
+    assert.equal(result?.error, "Portal audit write failed.");
+    assert.equal(JSON.stringify(result).includes("super-secret-token"), false);
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test("server exposes non-secret runtime environment variables for administration", () => {

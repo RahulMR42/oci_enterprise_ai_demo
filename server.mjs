@@ -16,6 +16,7 @@ const portalAuthPassword = portalAuthPasswordConfig.password;
 const portalSessionCookie = "oci_portal_session";
 const portalSessionTokens = new Set();
 const portalSessionIdentities = new Map();
+const portalSessionAuditIds = new Map();
 let idcsTokenCache = {
   value: "",
   expiresAt: 0
@@ -175,7 +176,7 @@ function writeDemoLog(featureId, payload = {}) {
     userId: rawRecord.userId || "",
     userEmail: rawRecord.userEmail || "",
     authType: rawRecord.authType || "",
-    sessionId: rawRecord.sessionId || ""
+    sessionId: publicPortalSessionId(rawRecord.sessionId)
   };
   writeFileSync(logFile, JSON.stringify(record, null, 2));
   writePersistentDemoRunRecord({ ...record, logFile });
@@ -200,20 +201,26 @@ function errorLogDetails(error) {
   });
 }
 
+function publicPortalSessionId(value = "") {
+  const candidate = String(value || "");
+  return /^sess_[A-Za-z0-9_-]+$/.test(candidate) ? candidate : "";
+}
+
 function identityLogFields(identity = bootstrapPortalIdentity(), sessionId = "") {
   const candidate = identity || bootstrapPortalIdentity();
   return {
     userId: candidate.userId || "",
     userEmail: candidate.userEmail || candidate.displayEmail || "",
     authType: candidate.authType || "unknown",
-    sessionId
+    sessionId: publicPortalSessionId(sessionId)
   };
 }
 
-function recordPortalAuditEvent(event = {}) {
+export function recordPortalAuditEvent(event = {}, { writeEvent = callPortalAuthStore } = {}) {
   try {
-    const result = callPortalAuthStore("record_event", {
+    const result = writeEvent("record_event", {
       ...event,
+      sessionId: publicPortalSessionId(event.sessionId),
       details: redactForDemoLog(event.details || {})
     });
     if (result.status === "failed") {
@@ -222,7 +229,7 @@ function recordPortalAuditEvent(event = {}) {
     return result;
   } catch (error) {
     console.warn(`[portal-audit] ${redactSensitiveText(error.message)}`);
-    return { ok: false, status: "failed", error: error.message };
+    return { ok: false, status: "failed", error: "Portal audit write failed." };
   }
 }
 
@@ -235,7 +242,7 @@ export function summarizeDemoRunHistory(records = []) {
         userId: rawRecord.userId || "",
         userEmail: rawRecord.userEmail || "",
         authType: rawRecord.authType || "",
-        sessionId: rawRecord.sessionId || ""
+        sessionId: publicPortalSessionId(rawRecord.sessionId)
       };
     })
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
@@ -579,6 +586,19 @@ export function parseCookies(header = "") {
     }, {});
 }
 
+function storePortalSessionAuditId(token = "", openSession = {}, sessionAuditIds = portalSessionAuditIds) {
+  const sessionId = publicPortalSessionId(openSession?.sessionId);
+  if (token && sessionId) {
+    sessionAuditIds.set(token, sessionId);
+  }
+  return sessionId;
+}
+
+export function portalAuditSessionIdForRequest(request, { sessionAuditIds = portalSessionAuditIds } = {}) {
+  const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
+  return sessionToken ? publicPortalSessionId(sessionAuditIds.get(sessionToken)) : "";
+}
+
 export function createPortalSession(sessions = portalSessionTokens) {
   const token = randomBytes(18).toString("base64url");
   sessions.add(token);
@@ -608,6 +628,21 @@ export function createPortalSessionForIdentity(
   const token = createPortalSession(sessions);
   sessionIdentities.set(token, identity);
   return token;
+}
+
+function openPortalAuthSession(token, identity, request) {
+  try {
+    const openSession = callPortalAuthStore("open_session", {
+      sessionToken: token,
+      identity,
+      ip: request.socket?.remoteAddress || "",
+      userAgent: request.headers["user-agent"] || ""
+    });
+    return storePortalSessionAuditId(token, openSession);
+  } catch (error) {
+    console.warn(`[portal-auth-session] ${redactSensitiveText(error.message)}`);
+    return "";
+  }
 }
 
 export function resolvePortalIdentity(
@@ -3960,12 +3995,7 @@ export const server = createServer(async (request, response) => {
     const signup = callPortalAuthStore("signup", { email, password });
     if (signup.status === "success" && signup.identity) {
       const token = createPortalSessionForIdentity(signup.identity);
-      callPortalAuthStore("open_session", {
-        sessionToken: token,
-        identity: signup.identity,
-        ip: request.socket?.remoteAddress || "",
-        userAgent: request.headers["user-agent"] || ""
-      });
+      openPortalAuthSession(token, signup.identity, request);
       response.writeHead(302, {
         Location: "/",
         "Set-Cookie": sessionCookie(token),
@@ -3998,12 +4028,7 @@ export const server = createServer(async (request, response) => {
     const protectedLogin = callPortalAuthStore("login", { email: username, password });
     if (protectedLogin.status === "success" && protectedLogin.identity) {
       const token = createPortalSessionForIdentity(protectedLogin.identity);
-      callPortalAuthStore("open_session", {
-        sessionToken: token,
-        identity: protectedLogin.identity,
-        ip: request.socket?.remoteAddress || "",
-        userAgent: request.headers["user-agent"] || ""
-      });
+      openPortalAuthSession(token, protectedLogin.identity, request);
       response.writeHead(302, {
         Location: "/",
         "Set-Cookie": sessionCookie(token),
@@ -4032,6 +4057,7 @@ export const server = createServer(async (request, response) => {
       }
       portalSessionIdentities.delete(sessionToken);
       portalSessionTokens.delete(sessionToken);
+      portalSessionAuditIds.delete(sessionToken);
     }
 
     response.writeHead(302, {
@@ -4049,7 +4075,7 @@ export const server = createServer(async (request, response) => {
   }
 
   const identity = resolvePortalIdentity(request) || bootstrapPortalIdentity();
-  const sessionId = parseCookies(request.headers.cookie || "")[portalSessionCookie] || "";
+  const sessionId = portalAuditSessionIdForRequest(request);
 
   if (requestPath === "/api/langfuse/launch" || requestPath.startsWith("/api/langfuse/launch/")) {
     await proxyLangfuseLaunch(request, response, parsedUrl, { identity, sessionId });
