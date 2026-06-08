@@ -587,6 +587,24 @@ export function resolvePath(urlPath) {
   return join(root, filePath);
 }
 
+export function normalizedRequestPathForAccessControl(requestPath = "/") {
+  const rawPath = String(requestPath || "/").split("?")[0] || "/";
+  let decodedPath = rawPath;
+  try {
+    decodedPath = decodeURIComponent(rawPath);
+  } catch {
+    decodedPath = rawPath;
+  }
+  const slashPath = decodedPath.replace(/\\/g, "/");
+  const normalizedPath = normalize(slashPath)
+    .replace(/\\/g, "/")
+    .replace(/^(\.\.\/)+/, "");
+  if (!normalizedPath || normalizedPath === ".") {
+    return "/";
+  }
+  return normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`;
+}
+
 export function readRequestBody(request) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -689,7 +707,9 @@ function requireAdminIdentity(
   request,
   response,
   identity,
-  requestPath = new URL(request.url || "/", `http://${host}:${port}`).pathname
+  requestPath = normalizedRequestPathForAccessControl(
+    new URL(request.url || "/", `http://${host}:${port}`).pathname
+  )
 ) {
   if (isAdminIdentity(identity)) {
     return true;
@@ -4186,10 +4206,11 @@ export const server = createServer(async (request, response) => {
 
   const identity = resolvePortalIdentity(request) || bootstrapPortalIdentity();
   const sessionId = portalAuditSessionIdForRequest(request);
+  const accessControlPath = normalizedRequestPathForAccessControl(requestPath);
 
   if (
-    (requestPath === "/admin.html" || requestPath.startsWith("/api/admin/")) &&
-    !requireAdminIdentity(request, response, identity, requestPath)
+    (accessControlPath === "/admin.html" || accessControlPath.startsWith("/api/admin/")) &&
+    !requireAdminIdentity(request, response, identity, accessControlPath)
   ) {
     return;
   }

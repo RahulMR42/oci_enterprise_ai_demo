@@ -306,9 +306,24 @@ test("server guards administration APIs with admin identity", () => {
   const server = readFileSync("server.mjs", "utf8");
 
   assert.match(server, /requireAdminIdentity/);
-  assert.match(server, /requestPath\.startsWith\("\/api\/admin\/"\)/);
+  assert.match(server, /accessControlPath\.startsWith\("\/api\/admin\/"\)/);
   assert.match(server, /sendJson\(response, 403/);
   assert.match(server, /parseAdminActivityFilters/);
+});
+
+test("server normalizes encoded administration paths before access control", () => {
+  const server = readFileSync("server.mjs", "utf8");
+  const normalizePath = serverModule.normalizedRequestPathForAccessControl;
+
+  assert.equal(typeof normalizePath, "function");
+  assert.equal(normalizePath("/%61dmin.html"), "/admin.html");
+  assert.equal(normalizePath("/admin%2ehtml"), "/admin.html");
+  assert.equal(normalizePath("/api%2Fadmin%2Flogs"), "/api/admin/logs");
+  assert.equal(normalizePath("api/admin/logs"), "/api/admin/logs");
+  assert.equal(normalizePath("/%E0%A4%A"), "/%E0%A4%A");
+  assert.match(server, /const accessControlPath = normalizedRequestPathForAccessControl\(requestPath\)/);
+  assert.match(server, /accessControlPath === "\/admin\.html"/);
+  assert.match(server, /accessControlPath\.startsWith\("\/api\/admin\/"\)/);
 });
 
 test("portal audit helper returns sanitized failures without leaking details", () => {
