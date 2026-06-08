@@ -52,7 +52,7 @@ Signup requires a syntactically valid email address and a password of at least 1
 
 ## Database Schema
 
-The Python auth store initializes schema idempotently on startup or first use.
+The Python auth store exposes an explicit `init_schema` command that initializes schema idempotently. Resource Manager and OCI DevOps must run this command before the portal rollout so table creation is part of deployment, not a surprise during first login.
 
 ### `PORTAL_PROTECTED_USERS`
 
@@ -104,7 +104,7 @@ The Python auth store initializes schema idempotently on startup or first use.
 
 ## Auth Store Boundary
 
-Add `backend/portal_auth_store.py` as a command-style helper invoked by `server.mjs` with JSON stdin/stdout. It owns:
+Add `backend/portal_auth_store.py` as a command-style helper invoked by `server.mjs` and OCI DevOps with JSON stdin/stdout. It owns:
 
 - schema initialization,
 - signup,
@@ -184,7 +184,11 @@ Extend the Resource Manager/DevOps wiring to pass the NL2SQL Autonomous Database
 - auth store mode,
 - optional wallet/mTLS variables if a deployment disables walletless TLS.
 
-The portal container will fetch the database password from Vault using resource principal. The existing shared-demo security policy already allows the dynamic group to read secrets.
+Add an OCI DevOps build stage after the NL2SQL Autonomous Database outputs are available and before portal rollout. That stage runs `backend/portal_auth_store.py` with the `init_schema` action using resource principal auth and the NL2SQL database password secret. Resource Manager should be able to run end-to-end without a user manually creating the auth tables.
+
+The portal container and the schema-bootstrap build stage will fetch the database password from Vault using resource principal. The existing shared-demo security policy already allows the dynamic group to read secrets.
+
+Document the same `init_schema` command as a manual prerequisite for local-only runs, but the RMS/DevOps path must be automated.
 
 Add `python-oracledb` to `requirements.txt`. The Dockerfile does not need a Node dependency install change for this approach.
 

@@ -23,9 +23,11 @@
 - Modify `infra/nl2sql-sql-search/outputs.tf`: expose the NL2SQL ADB connection string and DB username for portal wiring.
 - Modify `infra/devops-hosted-image-build/variables.tf`: add portal auth DB variables.
 - Modify `infra/devops-hosted-image-build/main.tf`: pass portal auth DB variables into the deploy-portal stage.
+- Create `infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml`: run portal auth schema bootstrap with resource principal before portal rollout.
 - Modify `infra/devops-hosted-image-build/scripts/deploy_portal_container.sh`: inject auth DB env vars into the portal container.
 - Modify `infra/resource-manager-demo/main.tf`: pass NL2SQL module outputs to the DevOps module.
 - Modify `infra/resource-manager-demo/outputs.tf`: expose non-sensitive portal auth DB wiring state.
+- Modify `infra/resource-manager-demo/README.md`: document the automated schema bootstrap stage and the manual `init_schema` prerequisite for local-only runs.
 - Modify `tests/terraformInfra.test.js`: verify the NL2SQL ADB is reused and the DevOps container env wiring exists.
 - Modify `change-log.json`, `package.json`, `package-lock.json`, `src/version.json`, `index.html`, and `admin.html`: bump version and record the feature.
 
@@ -414,13 +416,14 @@ Add a `LocalJsonStore` class for unit tests only when `OCI_PORTAL_AUTH_STORE_TES
 - `close_session(payload)`: mark the matching HMAC session token row `logged_out`, append a `logout` event, and return `{ "status": "success" }`.
 - `record_event(payload)`: append a redacted audit event with `event_id`, `session_id`, `user_email`, `event_type`, `feature_id`, `action`, `status`, `duration_ms`, and `details`, then return `{ "status": "success", "eventId": event_id }`.
 - `query_activity(payload)`: apply `build_activity_filters(payload.filters)` semantics to the local event list and return `{ "status": "success", "metrics": { "totalEvents": count }, "events": events }`.
+- `init_schema(payload)`: ensure the JSON file contains `users`, `sessions`, and `events` arrays and return `{ "status": "success", "schema": "local-json" }`.
 
-Use the same method names in an `AdbStore` class. `AdbStore` must:
+Use the same method names plus `init_schema` in an `AdbStore` class. `AdbStore` must:
 
 - lazily import `oracledb` only when ADB mode is used,
 - fetch `OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID` with `oci.secrets.SecretsClient` and resource principal when `OCI_PORTAL_AUTH_DB_PASSWORD` is absent,
 - connect with `oracledb.connect(user=user, password=password, dsn=dsn)`,
-- create `PORTAL_PROTECTED_USERS`, `PORTAL_AUTH_SESSIONS`, and `PORTAL_AUDIT_EVENTS` idempotently by checking `USER_TABLES`,
+- create `PORTAL_PROTECTED_USERS`, `PORTAL_AUTH_SESSIONS`, and `PORTAL_AUDIT_EVENTS` idempotently by checking `USER_TABLES` through the explicit `init_schema` command,
 - commit after mutating actions.
 
 Update `handle_command()` to dispatch:
@@ -438,13 +441,14 @@ def store_for_env():
 def handle_command(command):
     action = command.get("action") or ""
     payload = command.get("payload") or {}
+    allowed_actions = {"init_schema", "signup", "login", "open_session", "close_session", "record_event", "query_activity"}
     if action == "status":
         return handle_status()
     store = store_for_env()
     if store is None:
         return {"ok": False, "status": "disabled", "error": "Portal protected-user auth store is not configured."}
-    if not hasattr(store, action):
-        raise ValueError(f"Unsupported auth store action: {action}")
+    if action not in allowed_actions:
+        raise PublicCommandError("Unsupported auth store action.")
     return getattr(store, action)(payload)
 ```
 
@@ -1108,9 +1112,11 @@ git commit -m "Add user activity filters to administration"
 - Modify: `infra/nl2sql-sql-search/outputs.tf`
 - Modify: `infra/devops-hosted-image-build/variables.tf`
 - Modify: `infra/devops-hosted-image-build/main.tf`
+- Create: `infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml`
 - Modify: `infra/devops-hosted-image-build/scripts/deploy_portal_container.sh`
 - Modify: `infra/resource-manager-demo/main.tf`
 - Modify: `infra/resource-manager-demo/outputs.tf`
+- Modify: `infra/resource-manager-demo/README.md`
 - Modify: `tests/terraformInfra.test.js`
 
 - [ ] **Step 1: Write failing Terraform contract tests**
@@ -1121,8 +1127,10 @@ Add to `tests/terraformInfra.test.js`:
 test("portal protected users reuse the nl2sql autonomous database", () => {
   const nl2sqlOutputs = read("infra/nl2sql-sql-search/outputs.tf");
   const resourceManagerMain = read("infra/resource-manager-demo/main.tf");
+  const resourceManagerReadme = read("infra/resource-manager-demo/README.md");
   const devopsVariables = read("infra/devops-hosted-image-build/variables.tf");
   const devopsMain = read("infra/devops-hosted-image-build/main.tf");
+  const bootstrapBuildSpec = read("infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml");
   const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh");
 
   assert.match(nl2sqlOutputs, /output "autonomous_database_connection_string"/);
@@ -1135,8 +1143,15 @@ test("portal protected users reuse the nl2sql autonomous database", () => {
   assert.match(devopsVariables, /variable "portal_auth_db_password_secret_id"/);
   assert.match(devopsMain, /PORTAL_AUTH_DB_DSN/);
   assert.match(devopsMain, /PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
+  assert.match(devopsMain, /bootstrap_portal_auth_schema/);
+  assert.match(devopsMain, /build_spec_bootstrap_portal_auth_schema\.yaml/);
+  assert.match(devopsMain, /oci_devops_build_pipeline_stage\.deploy_portal[\s\S]*depends_on\s+=\s+\[[\s\S]*oci_devops_build_pipeline_stage\.bootstrap_portal_auth_schema/);
+  assert.match(bootstrapBuildSpec, /backend\/portal_auth_store\.py/);
+  assert.match(bootstrapBuildSpec, /"action": "init_schema"/);
   assert.match(deployScript, /OCI_PORTAL_AUTH_DB_DSN/);
   assert.match(deployScript, /OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
+  assert.match(resourceManagerReadme, /bootstrap-portal-auth-schema/);
+  assert.match(resourceManagerReadme, /init_schema/);
   assert.doesNotMatch(resourceManagerMain, /module "portal_auth_database"/);
 });
 ```
@@ -1209,7 +1224,35 @@ In `infra/devops-hosted-image-build/main.tf`, add build stage parameters near ex
     }
 ```
 
-- [ ] **Step 5: Inject container env vars in the deploy script**
+- [ ] **Step 5: Add schema-bootstrap build spec and stage**
+
+Create `infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml`:
+
+```yaml
+version: 0.1
+component: build
+timeoutInSeconds: 900
+shell: bash
+failImmediatelyOnError: true
+
+steps:
+  - type: Command
+    name: bootstrap-portal-auth-schema
+    timeoutInSeconds: 900
+    command: |
+      set -euo pipefail
+      unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY PIP_PROXY PIP_INDEX_URL PIP_EXTRA_INDEX_URL
+      python3 -m venv /tmp/portal-auth-schema-venv
+      /tmp/portal-auth-schema-venv/bin/python -m pip install --no-cache-dir --upgrade pip
+      /tmp/portal-auth-schema-venv/bin/python -m pip install --no-cache-dir --index-url https://pypi.org/simple -r requirements.txt
+      printf '{"action": "init_schema", "payload": {}}\n' | /tmp/portal-auth-schema-venv/bin/python backend/portal_auth_store.py
+```
+
+In `infra/devops-hosted-image-build/main.tf`, add a build pipeline stage named `bootstrap_portal_auth_schema` after generated runtime provisioning and before `deploy_portal`. It must use `build_spec_bootstrap_portal_auth_schema.yaml`, pass the same `PORTAL_AUTH_DB_DSN`, `PORTAL_AUTH_DB_USER`, and `PORTAL_AUTH_DB_PASSWORD_SECRET_ID` variables, and use resource principal auth like the existing deployment stages.
+
+Update the existing `deploy_portal` stage `depends_on` so portal rollout cannot start until `bootstrap_portal_auth_schema` succeeds.
+
+- [ ] **Step 6: Inject container env vars in the deploy script**
 
 In `infra/devops-hosted-image-build/scripts/deploy_portal_container.sh`, add to the Python `env = {}` map:
 
@@ -1220,7 +1263,7 @@ In `infra/devops-hosted-image-build/scripts/deploy_portal_container.sh`, add to 
     "OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID": os.environ.get("PORTAL_AUTH_DB_PASSWORD_SECRET_ID", ""),
 ```
 
-- [ ] **Step 6: Pass NL2SQL outputs from Resource Manager to DevOps**
+- [ ] **Step 7: Pass NL2SQL outputs from Resource Manager to DevOps**
 
 In `infra/resource-manager-demo/main.tf`, add module inputs:
 
@@ -1244,7 +1287,13 @@ output "portal_auth_database_name" {
 }
 ```
 
-- [ ] **Step 7: Run Terraform contract tests and formatting**
+In `infra/resource-manager-demo/README.md`, add a short note:
+
+```markdown
+The Resource Manager stack reuses the NL2SQL Autonomous Database for portal protected users and audit logs. OCI DevOps runs the `bootstrap-portal-auth-schema` stage before portal rollout; that stage invokes `backend/portal_auth_store.py` with `{"action":"init_schema"}` so `PORTAL_PROTECTED_USERS`, `PORTAL_AUTH_SESSIONS`, and `PORTAL_AUDIT_EVENTS` exist before the portal container receives traffic. For local-only runs outside Resource Manager, run the same `init_schema` command with `OCI_PORTAL_AUTH_DB_DSN`, `OCI_PORTAL_AUTH_DB_USER`, and either `OCI_PORTAL_AUTH_DB_PASSWORD` or `OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID` set.
+```
+
+- [ ] **Step 8: Run Terraform contract tests and formatting**
 
 Run:
 
@@ -1257,10 +1306,10 @@ terraform -chdir=infra/resource-manager-demo fmt
 
 Expected: tests pass and Terraform fmt exits 0.
 
-- [ ] **Step 8: Commit Task 6**
+- [ ] **Step 9: Commit Task 6**
 
 ```bash
-git add infra/nl2sql-sql-search/outputs.tf infra/devops-hosted-image-build/variables.tf infra/devops-hosted-image-build/main.tf infra/devops-hosted-image-build/scripts/deploy_portal_container.sh infra/resource-manager-demo/main.tf infra/resource-manager-demo/outputs.tf tests/terraformInfra.test.js
+git add infra/nl2sql-sql-search/outputs.tf infra/devops-hosted-image-build/variables.tf infra/devops-hosted-image-build/main.tf infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml infra/devops-hosted-image-build/scripts/deploy_portal_container.sh infra/resource-manager-demo/main.tf infra/resource-manager-demo/outputs.tf infra/resource-manager-demo/README.md tests/terraformInfra.test.js
 git commit -m "Wire portal auth to nl2sql autonomous database"
 ```
 
