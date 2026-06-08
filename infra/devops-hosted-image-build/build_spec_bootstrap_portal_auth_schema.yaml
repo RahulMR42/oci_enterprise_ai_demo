@@ -11,7 +11,36 @@ steps:
     command: |
       set -euo pipefail
       unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY PIP_PROXY PIP_INDEX_URL PIP_EXTRA_INDEX_URL
+      if [ -z "${PORTAL_AUTH_DB_DSN:-}" ]; then
+        echo "PORTAL_AUTH_DB_DSN is required for portal auth schema bootstrap." >&2
+        exit 1
+      fi
+      if [ -z "${PORTAL_AUTH_DB_PASSWORD_SECRET_ID:-}" ]; then
+        echo "PORTAL_AUTH_DB_PASSWORD_SECRET_ID is required for portal auth schema bootstrap." >&2
+        exit 1
+      fi
+      export OCI_PORTAL_AUTH_DB_DSN="$PORTAL_AUTH_DB_DSN"
+      export OCI_PORTAL_AUTH_DB_USER="${PORTAL_AUTH_DB_USER:-ADMIN}"
+      export OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID="$PORTAL_AUTH_DB_PASSWORD_SECRET_ID"
+      export OCI_RESOURCE_PRINCIPAL_VERSION="${OCI_RESOURCE_PRINCIPAL_VERSION:-2.2}"
       python3 -m venv /tmp/portal-auth-schema-venv
       /tmp/portal-auth-schema-venv/bin/python -m pip install --no-cache-dir --upgrade pip
       /tmp/portal-auth-schema-venv/bin/python -m pip install --no-cache-dir --index-url https://pypi.org/simple -r requirements.txt
-      printf '{"action": "init_schema", "payload": {}}\n' | /tmp/portal-auth-schema-venv/bin/python backend/portal_auth_store.py
+      schema_response="$(printf '{"action": "init_schema", "payload": {}}\n' | /tmp/portal-auth-schema-venv/bin/python backend/portal_auth_store.py)"
+      export PORTAL_AUTH_SCHEMA_RESPONSE="$schema_response"
+      /tmp/portal-auth-schema-venv/bin/python - <<'PY'
+      import json
+      import os
+      import sys
+
+      try:
+          response = json.loads(os.environ["PORTAL_AUTH_SCHEMA_RESPONSE"])
+      except Exception:
+          print("Portal auth schema bootstrap failed: invalid JSON response.", file=sys.stderr)
+          raise SystemExit(1)
+
+      if response.get("status") != "success":
+          error = response.get("error") or response.get("status") or "unknown error"
+          print(f"Portal auth schema bootstrap failed: {error}", file=sys.stderr)
+          raise SystemExit(1)
+      PY
