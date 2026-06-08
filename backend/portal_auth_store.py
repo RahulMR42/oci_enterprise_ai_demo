@@ -21,6 +21,15 @@ GENERIC_CLI_ERROR = "Auth store command failed."
 PUBLIC_CLI_ERRORS = {UNSUPPORTED_ACTION_ERROR}
 SESSION_HASH_KEY_ENV = "OCI_PORTAL_SESSION_HASH_KEY"
 DEFAULT_SESSION_HASH_KEY = "enterprise-ai-demo-portal-auth-store-session-hash-key"
+ALLOWED_STORE_ACTIONS = {
+    "init_schema",
+    "signup",
+    "login",
+    "open_session",
+    "close_session",
+    "record_event",
+    "query_activity",
+}
 
 
 class PublicCommandError(Exception):
@@ -170,13 +179,25 @@ class LocalJsonStore:
     def __init__(self, path):
         self.path = path
 
+    def _empty_data(self):
+        return {"users": [], "sessions": [], "events": []}
+
+    def _normalize_data(self, data):
+        if not isinstance(data, dict):
+            data = {}
+        normalized = dict(data)
+        for key in ("users", "sessions", "events"):
+            if not isinstance(normalized.get(key), list):
+                normalized[key] = []
+        return normalized
+
     def _load(self):
         if not os.path.exists(self.path):
-            return {"users": [], "sessions": [], "events": []}
+            return self._empty_data()
         with open(self.path, "r", encoding="utf-8") as handle:
             raw = handle.read().strip()
         if not raw:
-            return {"users": [], "sessions": [], "events": []}
+            return self._empty_data()
         data = json.loads(raw)
         data.setdefault("users", [])
         data.setdefault("sessions", [])
@@ -186,6 +207,11 @@ class LocalJsonStore:
     def _save(self, data):
         with open(self.path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, separators=(",", ":"), sort_keys=True)
+
+    def init_schema(self, payload):
+        data = self._normalize_data(self._load())
+        self._save(data)
+        return {"status": "success", "schema": "local-json"}
 
     def _audit_event(self, **values):
         now = utc_now_iso()
@@ -372,7 +398,6 @@ class AdbStore:
         import oracledb
 
         self.connection = oracledb.connect(user=user, password=password, dsn=dsn)
-        self.ensure_schema()
 
     @classmethod
     def from_env(cls, env=os.environ):
@@ -395,7 +420,7 @@ class AdbStore:
         encoded = bundle.secret_bundle_content.content
         return base64.b64decode(encoded).decode("utf-8")
 
-    def ensure_schema(self):
+    def init_schema(self, payload):
         with self.connection.cursor() as cursor:
             existing = self._existing_tables(cursor)
             if "PORTAL_PROTECTED_USERS" not in existing:
@@ -447,6 +472,7 @@ class AdbStore:
                     )
                 """)
         self.connection.commit()
+        return {"status": "success", "schema": "autonomous-database"}
 
     def _existing_tables(self, cursor):
         cursor.execute("""
@@ -719,11 +745,11 @@ def handle_command(command):
     payload = command.get("payload") or {}
     if action == "status":
         return handle_status()
+    if action not in ALLOWED_STORE_ACTIONS:
+        raise PublicCommandError(UNSUPPORTED_ACTION_ERROR)
     store = store_for_env()
     if store is None:
         return {"ok": False, "status": "disabled", "error": "Portal protected-user auth store is not configured."}
-    if not hasattr(store, action):
-        raise PublicCommandError(UNSUPPORTED_ACTION_ERROR)
     return getattr(store, action)(payload)
 
 

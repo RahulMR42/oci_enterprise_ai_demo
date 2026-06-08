@@ -142,6 +142,39 @@ class PortalAuthStoreLocalModeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
+    def test_init_schema_normalizes_local_json_structure(self):
+        with tempfile.NamedTemporaryFile(mode="w+", encoding="utf-8") as handle:
+            json.dump({"users": [{"email": "user@example.com"}], "sessions": "bad"}, handle)
+            handle.flush()
+
+            response = self.run_local_command(handle.name, "init_schema", {})
+
+            self.assertEqual(response["status"], "success")
+            self.assertEqual(response["schema"], "local-json")
+            handle.seek(0)
+            data = json.load(handle)
+            self.assertEqual(data["users"], [{"email": "user@example.com"}])
+            self.assertEqual(data["sessions"], [])
+            self.assertEqual(data["events"], [])
+
+    def test_private_actions_are_rejected_without_mutating_local_json(self):
+        original = {"users": [], "sessions": [], "events": [{"event_type": "original"}]}
+        with tempfile.NamedTemporaryFile(mode="w+", encoding="utf-8") as handle:
+            json.dump(original, handle)
+            handle.flush()
+
+            response = self.run_local_command(handle.name, "_save", {
+                "users": [{"email": "attacker@example.com"}],
+                "sessions": [],
+                "events": [],
+            })
+
+            self.assertIsInstance(response, dict)
+            self.assertEqual(response["status"], "failed")
+            self.assertEqual(response["error"], "Unsupported auth store action.")
+            handle.seek(0)
+            self.assertEqual(json.load(handle), original)
+
     def test_signup_login_session_and_audit_workflow(self):
         with tempfile.NamedTemporaryFile() as handle:
             signup = self.run_local_command(handle.name, "signup", {
