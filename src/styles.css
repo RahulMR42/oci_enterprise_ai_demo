@@ -961,14 +961,23 @@ h1 {
   font-weight: 850;
 }
 
-.admin-run-log-heading select {
+.admin-run-log-heading select,
+.admin-run-log-heading input {
   min-height: 34px;
   border: 1px solid rgba(49, 45, 42, 0.14);
   border-radius: 8px;
-  padding: 0 34px 0 10px;
+  padding: 0 10px;
   color: var(--redwood-ink);
   background: #ffffff;
   font-weight: 850;
+}
+
+.admin-run-log-heading select {
+  padding-right: 34px;
+}
+
+.admin-run-log-heading input {
+  width: min(180px, 100%);
 }
 
 .admin-schema-grid {

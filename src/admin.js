@@ -198,15 +198,30 @@ async function fetchJson(url) {
   return payload;
 }
 
+function adminActivityQuery() {
+  const params = new URLSearchParams();
+  const userEmail = document.getElementById("admin-user-filter")?.value.trim() || "";
+  const from = document.getElementById("admin-from-filter")?.value || "";
+  const to = document.getElementById("admin-to-filter")?.value || "";
+  const eventType = document.getElementById("admin-event-type-filter")?.value || "all";
+  if (userEmail) params.set("userEmail", userEmail);
+  if (from) params.set("from", new Date(from).toISOString());
+  if (to) params.set("to", new Date(to).toISOString());
+  if (eventType !== "all") params.set("eventType", eventType);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
 export async function loadAdministrationDashboard() {
   const refreshButton = document.getElementById("admin-refresh-button");
   refreshButton.disabled = true;
   try {
+    const activityQuery = adminActivityQuery();
     const [history, runtimeEnv, infra, logs, changeLog] = await Promise.all([
-      fetchJson("/api/admin/demo-runs"),
+      fetchJson(`/api/admin/demo-runs${activityQuery}`),
       fetchJson("/api/admin/runtime-env"),
       fetchJson("/api/admin/infra"),
-      fetchJson("/api/admin/logs"),
+      fetchJson(`/api/admin/logs${activityQuery}`),
       fetchJson("/api/admin/change-log")
     ]);
     adminState.history = history;
@@ -247,4 +262,7 @@ document.getElementById("admin-refresh-button").addEventListener("click", loadAd
 document.getElementById("admin-run-status-filter").addEventListener("change", () => renderRunLogs(adminState.logs));
 document.getElementById("admin-log-source-filter").addEventListener("change", () => renderRunLogs(adminState.logs));
 document.getElementById("admin-infra-status-filter").addEventListener("change", () => renderInfrastructure(adminState.infra));
+["admin-user-filter", "admin-from-filter", "admin-to-filter", "admin-event-type-filter"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("change", loadAdministrationDashboard);
+});
 loadAdministrationDashboard();

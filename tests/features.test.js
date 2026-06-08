@@ -304,10 +304,17 @@ test("portal opens administration as a separate page", () => {
   assert.match(adminHtml, /admin-run-status-filter/);
   assert.match(adminHtml, /admin-log-source-filter/);
   assert.match(adminHtml, /admin-infra-status-filter/);
+  assert.match(adminHtml, /admin-user-filter/);
+  assert.match(adminHtml, /admin-event-type-filter/);
+  assert.match(adminHtml, /admin-from-filter/);
+  assert.match(adminHtml, /admin-to-filter/);
   assert.match(adminHtml, /admin-resource-list/);
   assert.match(adminHtml, /admin-schema-grid/);
   assert.match(adminHtml, /admin-container-log-note/);
   assert.match(admin, /admin-run-status-filter/);
+  assert.match(admin, /URLSearchParams/);
+  assert.match(admin, /userEmail/);
+  assert.match(admin, /eventType/);
   assert.match(admin, /entry\.preview \|\| ""/);
   assert.match(admin, /component\.value \|\| ""/);
   assert.match(adminHtml, /Usage summary/);

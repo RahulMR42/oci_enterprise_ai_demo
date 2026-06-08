@@ -302,6 +302,15 @@ test("server stores public audit session ids returned by open_session", () => {
   assert.doesNotMatch(server, /const sessionId = parseCookies\(request\.headers\.cookie \|\| ""\)\[portalSessionCookie\] \|\| ""/);
 });
 
+test("server guards administration APIs with admin identity", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /requireAdminIdentity/);
+  assert.match(server, /requestPath\.startsWith\("\/api\/admin\/"\)/);
+  assert.match(server, /sendJson\(response, 403/);
+  assert.match(server, /parseAdminActivityFilters/);
+});
+
 test("portal audit helper returns sanitized failures without leaking details", () => {
   const originalWarn = console.warn;
   console.warn = () => {};

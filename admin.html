@@ -110,6 +110,7 @@
                     <option value="all">All</option>
                     <option value="demo">Demo</option>
                     <option value="bootstrap">Bootstrap</option>
+                    <option value="audit">Audit</option>
                     <option value="container">Container</option>
                   </select>
                 </label>
@@ -123,6 +124,31 @@
                     <option value="available">Available</option>
                     <option value="manual">Manual</option>
                     <option value="unknown">Unknown</option>
+                  </select>
+                </label>
+                <label>
+                  <span>User</span>
+                  <input id="admin-user-filter" type="email" placeholder="user@example.com" aria-label="Filter logs by user email" />
+                </label>
+                <label>
+                  <span>From</span>
+                  <input id="admin-from-filter" type="datetime-local" aria-label="Filter logs from time" />
+                </label>
+                <label>
+                  <span>To</span>
+                  <input id="admin-to-filter" type="datetime-local" aria-label="Filter logs to time" />
+                </label>
+                <label>
+                  <span>Event</span>
+                  <select id="admin-event-type-filter" aria-label="Filter logs by event type">
+                    <option value="all">All</option>
+                    <option value="signup">Signup</option>
+                    <option value="login">Login</option>
+                    <option value="login_failed">Login failed</option>
+                    <option value="logout">Logout</option>
+                    <option value="demo_run">Demo run</option>
+                    <option value="hosted_launch">Hosted launch</option>
+                    <option value="admin_query">Admin query</option>
                   </select>
                 </label>
               </div>

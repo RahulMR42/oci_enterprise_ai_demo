@@ -315,11 +315,74 @@ export function summarizeDemoRunHistory(records = []) {
   };
 }
 
-export function readDemoRunHistory() {
+function parseAdminActivityFilters(searchParams) {
+  return {
+    userEmail: String(searchParams.get("userEmail") || "").trim(),
+    from: String(searchParams.get("from") || "").trim(),
+    to: String(searchParams.get("to") || "").trim(),
+    featureId: String(searchParams.get("featureId") || "").trim(),
+    eventType: String(searchParams.get("eventType") || "").trim(),
+    status: String(searchParams.get("status") || "").trim()
+  };
+}
+
+function adminFilterValue(value = "") {
+  const candidate = String(value || "").trim();
+  return candidate === "all" ? "" : candidate;
+}
+
+function adminActivityTimestamp(value = "") {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function hasAdminActivityFilters(filters = {}) {
+  return ["userEmail", "from", "to", "featureId", "eventType", "status"].some((key) =>
+    Boolean(adminFilterValue(filters[key]))
+  );
+}
+
+function matchesAdminActivityFilters(activity = {}, filters = {}, { defaultEventType = "" } = {}) {
+  const userEmail = adminFilterValue(filters.userEmail).toLowerCase();
+  if (userEmail && String(activity.userEmail || "").toLowerCase() !== userEmail) {
+    return false;
+  }
+
+  const featureId = adminFilterValue(filters.featureId);
+  if (featureId && String(activity.featureId || "") !== featureId) {
+    return false;
+  }
+
+  const status = adminFilterValue(filters.status);
+  if (status && String(activity.status || "") !== status) {
+    return false;
+  }
+
+  const eventType = adminFilterValue(filters.eventType);
+  if (eventType && String(activity.eventType || defaultEventType || "") !== eventType) {
+    return false;
+  }
+
+  const createdAt = adminActivityTimestamp(activity.createdAt);
+  const from = adminActivityTimestamp(filters.from);
+  const to = adminActivityTimestamp(filters.to);
+  if (from !== null && (createdAt === null || createdAt < from)) {
+    return false;
+  }
+  if (to !== null && (createdAt === null || createdAt > to)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function readDemoRunHistory(filters = {}) {
   const logRoot = join(root, "logs/demos");
   const persistentRecords = readPersistentDemoRunRecords();
   if (!existsSync(logRoot)) {
-    return summarizeDemoRunHistory(persistentRecords);
+    return summarizeDemoRunHistory(
+      persistentRecords.filter((record) => matchesAdminActivityFilters(record, filters, { defaultEventType: "demo_run" }))
+    );
   }
 
   const records = [...persistentRecords];
@@ -353,7 +416,9 @@ export function readDemoRunHistory() {
     }
   }
 
-  return summarizeDemoRunHistory(records);
+  return summarizeDemoRunHistory(
+    records.filter((record) => matchesAdminActivityFilters(record, filters, { defaultEventType: "demo_run" }))
+  );
 }
 
 function demoRunKey(record = {}) {
@@ -618,6 +683,24 @@ export function bootstrapPortalIdentity() {
 export function isAdminIdentity(identity = {}) {
   const candidate = identity || {};
   return candidate.role === "admin" || candidate.authType === "bootstrap";
+}
+
+function requireAdminIdentity(
+  request,
+  response,
+  identity,
+  requestPath = new URL(request.url || "/", `http://${host}:${port}`).pathname
+) {
+  if (isAdminIdentity(identity)) {
+    return true;
+  }
+  if (requestPath.startsWith("/api/admin/")) {
+    sendJson(response, 403, { status: "forbidden", error: "Administrator access is required." });
+  } else {
+    response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    response.end("Administrator access is required.");
+  }
+  return false;
 }
 
 export function createPortalSessionForIdentity(
@@ -3453,8 +3536,18 @@ function readBootstrapLogEntries(limit = 12) {
     .slice(0, limit);
 }
 
-export function readAdminLogSummary() {
-  const history = readDemoRunHistory();
+function readPortalAuditActivity(filters = {}) {
+  const queryFilters = Object.fromEntries(
+    Object.entries(filters)
+      .map(([key, value]) => [key, adminFilterValue(value)])
+      .filter(([, value]) => Boolean(value))
+  );
+  const result = callPortalAuthStore("query_activity", { filters: queryFilters });
+  return result.status === "success" ? result : { status: "unavailable", metrics: {}, events: [] };
+}
+
+export function readAdminLogSummary(filters = {}) {
+  const history = readDemoRunHistory(filters);
   const demoLogs = history.runs.slice(0, 30).map((run) => redactForDemoLog({
     source: "demo",
     name: run.featureId || "unknown",
@@ -3473,8 +3566,24 @@ export function readAdminLogSummary() {
       logs: run.logs || []
     }, null, 2)
   }));
-  const bootstrapLogs = readBootstrapLogEntries();
-  const logs = [...demoLogs, ...bootstrapLogs]
+  const bootstrapLogs = hasAdminActivityFilters(filters) ? [] : readBootstrapLogEntries();
+  const activity = readPortalAuditActivity(filters);
+  const auditLogs = (Array.isArray(activity.events) ? activity.events : []).map((event) => redactForDemoLog({
+    source: "audit",
+    name: event.featureId || event.eventType || "portal",
+    status: event.status || "unknown",
+    createdAt: event.createdAt || "",
+    path: event.userEmail || "",
+    sizeBytes: 0,
+    preview: JSON.stringify({
+      userEmail: event.userEmail || "",
+      eventType: event.eventType || "",
+      action: event.action || "",
+      durationMs: event.durationMs || 0,
+      details: event.details || {}
+    }, null, 2)
+  }));
+  const logs = [...demoLogs, ...bootstrapLogs, ...auditLogs]
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
     .slice(0, 60);
 
@@ -3483,6 +3592,7 @@ export function readAdminLogSummary() {
     sources: [
       { name: "demo", count: demoLogs.length },
       { name: "bootstrap", count: bootstrapLogs.length },
+      { name: "audit", count: auditLogs.length },
       { name: "container", count: 0 }
     ],
     containerLogs: {
@@ -4077,6 +4187,13 @@ export const server = createServer(async (request, response) => {
   const identity = resolvePortalIdentity(request) || bootstrapPortalIdentity();
   const sessionId = portalAuditSessionIdForRequest(request);
 
+  if (
+    (requestPath === "/admin.html" || requestPath.startsWith("/api/admin/")) &&
+    !requireAdminIdentity(request, response, identity, requestPath)
+  ) {
+    return;
+  }
+
   if (requestPath === "/api/langfuse/launch" || requestPath.startsWith("/api/langfuse/launch/")) {
     await proxyLangfuseLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
@@ -4133,7 +4250,8 @@ export const server = createServer(async (request, response) => {
 
   if (request.method === "GET" && requestPath === "/api/admin/demo-runs") {
     try {
-      sendJson(response, 200, readDemoRunHistory());
+      const filters = parseAdminActivityFilters(parsedUrl.searchParams);
+      sendJson(response, 200, readDemoRunHistory(filters));
     } catch (error) {
       sendJson(response, 500, {
         metrics: {
@@ -4194,7 +4312,8 @@ export const server = createServer(async (request, response) => {
 
   if (request.method === "GET" && requestPath === "/api/admin/logs") {
     try {
-      sendJson(response, 200, readAdminLogSummary());
+      const filters = parseAdminActivityFilters(parsedUrl.searchParams);
+      sendJson(response, 200, readAdminLogSummary(filters));
     } catch (error) {
       sendJson(response, 500, {
         generatedAt: new Date().toISOString(),
