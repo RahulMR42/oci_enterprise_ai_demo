@@ -866,6 +866,22 @@ test("collapses file search runtime state into unique up-to-date components", ()
   );
 });
 
+test("uses exported file search seed counts when document metadata is absent", () => {
+  const components = fileSearchRuntimeComponents({
+    vectorStoreId: "vs_exported",
+    seedDocumentCount: 3,
+    seedDocumentCompletedCount: 3
+  });
+
+  assert.deepEqual(
+    components.map((component) => [component.name, component.status, component.value]),
+    [
+      ["File Search Vector Store", "created", "vs_exported"],
+      ["File Search Seed Documents", "created", "3/3 bundled Oracle PDFs completed"]
+    ]
+  );
+});
+
 test("merges infrastructure components into a unique alphabetical list", () => {
   const components = mergeInfrastructureComponents(
     [

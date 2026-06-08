@@ -4,6 +4,15 @@ timeoutInSeconds: 3600
 shell: bash
 failImmediatelyOnError: true
 
+env:
+  exportedVariables:
+    - PORTAL_VECTOR_STORE_ID
+    - PORTAL_CONVERSATION_ID
+    - PORTAL_CODE_INTERPRETER_CONTAINER_ID
+    - PORTAL_CODE_INTERPRETER_CONTAINER_STATUS
+    - PORTAL_FILE_SEARCH_SEED_DOCUMENT_COUNT
+    - PORTAL_FILE_SEARCH_SEED_DOCUMENT_COMPLETED_COUNT
+
 steps:
   - type: Command
     name: provision-generated-runtime
@@ -15,3 +24,6 @@ steps:
       python3 -m pip install --user --upgrade --proxy "" --index-url https://pypi.org/simple oci-cli openai oci-openai
       export PATH="$HOME/.local/bin:$PATH"
       python3 infra/devops-hosted-image-build/scripts/provision_generated_runtime.py
+      if [ -f /tmp/provision-generated-runtime.env ]; then
+        . /tmp/provision-generated-runtime.env
+      fi

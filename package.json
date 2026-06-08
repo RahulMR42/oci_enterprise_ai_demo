@@ -1,7 +1,7 @@
 {
   "name": "enterprise-ai-demo-portal",
   "private": true,
-  "version": "0.0.24",
+  "version": "0.0.25",
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",

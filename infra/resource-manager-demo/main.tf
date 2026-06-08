@@ -138,9 +138,9 @@ module "devops_hosted_image_build" {
   portal_change_log_namespace            = data.oci_objectstorage_namespace.portal.namespace
   portal_change_log_bucket               = oci_objectstorage_bucket.portal_config[0].name
   portal_change_log_object               = "portal-change-log.json"
-  portal_vector_store_id                 = local.portal_vector_store_id
-  portal_conversation_id                 = local.portal_conversation_id
-  portal_code_interpreter_container_id   = local.portal_code_interpreter_container_id
+  portal_vector_store_id                 = local.portal_vector_store_id_for_devops
+  portal_conversation_id                 = local.portal_conversation_id_for_devops
+  portal_code_interpreter_container_id   = local.portal_code_interpreter_container_id_for_devops
   shared_policy_id                       = module.shared_demo_security.policy_id
   run_build                              = var.devops_hosted_image_run_build
   deploy_only_app                        = local.effective_deploy_only_app

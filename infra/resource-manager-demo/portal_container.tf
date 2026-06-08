@@ -468,9 +468,16 @@ locals {
   code_interpreter_container_generated_file = "${path.module}/../code-interpreter/.terraform/generated/container.json"
   existing_portal_runtime_config            = try(jsondecode(var.existing_portal_runtime_config_json), {})
   retained_generated_runtime_config = {
-    conversationId             = try(tostring(local.existing_portal_runtime_config.conversationId), "")
-    vectorStoreId              = try(tostring(local.existing_portal_runtime_config.vectorStoreId), "")
-    codeInterpreterContainerId = try(tostring(local.existing_portal_runtime_config.codeInterpreterContainerId), "")
+    conversationId                       = try(tostring(local.existing_portal_runtime_config.conversationId), "")
+    vectorStoreId                        = try(tostring(local.existing_portal_runtime_config.vectorStoreId), "")
+    codeInterpreterContainerId           = try(tostring(local.existing_portal_runtime_config.codeInterpreterContainerId), "")
+    codeInterpreterContainerStatus       = try(tostring(local.existing_portal_runtime_config.codeInterpreterContainerStatus), "")
+    fileSearchSeedDocumentCount          = try(tonumber(local.existing_portal_runtime_config.fileSearchSeedDocumentCount), 0)
+    fileSearchSeedDocumentCompletedCount = try(tonumber(local.existing_portal_runtime_config.fileSearchSeedDocumentCompletedCount), 0)
+    fileSearchVectorStore                = try(local.existing_portal_runtime_config.fileSearchVectorStore, {})
+    fileSearchSeedDocuments              = try(local.existing_portal_runtime_config.fileSearchSeedDocuments, {})
+    generatedRuntimeConfigUpdatedAt      = try(tostring(local.existing_portal_runtime_config.generatedRuntimeConfigUpdatedAt), "")
+    generatedRuntimeProvisioner          = try(tostring(local.existing_portal_runtime_config.generatedRuntimeProvisioner), "")
   }
   generated_portal_conversation_id = (
     var.conversation_store_local_exec_enabled
@@ -487,20 +494,79 @@ locals {
     ? try(data.external.code_interpreter_container[0].result.id, "")
     : ""
   )
+  portal_conversation_id_for_devops = (
+    local.generated_portal_conversation_id != ""
+    ? local.generated_portal_conversation_id
+    : local.retained_generated_runtime_config.conversationId
+  )
+  portal_vector_store_id_for_devops = (
+    local.generated_portal_vector_store_id != ""
+    ? local.generated_portal_vector_store_id
+    : local.retained_generated_runtime_config.vectorStoreId
+  )
+  portal_code_interpreter_container_id_for_devops = (
+    local.generated_portal_code_interpreter_container_id != ""
+    ? local.generated_portal_code_interpreter_container_id
+    : local.retained_generated_runtime_config.codeInterpreterContainerId
+  )
+  current_devops_build_exports = module.devops_hosted_image_build.hosted_deployment_exports
+  devops_portal_conversation_id = (
+    try(tostring(local.current_devops_build_exports.PORTAL_CONVERSATION_ID), "") != " "
+    ? trimspace(try(tostring(local.current_devops_build_exports.PORTAL_CONVERSATION_ID), ""))
+    : ""
+  )
+  devops_portal_vector_store_id = (
+    try(tostring(local.current_devops_build_exports.PORTAL_VECTOR_STORE_ID), "") != " "
+    ? trimspace(try(tostring(local.current_devops_build_exports.PORTAL_VECTOR_STORE_ID), ""))
+    : ""
+  )
+  devops_portal_code_interpreter_container_id = (
+    try(tostring(local.current_devops_build_exports.PORTAL_CODE_INTERPRETER_CONTAINER_ID), "") != " "
+    ? trimspace(try(tostring(local.current_devops_build_exports.PORTAL_CODE_INTERPRETER_CONTAINER_ID), ""))
+    : ""
+  )
+  devops_portal_code_interpreter_container_status  = trimspace(try(tostring(local.current_devops_build_exports.PORTAL_CODE_INTERPRETER_CONTAINER_STATUS), ""))
+  devops_file_search_seed_document_count           = try(tonumber(trimspace(try(tostring(local.current_devops_build_exports.PORTAL_FILE_SEARCH_SEED_DOCUMENT_COUNT), ""))), 0)
+  devops_file_search_seed_document_completed_count = try(tonumber(trimspace(try(tostring(local.current_devops_build_exports.PORTAL_FILE_SEARCH_SEED_DOCUMENT_COMPLETED_COUNT), ""))), 0)
   portal_conversation_id = (
     local.generated_portal_conversation_id != ""
     ? local.generated_portal_conversation_id
+    : local.devops_portal_conversation_id != ""
+    ? local.devops_portal_conversation_id
     : local.retained_generated_runtime_config.conversationId
   )
   portal_vector_store_id = (
     local.generated_portal_vector_store_id != ""
     ? local.generated_portal_vector_store_id
+    : local.devops_portal_vector_store_id != ""
+    ? local.devops_portal_vector_store_id
     : local.retained_generated_runtime_config.vectorStoreId
   )
   portal_code_interpreter_container_id = (
     local.generated_portal_code_interpreter_container_id != ""
     ? local.generated_portal_code_interpreter_container_id
+    : local.devops_portal_code_interpreter_container_id != ""
+    ? local.devops_portal_code_interpreter_container_id
     : local.retained_generated_runtime_config.codeInterpreterContainerId
+  )
+  portal_code_interpreter_container_status = (
+    local.devops_portal_code_interpreter_container_status != ""
+    ? local.devops_portal_code_interpreter_container_status
+    : local.retained_generated_runtime_config.codeInterpreterContainerStatus != ""
+    ? local.retained_generated_runtime_config.codeInterpreterContainerStatus
+    : local.portal_code_interpreter_container_id != ""
+    ? "created"
+    : ""
+  )
+  portal_file_search_seed_document_count = (
+    local.devops_file_search_seed_document_count > 0
+    ? local.devops_file_search_seed_document_count
+    : local.retained_generated_runtime_config.fileSearchSeedDocumentCount
+  )
+  portal_file_search_seed_document_completed_count = (
+    local.devops_file_search_seed_document_completed_count > 0
+    ? local.devops_file_search_seed_document_completed_count
+    : local.retained_generated_runtime_config.fileSearchSeedDocumentCompletedCount
   )
   default_hosted_deployment_exports = {
     HOSTED_AGENT_DEPLOYMENT_ID = ""
@@ -519,9 +585,13 @@ locals {
     key => tostring(value)
     if contains(keys(local.default_hosted_deployment_exports), key)
   }
-  current_hosted_deployment_exports = module.devops_hosted_image_build.hosted_deployment_exports
-  deploy_all_hosted_applications    = trimspace(var.app_deploy) == "" || lower(var.app_deploy) == "all"
-  effective_deploy_only_app         = local.deploy_all_hosted_applications ? false : var.deploy_only_app
+  current_hosted_deployment_exports = {
+    for key, value in local.current_devops_build_exports :
+    key => value
+    if contains(keys(local.default_hosted_deployment_exports), key)
+  }
+  deploy_all_hosted_applications = trimspace(var.app_deploy) == "" || lower(var.app_deploy) == "all"
+  effective_deploy_only_app      = local.deploy_all_hosted_applications ? false : var.deploy_only_app
   selected_hosted_deployment_export_keys = local.deploy_all_hosted_applications ? keys(local.default_hosted_deployment_exports) : concat(
     var.oci_ha_hosted_agent_deploy ? ["HOSTED_AGENT_DEPLOYMENT_ID", "HOSTED_AGENT_URL"] : [],
     var.oci_ha_langgraph_deploy ? ["LANGGRAPH_DEPLOYMENT_ID", "LANGGRAPH_URL"] : [],
@@ -549,26 +619,33 @@ locals {
     local.non_empty_current_hosted_deployment_exports
   )
   portal_runtime_config = {
-    resourceSuffix                   = var.resource_suffix
-    region                           = var.region
-    sourceRevision                   = var.devops_source_revision
-    codeSourceRepoUrl                = var.devops_source_repo_url
-    codeSourceBranch                 = var.devops_source_branch
-    devopsHostedImageBuildRunId      = module.devops_hosted_image_build.build_run_id
-    devopsHostedImageBuildPipelineId = module.devops_hosted_image_build.build_pipeline_id
-    projectId                        = var.oci_genai_project_id
-    conversationId                   = local.portal_conversation_id
-    vectorStoreId                    = local.portal_vector_store_id
-    codeInterpreterContainerId       = local.portal_code_interpreter_container_id
-    hosted                           = local.hosted_deployment_exports
-    runHistoryObjectNamespace        = data.oci_objectstorage_namespace.portal.namespace
-    runHistoryObjectBucket           = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
-    runHistoryObjectName             = "portal-demo-run-summary.json"
-    changeLogObjectNamespace         = data.oci_objectstorage_namespace.portal.namespace
-    changeLogObjectBucket            = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
-    changeLogObjectName              = "portal-change-log.json"
-    runtimeConfigObjectNamespace     = data.oci_objectstorage_namespace.portal.namespace
-    runtimeConfigObjectBucket        = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
-    runtimeConfigObjectName          = "portal-runtime-config.json"
+    resourceSuffix                       = var.resource_suffix
+    region                               = var.region
+    sourceRevision                       = var.devops_source_revision
+    codeSourceRepoUrl                    = var.devops_source_repo_url
+    codeSourceBranch                     = var.devops_source_branch
+    devopsHostedImageBuildRunId          = module.devops_hosted_image_build.build_run_id
+    devopsHostedImageBuildPipelineId     = module.devops_hosted_image_build.build_pipeline_id
+    projectId                            = var.oci_genai_project_id
+    conversationId                       = local.portal_conversation_id
+    vectorStoreId                        = local.portal_vector_store_id
+    codeInterpreterContainerId           = local.portal_code_interpreter_container_id
+    codeInterpreterContainerStatus       = local.portal_code_interpreter_container_status
+    fileSearchVectorStore                = local.retained_generated_runtime_config.fileSearchVectorStore
+    fileSearchSeedDocuments              = local.retained_generated_runtime_config.fileSearchSeedDocuments
+    fileSearchSeedDocumentCount          = local.portal_file_search_seed_document_count
+    fileSearchSeedDocumentCompletedCount = local.portal_file_search_seed_document_completed_count
+    generatedRuntimeConfigUpdatedAt      = local.retained_generated_runtime_config.generatedRuntimeConfigUpdatedAt
+    generatedRuntimeProvisioner          = local.retained_generated_runtime_config.generatedRuntimeProvisioner != "" ? local.retained_generated_runtime_config.generatedRuntimeProvisioner : (local.portal_conversation_id != "" || local.portal_vector_store_id != "" || local.portal_code_interpreter_container_id != "" ? "oci-devops-build-pipeline" : "")
+    hosted                               = local.hosted_deployment_exports
+    runHistoryObjectNamespace            = data.oci_objectstorage_namespace.portal.namespace
+    runHistoryObjectBucket               = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runHistoryObjectName                 = "portal-demo-run-summary.json"
+    changeLogObjectNamespace             = data.oci_objectstorage_namespace.portal.namespace
+    changeLogObjectBucket                = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    changeLogObjectName                  = "portal-change-log.json"
+    runtimeConfigObjectNamespace         = data.oci_objectstorage_namespace.portal.namespace
+    runtimeConfigObjectBucket            = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
+    runtimeConfigObjectName              = "portal-runtime-config.json"
   }
 }

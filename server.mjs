@@ -2414,14 +2414,27 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
   }
 }
 
-export function fileSearchRuntimeComponents({ vectorStore = {}, vectorStoreFiles = {}, vectorStoreId = "" } = {}) {
+export function fileSearchRuntimeComponents({
+  vectorStore = {},
+  vectorStoreFiles = {},
+  vectorStoreId = "",
+  seedDocumentCount = 0,
+  seedDocumentCompletedCount = 0
+} = {}) {
   const seedDocuments = Array.isArray(vectorStoreFiles.documents) ? vectorStoreFiles.documents : [];
   const completedSeedDocuments = seedDocuments.filter((document) => {
     const uploadedFile = document.file || {};
     const vectorStoreFile = document.vector_store_file || {};
     return statusFromLifecycle(uploadedFile.status) === "created" && statusFromLifecycle(vectorStoreFile.status) === "created";
   });
-  const hasCompletedSeeds = seedDocuments.length > 0 && completedSeedDocuments.length === seedDocuments.length;
+  const reportedSeedDocumentCount = Number(vectorStoreFiles.documentCount || vectorStoreFiles.count || seedDocumentCount || 0);
+  const reportedCompletedSeedDocumentCount = Number(
+    vectorStoreFiles.completedCount || vectorStoreFiles.completed || seedDocumentCompletedCount || 0
+  );
+  const totalSeedDocumentCount = seedDocuments.length > 0 ? seedDocuments.length : reportedSeedDocumentCount;
+  const completedSeedDocumentCount =
+    seedDocuments.length > 0 ? completedSeedDocuments.length : reportedCompletedSeedDocumentCount;
+  const hasCompletedSeeds = totalSeedDocumentCount > 0 && completedSeedDocumentCount >= totalSeedDocumentCount;
   const resolvedVectorStoreId = vectorStore.id || vectorStoreId;
   const vectorStoreStatus = resolvedVectorStoreId
     ? hasCompletedSeeds
@@ -2439,9 +2452,9 @@ export function fileSearchRuntimeComponents({ vectorStore = {}, vectorStoreFiles
     component(
       "generated.file_search_seed_documents",
       "File Search Seed Documents",
-      hasCompletedSeeds ? "created" : seedDocuments.length > 0 ? "creating" : "not-created",
-      seedDocuments.length > 0
-        ? `${completedSeedDocuments.length}/${seedDocuments.length} bundled Oracle PDFs completed`
+      hasCompletedSeeds ? "created" : totalSeedDocumentCount > 0 ? "creating" : "not-created",
+      totalSeedDocumentCount > 0
+        ? `${completedSeedDocumentCount}/${totalSeedDocumentCount} bundled Oracle PDFs completed`
         : "Bundled PDFs pending"
     )
   ];
@@ -2601,7 +2614,13 @@ function demoRuntimeComponents() {
       finalConversationId ? "created" : "not-created",
       finalConversationId || "Run provisioning to create OCI conversation"
     ),
-    ...fileSearchRuntimeComponents({ vectorStore: finalVectorStore, vectorStoreFiles: finalVectorStoreFiles, vectorStoreId: finalVectorStoreId }),
+    ...fileSearchRuntimeComponents({
+      vectorStore: finalVectorStore,
+      vectorStoreFiles: finalVectorStoreFiles,
+      vectorStoreId: finalVectorStoreId,
+      seedDocumentCount: portalRuntimeConfig.fileSearchSeedDocumentCount,
+      seedDocumentCompletedCount: portalRuntimeConfig.fileSearchSeedDocumentCompletedCount
+    }),
     component(
       "generated.code_interpreter_container",
       "Code Interpreter Container",

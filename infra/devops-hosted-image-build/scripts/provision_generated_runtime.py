@@ -134,6 +134,13 @@ def write_runtime_config(region, namespace, bucket, object_name, config):
     )
 
 
+def write_export_env(values, output_path="/tmp/provision-generated-runtime.env"):
+    lines = []
+    for key, value in values.items():
+        lines.append(f"export {key}={shlex.quote(str(value or ''))}")
+    Path(output_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def seed_pdf_manifest():
     root = Path(__file__).resolve().parents[3]
     pdf_dir = root / "infra" / "file-search-vector-store-rag" / "assets" / "pdfs"
@@ -281,6 +288,18 @@ def ensure_seed_documents(client, vector_store_id):
     return {"vector_store_id": vector_store_id, "documents": records}
 
 
+def completed_seed_document_count(seed_documents):
+    count = 0
+    for document in seed_documents.get("documents", []) or []:
+        file_payload = document.get("file") or {}
+        vector_store_file = document.get("vector_store_file") or {}
+        file_status = status_value(file_payload)
+        vector_status = status_value(vector_store_file)
+        if file_status in {"uploaded", "processed", "completed"} and vector_status == "completed":
+            count += 1
+    return count
+
+
 def existing_container(client, name, preferred_id=""):
     if preferred_id:
         try:
@@ -367,6 +386,9 @@ def main():
 
     code_container_id = payload_id(code_container)
     conversation_id = payload_id(conversation)
+    code_container_status = code_container.get("status") or code_container.get("state") or "created"
+    seed_document_count = len(seed_documents.get("documents", []))
+    seed_document_completed_count = completed_seed_document_count(seed_documents)
     if not code_container_id:
         raise SystemExit("Code Interpreter container create/reuse did not return an id")
     if not conversation_id:
@@ -382,19 +404,31 @@ def main():
             "conversationId": conversation_id,
             "vectorStoreId": vector_store_id,
             "codeInterpreterContainerId": code_container_id,
-            "codeInterpreterContainerStatus": code_container.get("status") or code_container.get("state") or "created",
+            "codeInterpreterContainerStatus": code_container_status,
             "fileSearchVectorStore": vector_store,
             "fileSearchSeedDocuments": seed_documents,
+            "fileSearchSeedDocumentCount": seed_document_count,
+            "fileSearchSeedDocumentCompletedCount": seed_document_completed_count,
             "generatedRuntimeConfigUpdatedAt": datetime.now(timezone.utc).isoformat(),
             "generatedRuntimeProvisioner": "oci-devops-build-pipeline",
         }
     )
     write_runtime_config(region, namespace, bucket, object_name, config)
+    write_export_env(
+        {
+            "PORTAL_VECTOR_STORE_ID": vector_store_id,
+            "PORTAL_CONVERSATION_ID": conversation_id,
+            "PORTAL_CODE_INTERPRETER_CONTAINER_ID": code_container_id,
+            "PORTAL_CODE_INTERPRETER_CONTAINER_STATUS": code_container_status,
+            "PORTAL_FILE_SEARCH_SEED_DOCUMENT_COUNT": seed_document_count,
+            "PORTAL_FILE_SEARCH_SEED_DOCUMENT_COMPLETED_COUNT": seed_document_completed_count,
+        }
+    )
 
     print(f"PORTAL_VECTOR_STORE_ID={vector_store_id}")
     print(f"PORTAL_CONVERSATION_ID={conversation_id}")
     print(f"PORTAL_CODE_INTERPRETER_CONTAINER_ID={code_container_id}")
-    print(f"Seeded File Search documents: {len(seed_documents.get('documents', []))}")
+    print(f"Seeded File Search documents: {seed_document_completed_count}/{seed_document_count}")
 
 
 if __name__ == "__main__":
