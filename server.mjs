@@ -15,6 +15,7 @@ const portalAuthPasswordConfig = resolvePortalAuthPassword();
 const portalAuthPassword = portalAuthPasswordConfig.password;
 const portalSessionCookie = "oci_portal_session";
 const portalSessionTokens = new Set();
+const portalSessionIdentities = new Map();
 let idcsTokenCache = {
   value: "",
   expiresAt: 0
@@ -30,6 +31,7 @@ const demoGeneratedDirs = {
   "hosted-agentic-applications": join(root, "infra/hosted-agentic-applications/.terraform/generated")
 };
 const pythonExecutable = existsSync(join(root, "env/bin/python")) ? join(root, "env/bin/python") : "python3";
+const portalAuthStoreScript = process.env.OCI_PORTAL_AUTH_STORE_SCRIPT || join(root, "backend/portal_auth_store.py");
 const portalRuntimeConfigObject = {
   namespace: process.env.OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE || "",
   bucket: process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
@@ -536,14 +538,71 @@ export function createPortalSession(sessions = portalSessionTokens) {
   return token;
 }
 
-export function isAuthorizedRequest(request, password = portalAuthPassword, sessions = portalSessionTokens) {
+export function bootstrapPortalIdentity() {
+  return {
+    userId: "bootstrap:oci",
+    userEmail: portalAuthUser,
+    displayEmail: portalAuthUser,
+    authType: "bootstrap",
+    role: "admin"
+  };
+}
+
+export function isAdminIdentity(identity = {}) {
+  return identity.role === "admin" || identity.authType === "bootstrap";
+}
+
+export function createPortalSessionForIdentity(
+  identity = bootstrapPortalIdentity(),
+  sessions = portalSessionTokens,
+  sessionIdentities = portalSessionIdentities
+) {
+  const token = createPortalSession(sessions);
+  sessionIdentities.set(token, identity);
+  return token;
+}
+
+export function resolvePortalIdentity(
+  request,
+  { password = portalAuthPassword, sessions = portalSessionTokens, sessionIdentities = portalSessionIdentities } = {}
+) {
   const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
   if (sessionToken && sessions.has(sessionToken)) {
-    return true;
+    return sessionIdentities.get(sessionToken) || bootstrapPortalIdentity();
   }
 
   const credentials = parseBasicAuthHeader(request.headers.authorization || "");
-  return credentials?.username === portalAuthUser && credentials.password === password;
+  if (credentials?.username === portalAuthUser && credentials.password === password) {
+    return bootstrapPortalIdentity();
+  }
+
+  return null;
+}
+
+export function isAuthorizedRequest(
+  request,
+  password = portalAuthPassword,
+  sessions = portalSessionTokens,
+  sessionIdentities = portalSessionIdentities
+) {
+  return Boolean(resolvePortalIdentity(request, { password, sessions, sessionIdentities }));
+}
+
+export function callPortalAuthStore(action, payload = {}, { env = process.env } = {}) {
+  const result = spawnSync(pythonExecutable, [portalAuthStoreScript], {
+    cwd: root,
+    encoding: "utf8",
+    env: demoProcessEnv(env),
+    input: JSON.stringify({ action, payload })
+  });
+  if (result.status !== 0) {
+    return { ok: false, status: "failed", error: result.stderr || `Auth store command failed with status ${result.status}` };
+  }
+  try {
+    return JSON.parse(result.stdout || "{}");
+  } catch (error) {
+    return { ok: false, status: "failed", error: `Auth store returned invalid JSON: ${error.message}` };
+  }
 }
 
 function sessionCookie(token, maxAgeSeconds = 8 * 60 * 60) {
@@ -710,6 +769,17 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
           <input name="password" type="password" autocomplete="current-password" required autofocus />
         </label>
         <button type="submit">Sign in</button>
+      </form>
+      <form method="post" action="/signup" aria-label="Protected user sign-up">
+        <label>
+          Email
+          <input name="email" type="email" autocomplete="email" />
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="new-password" minlength="12" />
+        </label>
+        <button type="submit">Sign up</button>
       </form>
       <form class="forgot-password" method="post" action="/forgot-password">
         <button type="submit">Forgot password</button>
@@ -3620,6 +3690,32 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && requestPath === "/signup") {
+    const body = await readRequestBody(request);
+    const form = new URLSearchParams(body);
+    const email = String(form.get("email") || "").trim();
+    const password = String(form.get("password") || "");
+    const signup = callPortalAuthStore("signup", { email, password });
+    if (signup.status === "success" && signup.identity) {
+      const token = createPortalSessionForIdentity(signup.identity);
+      callPortalAuthStore("open_session", {
+        sessionToken: token,
+        identity: signup.identity,
+        ip: request.socket?.remoteAddress || "",
+        userAgent: request.headers["user-agent"] || ""
+      });
+      response.writeHead(302, {
+        Location: "/",
+        "Set-Cookie": sessionCookie(token),
+        "Cache-Control": "no-store"
+      });
+      response.end();
+      return;
+    }
+    sendLoginPage(response, 400, { error: signup.error || "Protected user sign-up is unavailable." });
+    return;
+  }
+
   if (request.method === "POST" && requestPath === "/login") {
     const body = await readRequestBody(request);
     const form = new URLSearchParams(body);
@@ -3627,7 +3723,25 @@ export const server = createServer(async (request, response) => {
     const password = String(form.get("password") || "");
 
     if (username === portalAuthUser && password === portalAuthPassword) {
-      const token = createPortalSession();
+      const token = createPortalSessionForIdentity(bootstrapPortalIdentity());
+      response.writeHead(302, {
+        Location: "/",
+        "Set-Cookie": sessionCookie(token),
+        "Cache-Control": "no-store"
+      });
+      response.end();
+      return;
+    }
+
+    const protectedLogin = callPortalAuthStore("login", { email: username, password });
+    if (protectedLogin.status === "success" && protectedLogin.identity) {
+      const token = createPortalSessionForIdentity(protectedLogin.identity);
+      callPortalAuthStore("open_session", {
+        sessionToken: token,
+        identity: protectedLogin.identity,
+        ip: request.socket?.remoteAddress || "",
+        userAgent: request.headers["user-agent"] || ""
+      });
       response.writeHead(302, {
         Location: "/",
         "Set-Cookie": sessionCookie(token),
@@ -3650,6 +3764,9 @@ export const server = createServer(async (request, response) => {
   if (request.method === "POST" && requestPath === "/logout") {
     const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
     if (sessionToken) {
+      const identity = portalSessionIdentities.get(sessionToken) || bootstrapPortalIdentity();
+      callPortalAuthStore("close_session", { sessionToken, identity });
+      portalSessionIdentities.delete(sessionToken);
       portalSessionTokens.delete(sessionToken);
     }
 

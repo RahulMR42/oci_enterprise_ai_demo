@@ -3,8 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  bootstrapPortalIdentity,
+  callPortalAuthStore,
   createResourceSuffix,
   createPortalSession,
+  createPortalSessionForIdentity,
   devopsHostedDeploymentComponents,
   extractProvisionedValues,
   fileSearchRuntimeComponents,
@@ -14,7 +17,9 @@ import {
   parseCookies,
   parseTerraformStateResources,
   demoProcessEnv,
+  isAdminIdentity,
   isAuthorizedRequest,
+  resolvePortalIdentity,
   idcsDemoCredentialPosture,
   hostedLaunchProxyTargetUrl,
   llamaIndexControlTowerProxyTargetUrl,
@@ -65,6 +70,27 @@ test("protects portal requests with login session and username oci", () => {
   assert.equal(isAuthorizedRequest({ headers: {} }, "test-password", sessions), false);
 });
 
+test("portal sessions resolve bootstrap and protected-user identities", () => {
+  const sessions = new Set();
+  const identities = new Map();
+  const protectedIdentity = {
+    userId: "usr_123",
+    userEmail: "user@example.com",
+    authType: "protected_user",
+    role: "user"
+  };
+  const token = createPortalSessionForIdentity(protectedIdentity, sessions, identities);
+  const resolved = resolvePortalIdentity(
+    { headers: { cookie: `oci_portal_session=${token}` } },
+    { password: "test-password", sessions, sessionIdentities: identities }
+  );
+
+  assert.deepEqual(resolved, protectedIdentity);
+  assert.equal(isAuthorizedRequest({ headers: { cookie: `oci_portal_session=${token}` } }, "test-password", sessions, identities), true);
+  assert.equal(isAdminIdentity(resolved), false);
+  assert.equal(isAdminIdentity(bootstrapPortalIdentity()), true);
+});
+
 test("server exposes login, forgot password, and logout routes", () => {
   const server = readFileSync("server.mjs", "utf8");
   const gitignore = readFileSync(".gitignore", "utf8");
@@ -79,6 +105,17 @@ test("server exposes login, forgot password, and logout routes", () => {
   assert.match(server, /OCI_PORTAL_PASSWORD_FILE/);
   assert.match(server, /writeFileSync\(filePath, `\$\{value\}\\n`, \{ mode: 0o600 \}\)/);
   assert.match(gitignore, /^\.oci-portal-password$/m);
+});
+
+test("server exposes signup route and protected auth store command", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /requestPath === "\/signup"/);
+  assert.match(server, /callPortalAuthStore/);
+  assert.match(server, /backend\/portal_auth_store\.py/);
+  assert.match(server, /createPortalSessionForIdentity/);
+  assert.match(server, /resolvePortalIdentity/);
+  assert.match(server, /Protected user sign-up/);
 });
 
 test("server exposes redacted administration demo run history", () => {
