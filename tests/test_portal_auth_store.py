@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -53,21 +54,72 @@ class PortalAuthStoreCoreTests(unittest.TestCase):
 
 
 class PortalAuthStoreCommandTests(unittest.TestCase):
-    def run_command(self, payload):
+    AUTH_ENV_KEYS = (
+        "OCI_PORTAL_AUTH_DB_DSN",
+        "OCI_PORTAL_AUTH_DB_USER",
+        "OCI_PORTAL_AUTH_DB_PASSWORD",
+        "OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID",
+    )
+
+    def run_raw_command(self, payload, env=None):
+        command_env = os.environ.copy()
+        for key in self.AUTH_ENV_KEYS:
+            command_env.pop(key, None)
+        if env:
+            command_env.update(env)
+
         result = subprocess.run(
             [sys.executable, "backend/portal_auth_store.py"],
             input=json.dumps(payload),
             text=True,
             capture_output=True,
             check=False,
+            env=command_env,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+        return result
+
+    def run_command(self, payload, env=None):
+        result = self.run_raw_command(payload, env=env)
         return json.loads(result.stdout)
 
     def test_status_reports_disabled_without_adb_env(self):
         response = self.run_command({"action": "status", "payload": {}})
         self.assertEqual(response["status"], "disabled")
         self.assertEqual(response["configured"], False)
+
+    def test_status_reports_configured_with_adb_env(self):
+        response = self.run_command(
+            {"action": "status", "payload": {}},
+            env={
+                "OCI_PORTAL_AUTH_DB_DSN": "test_dsn",
+                "OCI_PORTAL_AUTH_DB_USER": "ADMIN",
+                "OCI_PORTAL_AUTH_DB_PASSWORD": "test_password",
+            },
+        )
+        self.assertEqual(response["status"], "configured")
+        self.assertEqual(response["configured"], True)
+
+    def test_cli_errors_do_not_echo_secret_like_inputs(self):
+        secret_action = "reset-Bearer-secret-token-value"
+        secret_password = "plain-secret-password"
+        secret_token = "secret-token-value-abcdef"
+
+        result = self.run_raw_command({
+            "action": secret_action,
+            "payload": {
+                "password": secret_password,
+                "authorization": f"Bearer {secret_token}",
+            },
+        })
+        combined_output = result.stdout + result.stderr
+        response = json.loads(result.stdout)
+
+        self.assertEqual(response["status"], "failed")
+        self.assertEqual(response["error"], "Unsupported auth store action.")
+        self.assertNotIn(secret_action, combined_output)
+        self.assertNotIn(secret_password, combined_output)
+        self.assertNotIn(secret_token, combined_output)
 
 
 if __name__ == "__main__":

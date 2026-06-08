@@ -16,6 +16,9 @@ SENSITIVE_KEY_PATTERN = re.compile(
     r"secret|password|passwd|passphrase|token|authorization|api[_-]?key|client[_-]?secret|credential|private[_-]?key|cookie|session|jwt|bearer",
     re.IGNORECASE,
 )
+UNSUPPORTED_ACTION_ERROR = "Unsupported auth store action."
+GENERIC_CLI_ERROR = "Auth store command failed."
+PUBLIC_CLI_ERRORS = {UNSUPPORTED_ACTION_ERROR}
 
 
 def utc_now_iso():
@@ -111,7 +114,7 @@ def handle_command(command):
     action = command.get("action") or ""
     if action == "status":
         return handle_status()
-    raise ValueError(f"Unsupported auth store action: {action}")
+    raise ValueError(UNSUPPORTED_ACTION_ERROR)
 
 
 def main():
@@ -120,7 +123,10 @@ def main():
         response = handle_command(command)
         print(json.dumps(response, separators=(",", ":")))
     except Exception as exc:
-        print(json.dumps({"ok": False, "status": "failed", "error": str(exc)}, separators=(",", ":")))
+        error = str(exc)
+        if error not in PUBLIC_CLI_ERRORS:
+            error = GENERIC_CLI_ERROR
+        print(json.dumps({"ok": False, "status": "failed", "error": error}, separators=(",", ":")))
         return 0
     return 0
 
