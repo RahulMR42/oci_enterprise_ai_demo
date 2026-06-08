@@ -175,6 +175,59 @@ class PortalAuthStoreLocalModeTests(unittest.TestCase):
             handle.seek(0)
             self.assertEqual(json.load(handle), original)
 
+    def test_record_event_redacts_client_details_in_storage_and_activity(self):
+        raw_ip = "203.0.113.10"
+        raw_message_ip = "198.51.100.7"
+        raw_user_agent = "UnitTestBrowser/1.0"
+        raw_session_token = "browser-session-token-value"
+        raw_password = "plain-secret-password"
+
+        with tempfile.NamedTemporaryFile(mode="w+", encoding="utf-8") as handle:
+            event = self.run_local_command(handle.name, "record_event", {
+                "sessionId": "sess_redaction",
+                "identity": {
+                    "userId": "usr_redaction",
+                    "userEmail": "redaction@example.com",
+                    "role": "user",
+                },
+                "eventType": "demo_run",
+                "featureId": "responses-api",
+                "action": "run",
+                "status": "success",
+                "durationMs": 17,
+                "details": {
+                    "ip": raw_ip,
+                    "userAgent": raw_user_agent,
+                    "sessionToken": raw_session_token,
+                    "password": raw_password,
+                    "message": f"request originated from {raw_message_ip}",
+                    "output": "ok",
+                },
+            })
+            self.assertEqual(event["status"], "success")
+
+            handle.seek(0)
+            persisted = json.load(handle)
+            persisted_text = json.dumps(persisted)
+            self.assertNotIn(raw_ip, persisted_text)
+            self.assertNotIn(raw_message_ip, persisted_text)
+            self.assertNotIn(raw_user_agent, persisted_text)
+            self.assertNotIn(raw_session_token, persisted_text)
+            self.assertNotIn(raw_password, persisted_text)
+            self.assertIn("ok", persisted_text)
+
+            activity = self.run_local_command(handle.name, "query_activity", {
+                "filters": {"userEmail": "redaction@example.com", "eventType": "demo_run"},
+            })
+            activity_text = json.dumps(activity)
+            self.assertEqual(activity["metrics"]["totalEvents"], 1)
+            self.assertNotIn(raw_ip, activity_text)
+            self.assertNotIn(raw_message_ip, activity_text)
+            self.assertNotIn(raw_user_agent, activity_text)
+            self.assertNotIn(raw_session_token, activity_text)
+            self.assertNotIn(raw_password, activity_text)
+            self.assertIn("ok", activity_text)
+
     def test_signup_login_session_and_audit_workflow(self):
         with tempfile.NamedTemporaryFile() as handle:
             signup = self.run_local_command(handle.name, "signup", {

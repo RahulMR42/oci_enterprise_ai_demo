@@ -16,6 +16,17 @@ SENSITIVE_KEY_PATTERN = re.compile(
     r"secret|password|passwd|passphrase|token|authorization|api[_-]?key|client[_-]?secret|credential|private[_-]?key|cookie|session|jwt|bearer",
     re.IGNORECASE,
 )
+SENSITIVE_KEY_NAMES = {
+    "clientip",
+    "ip",
+    "ipaddress",
+    "remoteaddress",
+    "sessiontoken",
+    "useragent",
+}
+IPV4_VALUE_PATTERN = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"
+)
 UNSUPPORTED_ACTION_ERROR = "Unsupported auth store action."
 GENERIC_CLI_ERROR = "Auth store command failed."
 PUBLIC_CLI_ERRORS = {UNSUPPORTED_ACTION_ERROR}
@@ -129,16 +140,22 @@ def public_event(row):
     }
 
 
+def is_sensitive_key(key):
+    normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
+    return normalized in SENSITIVE_KEY_NAMES or bool(SENSITIVE_KEY_PATTERN.search(str(key)))
+
+
 def redact_details(value):
     if isinstance(value, list):
         return [redact_details(item) for item in value]
     if isinstance(value, dict):
         redacted = {}
         for key, item in value.items():
-            redacted[str(key)] = "<redacted>" if SENSITIVE_KEY_PATTERN.search(str(key)) else redact_details(item)
+            redacted[str(key)] = "<redacted>" if is_sensitive_key(key) else redact_details(item)
         return redacted
     if isinstance(value, str):
-        return re.sub(r"(bearer\s+)[A-Za-z0-9._~+/=-]{12,}", r"\1<redacted>", value, flags=re.IGNORECASE)
+        redacted = re.sub(r"(bearer\s+)[A-Za-z0-9._~+/=-]{12,}", r"\1<redacted>", value, flags=re.IGNORECASE)
+        return IPV4_VALUE_PATTERN.sub("<redacted-ip>", redacted)
     return value
 
 
