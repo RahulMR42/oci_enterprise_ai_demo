@@ -169,7 +169,14 @@ function writeDemoLog(featureId, payload = {}) {
   const createdAt = new Date().toISOString();
   const timestamp = createdAt.replace(/[:.]/g, "-");
   const logFile = join(logDir, `${timestamp}-${randomBytes(4).toString("hex")}.json`);
-  const record = redactForDemoLog({ featureId, createdAt, ...payload });
+  const rawRecord = { featureId, createdAt, ...payload };
+  const record = {
+    ...redactForDemoLog(rawRecord),
+    userId: rawRecord.userId || "",
+    userEmail: rawRecord.userEmail || "",
+    authType: rawRecord.authType || "",
+    sessionId: rawRecord.sessionId || ""
+  };
   writeFileSync(logFile, JSON.stringify(record, null, 2));
   writePersistentDemoRunRecord({ ...record, logFile });
   return logFile;
@@ -193,9 +200,44 @@ function errorLogDetails(error) {
   });
 }
 
+function identityLogFields(identity = bootstrapPortalIdentity(), sessionId = "") {
+  const candidate = identity || bootstrapPortalIdentity();
+  return {
+    userId: candidate.userId || "",
+    userEmail: candidate.userEmail || candidate.displayEmail || "",
+    authType: candidate.authType || "unknown",
+    sessionId
+  };
+}
+
+function recordPortalAuditEvent(event = {}) {
+  try {
+    const result = callPortalAuthStore("record_event", {
+      ...event,
+      details: redactForDemoLog(event.details || {})
+    });
+    if (result.status === "failed") {
+      console.warn(`[portal-audit] ${redactSensitiveText(result.error || "audit write failed")}`);
+    }
+    return result;
+  } catch (error) {
+    console.warn(`[portal-audit] ${redactSensitiveText(error.message)}`);
+    return { ok: false, status: "failed", error: error.message };
+  }
+}
+
 export function summarizeDemoRunHistory(records = []) {
   const sortedRuns = records
-    .map((record) => redactForDemoLog(record || {}))
+    .map((record) => {
+      const rawRecord = record || {};
+      return {
+        ...redactForDemoLog(rawRecord),
+        userId: rawRecord.userId || "",
+        userEmail: rawRecord.userEmail || "",
+        authType: rawRecord.authType || "",
+        sessionId: rawRecord.sessionId || ""
+      };
+    })
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
     .map((record) => ({
       featureId: record.featureId || "unknown",
@@ -205,6 +247,10 @@ export function summarizeDemoRunHistory(records = []) {
       createdAt: record.createdAt || "",
       error: record.error || record.response?.error || "",
       logFile: record.logFile || "",
+      userId: record.userId || "",
+      userEmail: record.userEmail || "",
+      authType: record.authType || "",
+      sessionId: record.sessionId || "",
       stdout: demoLogPreview(record.stdout),
       stderr: demoLogPreview(record.stderr),
       request: demoLogObjectPreview(record.request),
@@ -2169,8 +2215,41 @@ function langfuseProxyOrigin(request) {
   return `${protocol}://${host}`;
 }
 
-export async function proxyHostedApplicationLaunch(request, response, parsedUrl, featureId) {
+function recordHostedLaunchAuditEvent({
+  featureId = "",
+  request = {},
+  parsedUrl = {},
+  identity = bootstrapPortalIdentity(),
+  sessionId = "",
+  status = "unknown",
+  durationMs = 0,
+  upstreamStatus = ""
+} = {}) {
+  const details = { path: parsedUrl.pathname || "" };
+  if (upstreamStatus !== "") {
+    details.upstreamStatus = upstreamStatus;
+  }
+  recordPortalAuditEvent({
+    sessionId,
+    identity,
+    eventType: "hosted_launch",
+    featureId,
+    action: request.method || "",
+    status,
+    durationMs,
+    details
+  });
+}
+
+export async function proxyHostedApplicationLaunch(
+  request,
+  response,
+  parsedUrl,
+  featureId,
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const startedAt = Date.now();
+  const identityFields = identityLogFields(identity, sessionId);
   const definition = hostedLaunchDefinition(featureId);
   const featureLabel = definition?.label || "Hosted application";
   try {
@@ -2186,10 +2265,13 @@ export async function proxyHostedApplicationLaunch(request, response, parsedUrl,
     const contentType = upstream.headers.get("content-type") || "";
     const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
     const proxyBase = `/api/hosted/launch/${featureId}/`;
+    const durationMs = Date.now() - startedAt;
+    const status = upstream.ok ? "success" : "failed";
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
+      status,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
@@ -2203,6 +2285,16 @@ export async function proxyHostedApplicationLaunch(request, response, parsedUrl,
         bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
       }
     });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status,
+      durationMs,
+      upstreamStatus: upstream.status
+    });
     response.writeHead(upstream.status, {
       ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
         launchUrl: definition?.launchUrl || "",
@@ -2212,15 +2304,26 @@ export async function proxyHostedApplicationLaunch(request, response, parsedUrl,
     });
     response.end(responseBody);
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     const logFile = writeDemoLog(featureId || "hosted-application", {
+      ...identityFields,
       action: "launch",
       status: "failed",
-      durationMs: Date.now() - startedAt,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
       },
       error: error.message || String(error)
+    });
+    recordHostedLaunchAuditEvent({
+      featureId: featureId || "hosted-application",
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status: "failed",
+      durationMs
     });
     response.writeHead(502, {
       "Content-Type": "text/html; charset=utf-8",
@@ -2231,9 +2334,15 @@ export async function proxyHostedApplicationLaunch(request, response, parsedUrl,
   }
 }
 
-export async function proxyOpenClawLaunch(request, response, parsedUrl) {
+export async function proxyOpenClawLaunch(
+  request,
+  response,
+  parsedUrl,
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const startedAt = Date.now();
   const featureId = "openclaw-hosted-agent-gateway";
+  const identityFields = identityLogFields(identity, sessionId);
   try {
     const targetUrl = openclawProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
     const token = await getIdcsAccessToken();
@@ -2246,10 +2355,13 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
     });
     const contentType = upstream.headers.get("content-type") || "";
     const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
+    const durationMs = Date.now() - startedAt;
+    const status = upstream.ok ? "success" : "failed";
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
+      status,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
@@ -2263,6 +2375,16 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
         bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
       }
     });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status,
+      durationMs,
+      upstreamStatus: upstream.status
+    });
     response.writeHead(upstream.status, {
       ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
         launchUrl: readOpenClawLaunchUrl(),
@@ -2272,15 +2394,26 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
     });
     response.end(responseBody);
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
       status: "failed",
-      durationMs: Date.now() - startedAt,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
       },
       error: error.message || String(error)
+    });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status: "failed",
+      durationMs
     });
     response.writeHead(502, {
       "Content-Type": "text/html; charset=utf-8",
@@ -2291,9 +2424,15 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
   }
 }
 
-export async function proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl) {
+export async function proxyLlamaIndexControlTowerLaunch(
+  request,
+  response,
+  parsedUrl,
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const startedAt = Date.now();
   const featureId = "agentic-control-tower";
+  const identityFields = identityLogFields(identity, sessionId);
   try {
     const targetUrl = llamaIndexControlTowerProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
     const token = await getIdcsAccessToken();
@@ -2306,10 +2445,13 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
     });
     const contentType = upstream.headers.get("content-type") || "";
     const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
+    const durationMs = Date.now() - startedAt;
+    const status = upstream.ok ? "success" : "failed";
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
+      status,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
@@ -2323,6 +2465,16 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
         bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
       }
     });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status,
+      durationMs,
+      upstreamStatus: upstream.status
+    });
     response.writeHead(upstream.status, {
       ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
         launchUrl: readLlamaIndexControlTowerLaunchUrl(),
@@ -2332,15 +2484,26 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
     });
     response.end(responseBody);
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
       status: "failed",
-      durationMs: Date.now() - startedAt,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
       },
       error: error.message || String(error)
+    });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status: "failed",
+      durationMs
     });
     response.writeHead(502, {
       "Content-Type": "text/html; charset=utf-8",
@@ -2402,9 +2565,15 @@ export function rewriteLangfuseLaunchJson(jsonText, proxyOrigin = "") {
   }
 }
 
-export async function proxyLangfuseLaunch(request, response, parsedUrl) {
+export async function proxyLangfuseLaunch(
+  request,
+  response,
+  parsedUrl,
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const startedAt = Date.now();
   const featureId = "langfuse-hosted-observability";
+  const identityFields = identityLogFields(identity, sessionId);
   let stage = "resolve-target";
   let targetUrl = null;
   let proxyOrigin = "";
@@ -2435,10 +2604,13 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
       launchUrl: readLangfuseLaunchUrl(),
       proxyBase: "/api/langfuse/launch/"
     });
+    const durationMs = Date.now() - startedAt;
+    const status = upstream.ok ? "success" : "failed";
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
+      status,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname,
@@ -2467,16 +2639,28 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
         hostedApplicationId: readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json")).hostedApplicationId || ""
       }
     });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status,
+      durationMs,
+      upstreamStatus: upstream.status
+    });
     response.writeHead(upstream.status, {
       ...responseHeaders,
       "X-Demo-Log-File": logFile
     });
     response.end(responseBody);
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
       status: "failed",
-      durationMs: Date.now() - startedAt,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname,
@@ -2498,6 +2682,15 @@ export async function proxyLangfuseLaunch(request, response, parsedUrl) {
       error: error.message || String(error),
       stack: error?.stack || "",
       errorDetails: errorLogDetails(error)
+    });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status: "failed",
+      durationMs
     });
     response.writeHead(502, {
       "Content-Type": "text/html; charset=utf-8",
@@ -3439,8 +3632,15 @@ sendJson(response, 200, parsed);`,
   ];
 }
 
-async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt = Date.now(), hostedRuntime = {}) {
+async function runHostedLlamaIndexControlTower(
+  payload,
+  runtimeConfig,
+  startedAt = Date.now(),
+  hostedRuntime = {},
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const featureId = "agentic-control-tower";
+  const identityFields = identityLogFields(identity, sessionId);
   const targetUrl = llamaIndexControlTowerProxyTargetUrl(
     "/api/llamaindex/launch/agent/control-tower/respond",
     "",
@@ -3467,6 +3667,7 @@ async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt
     throw new Error(`Hosted LlamaIndex response was not JSON: ${responseBody.slice(0, 500)}`);
   }
   const durationMs = Date.now() - startedAt;
+  const status = upstream.ok ? "success" : "failed";
   const result = {
     feature: "Agentic Control Tower",
     mode: "agentic-control-tower",
@@ -3485,16 +3686,28 @@ async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt
       "Called hosted LlamaIndex control tower endpoint",
       "Returned hosted workflow response to portal"
     ],
-    status: upstream.ok ? "success" : "failed",
+    status,
     durationMs
   };
-  result.logFile = writeDemoLog(featureId, {
+  const logFile = writeDemoLog(featureId, {
+    ...identityFields,
     action: "run-hosted",
-    status: upstream.ok ? "success" : "failed",
+    status,
     durationMs,
     runtimeConfig,
     request: requestPayload,
     response: result
+  });
+  result.logFile = logFile;
+  recordPortalAuditEvent({
+    sessionId,
+    identity,
+    eventType: "demo_run",
+    featureId,
+    action: "run",
+    status,
+    durationMs,
+    details: { request: payload, logFile }
   });
   if (!upstream.ok) {
     const error = new Error(parsed.error || `Hosted LlamaIndex call failed with status ${upstream.status}`);
@@ -3504,7 +3717,7 @@ async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt
   return result;
 }
 
-export function runFeatureDemo(featureId, payload) {
+export function runFeatureDemo(featureId, payload, { identity = bootstrapPortalIdentity(), sessionId = "" } = {}) {
   const scriptName = demoScripts[featureId];
   if (!scriptName) {
     return Promise.reject(new Error(`No runnable demo is configured for ${featureId}.`));
@@ -3512,6 +3725,19 @@ export function runFeatureDemo(featureId, payload) {
 
   const provisionedDetails = readProvisionedDetails();
   const startedAt = Date.now();
+  const identityFields = identityLogFields(identity, sessionId);
+  const recordRunAudit = ({ status, durationMs, logFile = "" }) => {
+    recordPortalAuditEvent({
+      sessionId,
+      identity,
+      eventType: "demo_run",
+      featureId,
+      action: "run",
+      status,
+      durationMs,
+      details: { request: payload, logFile }
+    });
+  };
   const idcsPosture = idcsDemoCredentialPosture();
   const hostedRuntime = resolvePayloadHostedRuntime(featureId, payload);
   const hostedLlamaIndexMetadata = featureId === "agentic-control-tower" ? readLlamaIndexControlTowerMetadata() : {};
@@ -3535,7 +3761,7 @@ export function runFeatureDemo(featureId, payload) {
     hostedLlamaIndexUrl &&
     (hostedRuntime.hostedUrl || String(hostedLlamaIndexMetadata.hostedDeploymentLifecycleState || "").toUpperCase() === "ACTIVE")
   ) {
-    return runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt, hostedRuntime);
+    return runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt, hostedRuntime, { identity, sessionId });
   }
 
   return new Promise((resolve, reject) => {
@@ -3572,20 +3798,23 @@ export function runFeatureDemo(featureId, payload) {
     child.on("error", (error) => {
       const durationMs = Date.now() - startedAt;
       const runError = new Error(error.message);
+      const logFile = writeDemoLog(featureId, {
+        ...identityFields,
+        action: "run",
+        status: "failed",
+        durationMs,
+        runtimeConfig,
+        request: payload,
+        stdout,
+        stderr,
+        error: error.message
+      });
+      recordRunAudit({ status: "failed", durationMs, logFile });
       runError.payload = {
         status: "failed",
         durationMs,
         error: error.message,
-        logFile: writeDemoLog(featureId, {
-          action: "run",
-          status: "failed",
-          durationMs,
-          runtimeConfig,
-          request: payload,
-          stdout,
-          stderr,
-          error: error.message
-        })
+        logFile
       };
       reject(runError);
     });
@@ -3611,6 +3840,7 @@ export function runFeatureDemo(featureId, payload) {
           });
           parsed.logs = [{ label: "python", status: "failed", command: `${pythonExecutable} backend/demos/${scriptName}`, stdout, stderr }];
           parsed.logFile = writeDemoLog(featureId, {
+            ...identityFields,
             action: "run",
             status: "failed",
             durationMs,
@@ -3620,6 +3850,7 @@ export function runFeatureDemo(featureId, payload) {
             stderr,
             response: parsed
           });
+          recordRunAudit({ status: "failed", durationMs, logFile: parsed.logFile });
           console.error(`[demo-run] failed feature=${featureId} exit=${code} durationMs=${durationMs} error=${error}`);
           const runError = new Error(error);
           runError.payload = parsed;
@@ -3636,6 +3867,7 @@ export function runFeatureDemo(featureId, payload) {
             logs: [{ label: "python", status: "failed", command: `${pythonExecutable} backend/demos/${scriptName}`, stdout, stderr }]
           };
           runError.payload.logFile = writeDemoLog(featureId, {
+            ...identityFields,
             action: "run",
             status: "failed",
             durationMs,
@@ -3645,6 +3877,7 @@ export function runFeatureDemo(featureId, payload) {
             stderr,
             error
           });
+          recordRunAudit({ status: "failed", durationMs, logFile: runError.payload.logFile });
           reject(runError);
         }
         return;
@@ -3657,6 +3890,7 @@ export function runFeatureDemo(featureId, payload) {
         parsed.trace = buildRunTrace({ featureId, scriptName, payload, runtimeConfig, stdout, stderr, parsed, status: "success", durationMs });
         parsed.logs = [{ label: "python", status: "success", command: `${pythonExecutable} backend/demos/${scriptName}`, stdout, stderr }];
         parsed.logFile = writeDemoLog(featureId, {
+          ...identityFields,
           action: "run",
           status: "success",
           durationMs,
@@ -3666,25 +3900,29 @@ export function runFeatureDemo(featureId, payload) {
           stderr,
           response: parsed
         });
+        recordRunAudit({ status: "success", durationMs, logFile: parsed.logFile });
         console.log(`[demo-run] completed feature=${featureId} exit=${code} durationMs=${durationMs}`);
         resolve(parsed);
       } catch (error) {
         console.error(`[demo-run] failed feature=${featureId} exit=${code} durationMs=${durationMs} error=${error.message}`);
         const runError = new Error(`Python demo returned invalid JSON: ${error.message}`);
+        const logFile = writeDemoLog(featureId, {
+          ...identityFields,
+          action: "run",
+          status: "failed",
+          durationMs,
+          runtimeConfig,
+          request: payload,
+          stdout,
+          stderr,
+          error: runError.message
+        });
+        recordRunAudit({ status: "failed", durationMs, logFile });
         runError.payload = {
           status: "failed",
           durationMs,
           error: runError.message,
-          logFile: writeDemoLog(featureId, {
-            action: "run",
-            status: "failed",
-            durationMs,
-            runtimeConfig,
-            request: payload,
-            stdout,
-            stderr,
-            error: runError.message
-          })
+          logFile
         };
         reject(runError);
       }
@@ -3810,24 +4048,27 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
+  const identity = resolvePortalIdentity(request) || bootstrapPortalIdentity();
+  const sessionId = parseCookies(request.headers.cookie || "")[portalSessionCookie] || "";
+
   if (requestPath === "/api/langfuse/launch" || requestPath.startsWith("/api/langfuse/launch/")) {
-    await proxyLangfuseLaunch(request, response, parsedUrl);
+    await proxyLangfuseLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
   }
 
   if (requestPath === "/api/openclaw/launch" || requestPath.startsWith("/api/openclaw/launch/")) {
-    await proxyOpenClawLaunch(request, response, parsedUrl);
+    await proxyOpenClawLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
   }
 
   if (requestPath === "/api/llamaindex/launch" || requestPath.startsWith("/api/llamaindex/launch/")) {
-    await proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl);
+    await proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
   }
 
   const hostedLaunchMatch = requestPath.match(/^\/api\/hosted\/launch\/([a-z0-9-]+)(?:\/.*)?$/);
   if (hostedLaunchMatch) {
-    await proxyHostedApplicationLaunch(request, response, parsedUrl, hostedLaunchMatch[1]);
+    await proxyHostedApplicationLaunch(request, response, parsedUrl, hostedLaunchMatch[1], { identity, sessionId });
     return;
   }
 
@@ -3836,7 +4077,7 @@ export const server = createServer(async (request, response) => {
     try {
       const body = await readRequestBody(request);
       const payload = body ? JSON.parse(body) : {};
-      const result = await runFeatureDemo(runMatch[1], payload);
+      const result = await runFeatureDemo(runMatch[1], payload, { identity, sessionId });
       sendJson(response, 200, result);
     } catch (error) {
       sendJson(response, 500, {
@@ -3960,7 +4201,7 @@ export const server = createServer(async (request, response) => {
   }
 
   if (isLangfusePassthroughPath(requestPath)) {
-    await proxyLangfuseLaunch(request, response, parsedUrl);
+    await proxyLangfuseLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
   }
 

@@ -221,6 +221,36 @@ test("server exposes redacted administration demo run history", () => {
   assert.match(server, /OCI_PORTAL_RUN_HISTORY_OBJECT/);
 });
 
+test("demo run history includes redacted user identity metadata", () => {
+  const history = summarizeDemoRunHistory([
+    {
+      featureId: "responses-api",
+      status: "success",
+      durationMs: 100,
+      createdAt: "2026-06-08T12:00:00.000Z",
+      userId: "usr_123",
+      userEmail: "user@example.com",
+      authType: "protected_user",
+      sessionId: "sess_123",
+      request: { password: "secret", prompt: "hello" }
+    }
+  ]);
+
+  assert.equal(history.runs[0].userEmail, "user@example.com");
+  assert.equal(history.runs[0].authType, "protected_user");
+  assert.equal(history.runs[0].sessionId, "sess_123");
+  assert.equal(JSON.stringify(history).includes("secret"), false);
+});
+
+test("server records audit events for demo runs and hosted launches", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /recordPortalAuditEvent/);
+  assert.match(server, /eventType: "demo_run"/);
+  assert.match(server, /eventType: "hosted_launch"/);
+  assert.match(server, /runFeatureDemo\(runMatch\[1\], payload, \{ identity/);
+});
+
 test("server exposes non-secret runtime environment variables for administration", () => {
   const server = readFileSync("server.mjs", "utf8");
   const admin = readFileSync("src/admin.js", "utf8");
