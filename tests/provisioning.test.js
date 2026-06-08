@@ -1016,8 +1016,8 @@ test("run dialog does not expose editable hosted app references", () => {
   assert.doesNotMatch(main, /responses-hosted-reference-value/);
   assert.doesNotMatch(main, /shouldSendHostedAppReference/);
   assert.doesNotMatch(main, /hostedReferenceVisible/);
+  assert.doesNotMatch(main, /hostedRuntimeReferences/);
   assert.doesNotMatch(styles, /\.demo-dialog\.is-launch-demo \.hosted-reference-field/);
-  assert.match(main, /hostedRuntimeReferences/);
   assert.match(main, /langfuse-hosted-observability/);
   assert.match(main, /agentic-control-tower/);
   assert.match(server, /resolvePayloadHostedRuntime/);
@@ -1025,7 +1025,7 @@ test("run dialog does not expose editable hosted app references", () => {
   assert.match(server, /OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID: hostedRuntime\.hostedDeploymentId/);
 });
 
-test("hosted application demos expose launch button inside the run window", () => {
+test("hosted UI demos expose launch button inside the run window", () => {
   const main = readFileSync("src/main.js", "utf8");
 
   assert.match(main, /const hostedApplicationLaunchConfigs = \{/);
@@ -1035,12 +1035,12 @@ test("hosted application demos expose launch button inside the run window", () =
   assert.match(main, /responses-run-button"\)\.hidden = isLaunchOnly/);
   assert.match(main, /responses-launch-button"\)\.hidden = !launchConfig/);
   assert.match(main, /responses-launch-button"\)\.addEventListener\("click"/);
-  assert.match(main, /\/api\/hosted\/launch\/hosted-agentic-applications\//);
-  assert.match(main, /\/api\/hosted\/launch\/langgraph-hosted-agent-mcp\//);
-  assert.match(main, /\/api\/hosted\/launch\/a2a-agent-collaboration\//);
   assert.match(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
   assert.match(main, /\/api\/openclaw\/launch\//);
-  assert.match(main, /\/api\/llamaindex\/launch\//);
+  assert.doesNotMatch(main, /\/api\/hosted\/launch\/hosted-agentic-applications\//);
+  assert.doesNotMatch(main, /\/api\/hosted\/launch\/langgraph-hosted-agent-mcp\//);
+  assert.doesNotMatch(main, /\/api\/hosted\/launch\/a2a-agent-collaboration\//);
+  assert.doesNotMatch(main, /\/api\/llamaindex\/launch\//);
   assert.match(main, /return launchOnlyDemoIds\.has\(featureId\) \? "Launch" : "Run"/);
   assert.doesNotMatch(main, /hostedUiLaunchDemoIds\.includes\(activeDemoId\)/);
 });
@@ -1060,22 +1060,28 @@ test("hosted UI demos launch directly without synthetic run launch flow", () => 
   assert.doesNotMatch(main, /runHostedLaunchFlow/);
 });
 
-test("all hosted deployment UI demos expose launch controls and card references", () => {
+test("only hosted UI demos expose launch controls and card faces stay compact", () => {
   const main = readFileSync("src/main.js", "utf8");
-  const hostedDemoIds = [
+  const launchConfigSource = main.match(/const hostedApplicationLaunchConfigs = \{([\s\S]*?)\n\};/)?.[1] || "";
+  const demoDefaultsSource = main.match(/const demoDefaults = \{([\s\S]*?)\n\};/)?.[1] || "";
+  const apiHostedDemoIds = [
     "hosted-agentic-applications",
     "langgraph-hosted-agent-mcp",
     "a2a-agent-collaboration",
-    "langfuse-hosted-observability",
-    "openclaw-hosted-agent-gateway",
     "agentic-control-tower"
   ];
+  const uiHostedDemoIds = ["langfuse-hosted-observability", "openclaw-hosted-agent-gateway"];
 
-  for (const featureId of hostedDemoIds) {
-    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*launchUrl:`));
-    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*hostedUrlKey:`));
-    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*deploymentIdKey:`));
-    assert.match(main, new RegExp(`"${featureId}"[\\s\\S]*button: "(?:Run [^"]+|Launch)"`));
+  for (const featureId of uiHostedDemoIds) {
+    assert.match(launchConfigSource, new RegExp(`"${featureId}"[\\s\\S]*launchUrl:`));
+    assert.match(launchConfigSource, new RegExp(`"${featureId}"[\\s\\S]*hostedUrlKey:`));
+    assert.match(launchConfigSource, new RegExp(`"${featureId}"[\\s\\S]*hostedDeploymentIdKey:`));
+    assert.match(demoDefaultsSource, new RegExp(`"${featureId}"[\\s\\S]*button: "Launch"`));
+  }
+
+  for (const featureId of apiHostedDemoIds) {
+    assert.doesNotMatch(launchConfigSource, new RegExp(`"${featureId}"`));
+    assert.match(demoDefaultsSource, new RegExp(`"${featureId}"[\\s\\S]*button: "Run [^"]+"`));
   }
 
   assert.match(main, /hostedApplicationLaunchConfig\(featureId\)/);
@@ -1083,8 +1089,8 @@ test("all hosted deployment UI demos expose launch controls and card references"
   assert.match(main, /document\.getElementById\("responses-launch-button"\)\.hidden = !launchConfig/);
   assert.match(main, /if \(launchOnlyDemoIds\.has\(activeDemoId\)\)[\s\S]*launchExternalDemo\(activeDemoId\)/);
   assert.match(main, /document\.getElementById\("responses-launch-button"\)\.addEventListener\("click"[\s\S]*launchExternalDemo\(activeDemoId\)/);
-  assert.match(main, /hostedReferenceDetails\(feature\.id\)/);
-  assert.match(main, /class="hosted-card-reference"/);
+  assert.doesNotMatch(main, /hostedReferenceDetails\(feature\.id\)/);
+  assert.doesNotMatch(main, /class="hosted-card-reference"/);
   assert.match(main, /Launch \$\{launchConfig\.shortLabel\}/);
   assert.doesNotMatch(main, /Run Launch Flow/);
 });
@@ -1140,11 +1146,11 @@ test("DevOps hosted deployment exports are reported as build-managed infra", () 
   );
 });
 
-test("hosted application references are displayed on hosted cards instead of generic run payloads", () => {
+test("hosted application references stay out of card faces and generic run payloads", () => {
   const main = readFileSync("src/main.js", "utf8");
 
-  assert.match(main, /hostedReferenceDetails/);
-  assert.match(main, /class="hosted-card-reference"/);
+  assert.doesNotMatch(main, /hostedReferenceDetails/);
+  assert.doesNotMatch(main, /class="hosted-card-reference"/);
   assert.match(main, /visibleRequestPayload/);
   assert.match(main, /delete visiblePayload\.hostedAppReference/);
   assert.match(main, /delete visiblePayload\.hostedUrl/);

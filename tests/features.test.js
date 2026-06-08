@@ -96,8 +96,8 @@ test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   assert.equal(feature.sdkModule, "backend/demos/agentic_control_tower.py");
   assert.match(feature.summary, /LlamaIndex/);
   assert.match(feature.details, /IDCS proxy/);
-  assert.match(feature.provisioningDetails, /Terraform-generated IDCS launch client/);
-  assert.deepEqual(feature.capabilities, ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]);
+  assert.match(feature.provisioningDetails, /Terraform-generated IDCS client/);
+  assert.deepEqual(feature.capabilities, ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy execution"]);
 });
 
 test("Conversation Store demo describes OCI-managed Conversations API state", () => {
@@ -217,11 +217,11 @@ test("portal opens administration as a separate page", () => {
   assert.match(main, /href="\/admin\.html"/);
   assert.match(main, /target="_blank"/);
   assert.doesNotMatch(main, /id="administration"/);
-  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.18"/);
-  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.18"/);
+  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.19"/);
+  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.19"/);
   assert.match(adminHtml, /id="administration"/);
-  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.18"/);
-  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.18"/);
+  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.19"/);
+  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.19"/);
   assert.match(admin, /loadAdministrationDashboard/);
   assert.match(main, /Administration/);
   assert.match(admin, /admin-metric-grid/);

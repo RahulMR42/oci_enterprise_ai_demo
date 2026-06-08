@@ -976,7 +976,7 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /window\.open\(launchTarget/);
   assert.match(main, /\/api\/openclaw\/launch\//);
   assert.match(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
-  assert.match(main, /\/api\/llamaindex\/launch\//);
+  assert.doesNotMatch(main, /\/api\/llamaindex\/launch\//);
   assert.match(server, /async function proxyLangfuseLaunch/);
   assert.match(server, /isLangfusePassthroughPath/);
   assert.match(server, /\/api\/auth\//);

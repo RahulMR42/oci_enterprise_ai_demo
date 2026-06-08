@@ -56,33 +56,6 @@ const maxInitialRunCount = 35;
 const defaultDemoRating = 2;
 const maxDemoRating = 3;
 const hostedApplicationLaunchConfigs = {
-  "hosted-agentic-applications": {
-    label: "Hosted Agent Runtime",
-    shortLabel: "Hosted Agent",
-    launchUrl: "/api/hosted/launch/hosted-agentic-applications/",
-    hostedUrlKey: "hostedAgentUrl",
-    hostedDeploymentIdKey: "hostedAgentDeploymentId",
-    hostedDeploymentStatusKey: "hostedAgentDeploymentStatus",
-    uiKind: "hosted agent runtime"
-  },
-  "langgraph-hosted-agent-mcp": {
-    label: "LangGraph Hosted Agent",
-    shortLabel: "LangGraph",
-    launchUrl: "/api/hosted/launch/langgraph-hosted-agent-mcp/",
-    hostedUrlKey: "langGraphHostedUrl",
-    hostedDeploymentIdKey: "langGraphHostedDeploymentId",
-    hostedDeploymentStatusKey: "langGraphHostedDeploymentStatus",
-    uiKind: "LangGraph hosted agent"
-  },
-  "a2a-agent-collaboration": {
-    label: "A2A Primary Hosted Agent",
-    shortLabel: "A2A Agent",
-    launchUrl: "/api/hosted/launch/a2a-agent-collaboration/",
-    hostedUrlKey: "hostedAgentUrl",
-    hostedDeploymentIdKey: "hostedAgentDeploymentId",
-    hostedDeploymentStatusKey: "hostedAgentDeploymentStatus",
-    uiKind: "primary hosted agent"
-  },
   "langfuse-hosted-observability": {
     label: "Langfuse Hosted Observability",
     shortLabel: "Langfuse",
@@ -100,58 +73,10 @@ const hostedApplicationLaunchConfigs = {
     hostedDeploymentIdKey: "openclawHostedDeploymentId",
     hostedDeploymentStatusKey: "openclawHostedDeploymentStatus",
     uiKind: "agent gateway"
-  },
-  "agentic-control-tower": {
-    label: "Agentic Control Tower",
-    shortLabel: "LlamaIndex Control Tower",
-    launchUrl: "/api/llamaindex/launch/",
-    hostedUrlKey: "llamaIndexHostedUrl",
-    hostedDeploymentIdKey: "llamaIndexHostedDeploymentId",
-    hostedDeploymentStatusKey: "llamaIndexHostedDeploymentStatus",
-    uiKind: "control tower"
   }
 };
 
 const launchOnlyDemoIds = new Set(["langfuse-hosted-observability", "openclaw-hosted-agent-gateway"]);
-
-const hostedRuntimeReferences = {
-  "hosted-agentic-applications": {
-    label: "Hosted agent reference",
-    urlKey: "hostedAgentUrl",
-    deploymentIdKey: "hostedAgentDeploymentId",
-    placeholder: "Paste hosted agent invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "langgraph-hosted-agent-mcp": {
-    label: "LangGraph hosted reference",
-    urlKey: "langGraphHostedUrl",
-    deploymentIdKey: "langGraphHostedDeploymentId",
-    placeholder: "Paste LangGraph invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "a2a-agent-collaboration": {
-    label: "Primary hosted agent reference",
-    urlKey: "hostedAgentUrl",
-    deploymentIdKey: "hostedAgentDeploymentId",
-    placeholder: "Paste primary hosted agent invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "agentic-control-tower": {
-    label: "LlamaIndex hosted reference",
-    urlKey: "llamaIndexHostedUrl",
-    deploymentIdKey: "llamaIndexHostedDeploymentId",
-    placeholder: "Paste LlamaIndex invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "langfuse-hosted-observability": {
-    label: "Langfuse hosted reference",
-    urlKey: "langfuseHostedUrl",
-    deploymentIdKey: "langfuseHostedDeploymentId",
-    placeholder: "Paste Langfuse hosted URL or invoke URL"
-  },
-  "openclaw-hosted-agent-gateway": {
-    label: "OpenClaw hosted reference",
-    urlKey: "openclawHostedUrl",
-    deploymentIdKey: "openclawHostedDeploymentId",
-    placeholder: "Paste OpenClaw hosted URL or invoke URL"
-  }
-};
 
 function escapeHtml(value = "") {
   return String(value)
@@ -242,23 +167,6 @@ function hostedApplicationLaunchConfig(featureId) {
     hostedUrl: infraState[config.hostedUrlKey] || "",
     hostedDeploymentId: infraState[config.hostedDeploymentIdKey] || "",
     hostedDeploymentStatus: infraState[config.hostedDeploymentStatusKey] || ""
-  };
-}
-
-function hostedReferenceDetails(featureId) {
-  const config = hostedReferenceConfig(featureId);
-  if (!config) {
-    return null;
-  }
-  const hostedUrl = infraState[config.urlKey] || "";
-  const hostedDeploymentId = infraState[config.deploymentIdKey] || "";
-  const value = hostedUrl || hostedDeploymentId;
-  if (!value) {
-    return null;
-  }
-  return {
-    label: config.label,
-    value
   };
 }
 
@@ -477,7 +385,7 @@ const demoDefaults = {
     title: "Agentic Control Tower Workbench",
     prompt: "Coordinate incident triage across planning, tool review, approval, memory, and audit before drafting the final response.",
     button: "Run Control Tower Flow",
-    output: "Run the hosted LlamaIndex workflow through the backend, or launch the hosted Control Tower UI through the IDCS-authenticated proxy.",
+    output: "Run the hosted LlamaIndex workflow through the backend IDCS-authenticated proxy and inspect request, trace, logs, and response output.",
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -1259,7 +1167,6 @@ const ociFeatureSourceFiles = {
 
 function featureCard(feature, index) {
   const hasFlowDiagram = Boolean(flowDiagrams[feature.id]);
-  const hostedReference = hostedReferenceDetails(feature.id);
 
   return `
     <article class="feature-card accent-${feature.accent}" tabindex="0" data-card style="--card-index: '${String(index + 1).padStart(2, "0")}'">
@@ -1275,11 +1182,6 @@ function featureCard(feature, index) {
             <p class="category">${feature.serviceArea}</p>
             <h2>${feature.title}</h2>
             <p class="summary">${feature.summary}</p>
-            ${
-              hostedReference
-                ? `<p class="hosted-card-reference"><span>${escapeHtml(hostedReference.label)}</span><code>${escapeHtml(hostedReference.value)}</code></p>`
-                : ""
-            }
           </div>
           <div class="rating-shell" data-rating-shell="${feature.id}" data-rating-placement="card">
             ${renderDemoRatingControl(feature.id, "card")}
@@ -1650,10 +1552,6 @@ function getResponsesConfig() {
     region: defaultProvisionConfig.region,
     projectId: document.getElementById("responses-project-id-display").value.trim() || infraState.projectId
   };
-}
-
-function hostedReferenceConfig(featureId) {
-  return hostedRuntimeReferences[featureId] || null;
 }
 
 function visibleRequestPayload(payload = {}) {

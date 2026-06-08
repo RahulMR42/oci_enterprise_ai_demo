@@ -1341,32 +1341,6 @@ h1 {
   font-weight: 680;
 }
 
-.hosted-card-reference {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 4px;
-  max-width: 100%;
-  margin: 10px 0 0;
-  padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(49, 45, 42, 0.18);
-  font-size: 0.76rem;
-  line-height: 1.35;
-}
-
-.hosted-card-reference span {
-  font-weight: 950;
-}
-
-.hosted-card-reference code {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: rgba(255, 255, 255, 0.82);
-}
-
 .rating-shell {
   position: relative;
   z-index: 1;

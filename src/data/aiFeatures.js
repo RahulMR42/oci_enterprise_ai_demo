@@ -217,7 +217,7 @@ export const aiFeatures = [
       "Runs a live OCI Responses API request over generated metadata for a separate LangGraph hosted application. The hosted container source uses LangGraph to select an MCP tool, call the tool, and draft a governed agent response.",
     provisioningDetails:
       "Uses the hosted-agentic-applications Terraform module to create an additional OCIR repository, hosted application, and hosted deployment for the LangGraph runtime.",
-    status: "Live Hosted App",
+    status: "Live Hosted API",
     accent: "violet",
     terraformPath: "infra/hosted-agentic-applications",
     sdkModule: "backend/demos/langgraph_hosted_agent_mcp.py",
@@ -236,7 +236,7 @@ export const aiFeatures = [
       "Runs an A2A collaboration plan across the hosted incident-response agent and the hosted LangGraph MCP agent. The demo discovers agent cards, creates task messages, records handoff, and uses OCI Responses API to summarize the coordinated outcome.",
     provisioningDetails:
       "Reuses the hosted-agentic-applications Terraform module. The existing hosted agent and LangGraph hosted application supply the A2A-capable agent endpoints and metadata.",
-    status: "Live A2A",
+    status: "Live Agent API",
     accent: "teal",
     terraformPath: "infra/hosted-agentic-applications",
     sdkModule: "backend/demos/a2a_agent_collaboration.py",
@@ -292,8 +292,8 @@ export const aiFeatures = [
     details:
       "Runs a real LlamaIndex workflow in an OCI Generative AI Hosted Application with deterministic enterprise tools, evidence review, approval gating, memory note generation, and hosted runtime output. The portal calls the hosted app through the server-side IDCS proxy without exposing secrets.",
     provisioningDetails:
-      "Uses the hosted-agentic-applications Terraform module to create an OCIR image, OCI hosted application, hosted deployment, and generated runtime metadata. The launch path reuses the Terraform-generated IDCS launch client metadata.",
-    status: "Live Hosted OSS Agent",
+      "Uses the hosted-agentic-applications Terraform module to create an OCIR image, OCI hosted application, hosted deployment, and generated runtime metadata. The backend proxy reuses Terraform-generated IDCS client metadata.",
+    status: "Live Hosted Flow",
     accent: "green",
     terraformPath: "infra/hosted-agentic-applications",
     sdkModule: "backend/demos/agentic_control_tower.py",
@@ -301,7 +301,7 @@ export const aiFeatures = [
     demoHref: "#demo-agentic-control-tower",
     docsHref: "https://docs.llamaindex.ai/en/stable/module_guides/workflow/",
     actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]
+    capabilities: ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy execution"]
   },
   {
     id: "agentic-rag-planner",
