@@ -19,6 +19,44 @@ export const aiFeatures = [
     capabilities: ["Live OCI Responses API call", "OpenAI-compatible endpoint", "JSON response inspection"]
   },
   {
+    id: "openai-compatible-chat",
+    title: "OpenAI-Compatible Chat Completions",
+    serviceArea: "OCI Generative AI",
+    summary: "Call OCI Generative AI through the OpenAI-compatible Chat Completions endpoint.",
+    details:
+      "Runs a live Chat Completions request against the OCI OpenAI-compatible base URL. This is for teams with existing chat-completions code that need OCI authentication, project scoping, and model execution.",
+    provisioningDetails:
+      "Reuses the OCI Generative AI project and API key from infra/responses-api. No additional Terraform resources are required because Chat Completions runs through the same OCI OpenAI-compatible endpoint.",
+    status: "Live API",
+    accent: "green",
+    terraformPath: "infra/responses-api",
+    sdkModule: "backend/demos/openai_compatible_chat.py",
+    sampleUseCase: "Move an existing chat assistant to OCI by changing base URL, API key, project, and model.",
+    demoHref: "#demo-openai-compatible-chat",
+    docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/chat-completions-api.htm",
+    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
+    capabilities: ["Chat Completions API", "OpenAI-compatible client", "OCI project-scoped execution"]
+  },
+  {
+    id: "responses-streaming-structured-output",
+    title: "Responses Streaming + Structured Output",
+    serviceArea: "OCI Generative AI",
+    summary: "Stream OCI Responses API events while enforcing a structured JSON output contract.",
+    details:
+      "Runs a live OCI Responses API request with streaming enabled and a JSON schema output contract. The workbench aggregates stream events, exposes the first events for inspection, and parses the final structured payload when available.",
+    provisioningDetails:
+      "Reuses the OCI Generative AI project and API key from infra/responses-api. No additional Terraform resources are required because streaming and structured output are request-level Responses API capabilities.",
+    status: "Live API",
+    accent: "blue",
+    terraformPath: "infra/responses-api",
+    sdkModule: "backend/demos/responses_streaming_structured_output.py",
+    sampleUseCase: "Stream an incident triage summary into a UI while preserving a machine-readable result for workflow routing.",
+    demoHref: "#demo-responses-streaming-structured-output",
+    docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/responses-api.htm",
+    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
+    capabilities: ["Streaming events", "Structured JSON schema", "Responses API event trace"]
+  },
+  {
     id: "conversation-store",
     title: "Conversation Store",
     serviceArea: "OCI App Layer",
@@ -214,7 +252,7 @@ export const aiFeatures = [
     serviceArea: "OCI Generative AI Agents",
     summary: "Deploy a separate LangGraph agent as an OCI hosted application and route tool work through an MCP-style gateway.",
     details:
-      "Runs a live OCI Responses API request over generated metadata for a separate LangGraph hosted application. The hosted container source uses LangGraph to select an MCP tool, call the tool, and draft a governed agent response.",
+      "Runs a live OCI Responses API request over generated metadata for a separate LangGraph hosted application. Both the hosted container source and portal runner compile LangGraph StateGraph workflows to select an MCP tool, call the tool, and draft a governed agent response.",
     provisioningDetails:
       "Uses the hosted-agentic-applications Terraform module to create an additional OCIR repository, hosted application, and hosted deployment for the LangGraph runtime.",
     status: "Live Hosted API",
@@ -328,9 +366,9 @@ export const aiFeatures = [
     serviceArea: "OCI Generative AI Agents",
     summary: "Explore Oracle's Locus SDK patterns for agent loops, tools, memory, orchestration, streaming, and production controls.",
     details:
-      "Runs a guided Locus SDK workflow plan based on the public Locus documentation: agent loop, tool execution, MCP-ready tools, conversation and long-term memory, orchestrator or swarm composition, checkpointing, streaming events, and OCI Responses model providers.",
+      "Loads Oracle's Locus SDK, builds a demo Agent/tool contract with locus.agent.Agent and locus.tools.tool, then uses OCI Responses API to synthesize the production workflow across tools, memory, checkpointing, streaming events, and governance.",
     provisioningDetails:
-      "Uses the shared OCI Generative AI project/API key for the live synthesis step. The demo is a portal-side SDK exploration pattern and does not create additional OCI infrastructure.",
+      "Uses the shared OCI Generative AI project/API key for the live synthesis step. The demo uses portal-side Locus SDK code and does not create additional OCI infrastructure.",
     status: "Live SDK Explorer",
     accent: "violet",
     terraformPath: "infra/responses-api",
@@ -339,7 +377,7 @@ export const aiFeatures = [
     demoHref: "#demo-locus-sdk-agentic-workflows",
     docsHref: "https://locusagents.oracle.com/",
     actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["Locus agent loop", "Tools and MCP", "Memory and checkpoints"]
+    capabilities: ["Locus SDK Agent class", "Tool decorator contract", "Memory and checkpoints"]
   },
   {
     id: "human-approval-agent",

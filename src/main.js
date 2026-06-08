@@ -233,6 +233,26 @@ const demoDefaults = {
     sessionVisible: false,
     sessionId: ""
   },
+  "openai-compatible-chat": {
+    title: "OpenAI-Compatible Chat Completions Workbench",
+    prompt: "Draft a concise customer update for delayed checkout confirmations using the OCI Chat Completions API.",
+    button: "Run Chat Completions Demo",
+    output: "Run a live OCI Chat Completions request through the OpenAI-compatible endpoint.",
+    sessionVisible: false,
+    sessionId: "",
+    toolResourceVisible: false,
+    toolResourceId: ""
+  },
+  "responses-streaming-structured-output": {
+    title: "Responses Streaming + Structured Output Workbench",
+    prompt: "Summarize this checkout incident as JSON with severity and next actions: payment callbacks are delayed and premium customers are waiting.",
+    button: "Run Streaming Demo",
+    output: "Run a live streaming OCI Responses API call and inspect the aggregated structured output.",
+    sessionVisible: false,
+    sessionId: "",
+    toolResourceVisible: false,
+    toolResourceId: ""
+  },
   "conversation-store": {
     title: "Conversation Store Workbench",
     prompt: "Remember that this customer prefers concise checkout updates. What should we tell them about a delayed confirmation?",
@@ -485,6 +505,8 @@ const demoDefaults = {
 
 const demoScriptNames = {
   "responses-api": "responses_api.py",
+  "openai-compatible-chat": "openai_compatible_chat.py",
+  "responses-streaming-structured-output": "responses_streaming_structured_output.py",
   "conversation-store": "conversation_store.py",
   guardrails: "guardrails.py",
   "file-search-vector-store-rag": "file_search_vector_store_rag.py",
@@ -499,6 +521,7 @@ const demoScriptNames = {
   "a2a-agent-collaboration": "a2a_agent_collaboration.py",
   "agentic-control-tower": "agentic_control_tower.py",
   "agentic-rag-planner": "agentic_rag_planner.py",
+  "locus-sdk-agentic-workflows": "locus_sdk_agentic_workflows.py",
   "human-approval-agent": "human_approval_agent.py",
   "governance-center": "governance_center.py",
   "document-understanding-genai": "document_understanding_genai.py",
@@ -521,6 +544,34 @@ const demoBriefs = {
     result: [
       "Turns an operational support note into a concise business summary.",
       "Shows the baseline request/response pattern used by the other demos."
+    ]
+  },
+  "openai-compatible-chat": {
+    services: [
+      "OCI Chat Completions API through the OpenAI-compatible endpoint.",
+      "OpenAI SDK chat.completions path backed by OCI Generative AI authentication."
+    ],
+    security: [
+      "Uses the Terraform-created OCI Generative AI API key and project OCID.",
+      "Keeps chat execution scoped to the configured OCI region and project."
+    ],
+    result: [
+      "Shows how existing Chat Completions code can move to OCI.",
+      "Useful for teams migrating stateless chat assistants before adopting Responses API."
+    ]
+  },
+  "responses-streaming-structured-output": {
+    services: [
+      "OCI Responses API streaming event path.",
+      "Structured JSON schema contract for machine-readable output."
+    ],
+    security: [
+      "Uses the shared OCI project and API key.",
+      "Schema-constrained output is easier to route through governed workflows."
+    ],
+    result: [
+      "Streams incremental events and aggregates the final output.",
+      "Useful for UI progress, workflow automation, and downstream incident routing."
     ]
   },
   "conversation-store": {
@@ -749,7 +800,7 @@ const demoBriefs = {
   },
   "locus-sdk-agentic-workflows": {
     services: [
-      "Locus SDK agent loop mapped to OCI Responses model providers.",
+      "Oracle Locus SDK Agent and tool decorator contract.",
       "Tool execution, MCP integration, memory, checkpoints, and streaming event patterns."
     ],
     security: [
@@ -866,6 +917,18 @@ const flowDiagrams = {
     title: "Responses API Flow",
     nodes: ["Portal prompt", "Responses API", "OCI model", "Structured answer"],
     mermaid: "flowchart LR\n  A[Portal prompt] --> B[Responses API]\n  B --> C[OCI model]\n  C --> D[Structured answer]"
+  },
+  "openai-compatible-chat": {
+    title: "OpenAI-Compatible Chat Flow",
+    nodes: ["Chat messages", "OpenAI-compatible endpoint", "OCI Chat Completions", "Assistant message"],
+    mermaid:
+      "flowchart LR\n  A[Chat messages] --> B[OpenAI-compatible OCI endpoint]\n  B --> C[OCI Chat Completions]\n  C --> D[Assistant message]"
+  },
+  "responses-streaming-structured-output": {
+    title: "Responses Streaming Flow",
+    nodes: ["Prompt", "Responses API stream", "JSON schema", "Stream events", "Structured result"],
+    mermaid:
+      "flowchart LR\n  A[Prompt] --> B[Responses API stream]\n  A --> C[JSON schema]\n  B --> D[Stream events]\n  C --> E[Structured result]\n  D --> E"
   },
   "conversation-store": {
     title: "Conversation Store Flow",
@@ -1005,6 +1068,22 @@ const ociFeatureCodeSnippets = {
     input=prompt,
     temperature=temperature,
 )`,
+  "openai-compatible-chat": `response = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": prompt}],
+    temperature=temperature,
+)`,
+  "responses-streaming-structured-output": [
+    `stream = client.responses.create(
+    model=model,
+    input=prompt,
+    stream=True,
+    text={"format": {"type": "json_schema", "schema": schema}},
+)`,
+    `for event in stream:
+    collect_stream_delta(event)
+structured_output = json.loads(output_text)`
+  ],
   "conversation-store": `response = client.responses.create(
     model=model,
     input=prompt,
@@ -1070,16 +1149,17 @@ queries = plan["retrievalQueries"]`,
 )`
   ],
   "locus-sdk-agentic-workflows": [
-    `agent = Agent(
-    name="IncidentAgent",
-    tools=[lookup_order, create_ticket],
-    memory=memory_manager,
-)`,
-    `workflow = Orchestrator(
-    agents=[agent],
-    checkpointer=checkpoint_store,
-)
-events = workflow.stream(prompt)`
+    `from locus.agent import Agent
+from locus.tools import tool
+
+@tool
+def lookup_order_status(order_id: str) -> dict:
+    return lookup_order(order_id)`,
+    `agent_contract = {
+    "agentClass": Agent.__name__,
+    "tools": [lookup_order_status],
+    "modelProvider": "OCI Responses API",
+}`
   ],
   "human-approval-agent": [
     `approval = classify_agent_action_risk(prompt)
@@ -1114,6 +1194,10 @@ const defaultFeatureSourceFiles = [
 
 const ociFeatureSourceFiles = {
   "responses-api": [{ label: "Backend demo", path: "backend/demos/responses_api.py" }],
+  "openai-compatible-chat": [{ label: "Backend demo", path: "backend/demos/openai_compatible_chat.py" }],
+  "responses-streaming-structured-output": [
+    { label: "Backend demo", path: "backend/demos/responses_streaming_structured_output.py" }
+  ],
   "conversation-store": [
     { label: "Backend demo", path: "backend/demos/conversation_store.py" },
     { label: "Terraform", path: "infra/conversation-store/conversation.tf" }

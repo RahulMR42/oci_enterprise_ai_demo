@@ -4,6 +4,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 from common_oci import (
     OCI_RESPONSES_MODEL,
@@ -74,6 +75,73 @@ def _langgraph_plan(prompt):
     }
 
 
+class _LangGraphState(TypedDict, total=False):
+    prompt: str
+    selected_tool: str
+    tool_result: dict
+    draft: str
+
+
+def _run_local_langgraph_sdk(prompt, hosted_agent):
+    try:
+        from langgraph.graph import END, StateGraph
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Missing Python dependency 'langgraph'. Install root requirements before running the "
+            "LangGraph Hosted Agent + MCP live demo."
+        ) from exc
+
+    def select_mcp_tool(state):
+        selected_tool = (
+            "workflow.status"
+            if "approval" in state["prompt"].lower() or "workflow" in state["prompt"].lower()
+            else "knowledge.search"
+        )
+        return {"selected_tool": selected_tool}
+
+    def call_mcp_tool(state):
+        tool_name = state["selected_tool"]
+        tool_result = {
+            "server": "hosted-langgraph-mcp-gateway",
+            "tool": tool_name,
+            "result": (
+                "Approval workflow is waiting on operations manager review."
+                if tool_name == "workflow.status"
+                else "Incident playbook recommends checking payment callbacks, queue depth, and regional latency."
+            ),
+        }
+        return {"tool_result": tool_result}
+
+    def draft_response(state):
+        return {
+            "draft": (
+                f"LangGraph selected {state['selected_tool']} and received: "
+                f"{state['tool_result']['result']}"
+            )
+        }
+
+    graph = StateGraph(_LangGraphState)
+    graph.add_node("select_mcp_tool", select_mcp_tool)
+    graph.add_node("call_mcp_tool", call_mcp_tool)
+    graph.add_node("draft_response", draft_response)
+    graph.set_entry_point("select_mcp_tool")
+    graph.add_edge("select_mcp_tool", "call_mcp_tool")
+    graph.add_edge("call_mcp_tool", "draft_response")
+    graph.add_edge("draft_response", END)
+
+    compiled = graph.compile()
+    state = compiled.invoke({"prompt": prompt})
+    return {
+        "sdk": "langgraph",
+        "runtime": "StateGraph",
+        "hostedDeploymentId": hosted_agent.get("hostedDeploymentId") or hosted_agent.get("deploymentId", ""),
+        "selectedTool": state["selected_tool"],
+        "toolResult": state["tool_result"],
+        "draft": state["draft"],
+        "nodes": ["select_mcp_tool", "call_mcp_tool", "draft_response"],
+    }
+
+
 def run_demo(payload):
     if "error" in payload:
         raise RuntimeError(payload["error"])
@@ -113,6 +181,12 @@ def run_demo(payload):
     }
 
     validate_config(config)
+    sdk_graph = _run_local_langgraph_sdk(prompt, graph_plan)
+    graph_plan = {
+        **graph_plan,
+        "selectedTool": sdk_graph["selectedTool"],
+        "sdkRuntime": sdk_graph,
+    }
     response = call_oci_responses_api(
         (
             "You are a LangGraph-hosted enterprise agent running on OCI Generative AI hosted applications. "
@@ -130,7 +204,7 @@ def run_demo(payload):
     result["rawResponse"] = response_to_json(response)
     result["trace"] = [
         *trace,
-        "Resolved LangGraph graph path",
+        "Executed local LangGraph StateGraph for MCP selection",
         f"Selected MCP tool {graph_plan['selectedTool']}",
         "Called OCI Responses API for hosted LangGraph agent response",
     ]

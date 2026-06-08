@@ -51,6 +51,8 @@ let portalRuntimeConfigCache = {
 };
 const demoScripts = {
   "responses-api": "responses_api.py",
+  "openai-compatible-chat": "openai_compatible_chat.py",
+  "responses-streaming-structured-output": "responses_streaming_structured_output.py",
   "conversation-store": "conversation_store.py",
   guardrails: "guardrails.py",
   "file-search-vector-store-rag": "file_search_vector_store_rag.py",
@@ -3174,9 +3176,20 @@ summary = summarize_rows_with_responses_api(rows, config)`,
     "hosted-agentic-applications": `metadata = read_hosted_agent_metadata()
 request = build_incident_payload(prompt, metadata)
 result = call_hosted_agent_or_return_config(metadata, request)`,
-    "langgraph-hosted-agent-mcp": `graph = load_langgraph_runtime()
-mcp_tools = graph.discover_mcp_tools()
-selected_tool = graph.select_tool(prompt, mcp_tools)
+    "openai-compatible-chat": `response = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": prompt}],
+    temperature=temperature,
+)`,
+    "responses-streaming-structured-output": `stream = client.responses.create(
+    model=model,
+    input=prompt,
+    stream=True,
+    text={"format": {"type": "json_schema", "schema": schema}},
+)`,
+    "langgraph-hosted-agent-mcp": `graph = StateGraph(AgentState)
+compiled = graph.compile()
+selected_tool = compiled.invoke({"prompt": prompt})["selected_tool"]
 response = call_oci_responses_api(build_agent_prompt(graph, selected_tool), temperature, model, config)`,
     "agentic-control-tower": `workflow = build_llamaindex_control_tower()
 workflow_result = run_workflow(workflow, prompt, idcs_posture)
@@ -3184,9 +3197,9 @@ response = call_oci_responses_api(build_control_tower_prompt(workflow_result), t
     "agentic-rag-planner": `plan = build_retrieval_plan(prompt)
 queries = plan["retrievalQueries"]
 response = call_oci_responses_api(build_grounded_plan_prompt(plan), temperature, model, config)`,
-    "locus-sdk-agentic-workflows": `workflow = build_locus_agent_workflow(prompt)
-tools = select_locus_tools(workflow)
-memory = load_locus_memory_context(workflow)
+    "locus-sdk-agentic-workflows": `from locus.agent import Agent
+from locus.tools import tool
+workflow = build_locus_agent_workflow(prompt, Agent, tool)
 response = call_oci_responses_api(build_locus_prompt(workflow), temperature, model, config)`,
     "human-approval-agent": `approval = classify_agent_action_risk(prompt)
 if approval["approvalRequired"]:

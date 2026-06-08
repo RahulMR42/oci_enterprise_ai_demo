@@ -11,6 +11,20 @@ const demos = [
     trace: "Loaded routing policy"
   },
   {
+    script: "backend/demos/openai_compatible_chat.py",
+    feature: "OCI OpenAI-Compatible Chat Completions",
+    mode: "openai-compatible-chat",
+    prompt: "Draft a customer update for checkout delays.",
+    trace: "Prepared OCI OpenAI-compatible Chat Completions request"
+  },
+  {
+    script: "backend/demos/responses_streaming_structured_output.py",
+    feature: "OCI Responses Streaming + Structured Output",
+    mode: "responses-streaming-structured-output",
+    prompt: "Summarize checkout delays as structured JSON.",
+    trace: "Prepared OCI Responses API streaming request"
+  },
+  {
     script: "backend/demos/hosted_agentic_applications.py",
     feature: "Hosted Agentic Applications",
     mode: "hosted-agentic-applications",

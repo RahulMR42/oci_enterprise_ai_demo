@@ -9,11 +9,13 @@ function escapeXml(value) {
 }
 
 test("demo features provide card and flip-side content", () => {
-  assert.equal(aiFeatures.length, 25);
+  assert.equal(aiFeatures.length, 27);
 
   const featureIds = aiFeatures.map((feature) => feature.id);
   assert.deepEqual(featureIds, [
     "responses-api",
+    "openai-compatible-chat",
+    "responses-streaming-structured-output",
     "conversation-store",
     "guardrails",
     "file-search-vector-store-rag",
@@ -120,10 +122,58 @@ test("File Search demo states that vector store provisioning is required by defa
   assert.deepEqual(feature.capabilities, ["File ingestion", "Vector retrieval", "Grounded answers"]);
 });
 
+test("new OCI Generative AI cards use exact documented API features and shared infra", () => {
+  const chat = aiFeatures.find((item) => item.id === "openai-compatible-chat");
+  const streaming = aiFeatures.find((item) => item.id === "responses-streaming-structured-output");
+
+  assert.ok(chat);
+  assert.equal(chat.title, "OpenAI-Compatible Chat Completions");
+  assert.equal(chat.terraformPath, "infra/responses-api");
+  assert.equal(chat.sdkModule, "backend/demos/openai_compatible_chat.py");
+  assert.equal(chat.docsHref, "https://docs.oracle.com/en-us/iaas/Content/generative-ai/chat-completions-api.htm");
+  assert.match(chat.details, /Chat Completions/);
+  assert.deepEqual(chat.capabilities, [
+    "Chat Completions API",
+    "OpenAI-compatible client",
+    "OCI project-scoped execution"
+  ]);
+
+  assert.ok(streaming);
+  assert.equal(streaming.title, "Responses Streaming + Structured Output");
+  assert.equal(streaming.terraformPath, "infra/responses-api");
+  assert.equal(streaming.sdkModule, "backend/demos/responses_streaming_structured_output.py");
+  assert.equal(streaming.docsHref, "https://docs.oracle.com/en-us/iaas/Content/generative-ai/responses-api.htm");
+  assert.match(streaming.details, /streaming enabled and a JSON schema output contract/);
+  assert.deepEqual(streaming.capabilities, [
+    "Streaming events",
+    "Structured JSON schema",
+    "Responses API event trace"
+  ]);
+});
+
+test("LangGraph and Locus executable demos load their SDKs", () => {
+  const langgraphBackend = readFileSync("backend/demos/langgraph_hosted_agent_mcp.py", "utf8");
+  const langgraphHosted = readFileSync("apps/hosted-langgraph-agent/app.py", "utf8");
+  const locusBackend = readFileSync("backend/demos/locus_sdk_agentic_workflows.py", "utf8");
+  const requirements = readFileSync("requirements.txt", "utf8");
+
+  assert.match(langgraphHosted, /from langgraph\.graph import END, StateGraph/);
+  assert.match(langgraphBackend, /from langgraph\.graph import END, StateGraph/);
+  assert.match(langgraphBackend, /StateGraph\(_LangGraphState\)/);
+  assert.match(requirements, /langgraph==0\.2\.76/);
+
+  assert.match(locusBackend, /from locus\.agent import Agent/);
+  assert.match(locusBackend, /from locus\.tools import tool/);
+  assert.match(locusBackend, /@tool/);
+  assert.match(requirements, /locus-sdk\[oci\]==0\.2\.0b26/);
+});
+
 test("portal exposes mermaid-style flow diagrams for feature cards", () => {
   const main = readFileSync("src/main.js", "utf8");
 
   assert.match(main, /const flowDiagrams = \{/);
+  assert.match(main, /"openai-compatible-chat"[\s\S]*OpenAI-compatible OCI endpoint/);
+  assert.match(main, /"responses-streaming-structured-output"[\s\S]*JSON schema/);
   assert.match(main, /"file-search-vector-store-rag"[\s\S]*Bundled Oracle PDFs/);
   assert.match(main, /"batch-inference"[\s\S]*Async processing/);
   assert.match(main, /"model-evaluation"[\s\S]*Promotion gate/);
@@ -217,11 +267,11 @@ test("portal opens administration as a separate page", () => {
   assert.match(main, /href="\/admin\.html"/);
   assert.match(main, /target="_blank"/);
   assert.doesNotMatch(main, /id="administration"/);
-  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.19"/);
-  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.19"/);
+  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.20"/);
+  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.20"/);
   assert.match(adminHtml, /id="administration"/);
-  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.19"/);
-  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.19"/);
+  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.20"/);
+  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.20"/);
   assert.match(admin, /loadAdministrationDashboard/);
   assert.match(main, /Administration/);
   assert.match(admin, /admin-metric-grid/);

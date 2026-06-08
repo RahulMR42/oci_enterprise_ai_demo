@@ -30,6 +30,16 @@ const serviceProfiles = {
 };
 
 const featureOverrides = {
+  "openai-compatible-chat": {
+    core: "OCI Chat Completions API",
+    data: "OpenAI-compatible messages, OCI project, API key",
+    response: "Assistant message from OCI model"
+  },
+  "responses-streaming-structured-output": {
+    core: "OCI Responses API streaming",
+    data: "Prompt, stream events, JSON schema contract",
+    response: "Aggregated structured JSON output"
+  },
   "conversation-store": {
     core: "OCI Responses API with OCI Conversations API",
     data: "Generated conversation ID and OCI-managed turn state",
@@ -81,8 +91,8 @@ const featureOverrides = {
     response: "Hosted agent health and action result"
   },
   "langgraph-hosted-agent-mcp": {
-    core: "LangGraph hosted runtime on OCI",
-    data: "OCIR image, MCP tool path, hosted metadata",
+    core: "LangGraph StateGraph runtime on OCI",
+    data: "OCIR image, MCP tool path, hosted metadata, local graph plan",
     response: "Governed agent response after MCP tool call"
   },
   "a2a-agent-collaboration": {
@@ -101,8 +111,8 @@ const featureOverrides = {
     response: "Grounded answer plan and final answer policy"
   },
   "locus-sdk-agentic-workflows": {
-    core: "Locus SDK agent workflow on OCI Responses",
-    data: "Tool registry, MCP integration, memory, checkpoints, streaming events",
+    core: "Oracle Locus SDK Agent and tools",
+    data: "Tool registry, SDK contract, memory, checkpoints, streaming events",
     response: "Production agent workflow plan"
   },
   "human-approval-agent": {

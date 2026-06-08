@@ -1,7 +1,20 @@
 {
   "name": "OCI Enterprise AI Portal Change Log",
-  "generatedAt": "2026-06-08T07:35:00Z",
+  "generatedAt": "2026-06-08T09:45:12Z",
   "entries": [
+    {
+      "version": "0.0.20",
+      "releasedAt": "2026-06-08T09:45:12Z",
+      "localTime": "2026-06-08T15:15:12+0530",
+      "summary": "Add SDK-backed LangGraph/Locus runners and two OCI Generative AI API cards.",
+      "changes": [
+        "LangGraph Hosted Agent + MCP now compiles a portal-side LangGraph StateGraph before live OCI synthesis, matching the hosted runtime SDK.",
+        "Locus SDK Agentic Workflows now imports Oracle Locus SDK Agent/tool symbols and builds a real SDK tool contract before OCI synthesis.",
+        "Added OpenAI-Compatible Chat Completions and Responses Streaming + Structured Output demo cards backed by the existing infra/responses-api stack.",
+        "Run-window documentation, wiring diagrams, code references, and script dispatch were updated for the new cards.",
+        "Portal and administration assets now use version 0.0.20 to bypass stale 0.0.19 browser assets."
+      ]
+    },
     {
       "version": "0.0.19",
       "releasedAt": "2026-06-08T07:35:00Z",
