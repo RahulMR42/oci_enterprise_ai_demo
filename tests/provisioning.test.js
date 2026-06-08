@@ -508,8 +508,11 @@ test("server runtime readers use Resource Manager hosted invoke URLs", () => {
   assert.match(server, /function readLangfuseLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl\(\s*process\.env\.OCI_HOSTED_LANGFUSE_URL,\s*portalRuntimeHostedValue\("LANGFUSE_URL"\),\s*observability\.url/);
   assert.match(server, /function readOpenClawLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl\(\s*process\.env\.OCI_HOSTED_OPENCLAW_URL,\s*portalRuntimeHostedValue\("OPENCLAW_URL"\),\s*gateway\.url/);
   assert.match(server, /function readLlamaIndexControlTowerLaunchUrl\(\)[\s\S]*process\.env\.OCI_HOSTED_LLAMAINDEX_URL \|\|\s*portalRuntimeHostedValue\("LLAMAINDEX_URL"\) \|\|/);
-  assert.match(server, /finalConversationId = process\.env\.OCI_GENAI_CONVERSATION_ID \|\| portalRuntimeValue\("conversationId"\) \|\| conversation\.id/);
-  assert.match(server, /finalVectorStoreId = process\.env\.OCI_GENAI_VECTOR_STORE_ID \|\| portalRuntimeValue\("vectorStoreId"\) \|\| vectorStore\.id/);
+  assert.match(server, /finalConversationId = process\.env\.OCI_GENAI_CONVERSATION_ID \|\| portalRuntimeConfig\.conversationId \|\| conversation\.id/);
+  assert.match(server, /finalVectorStoreId = process\.env\.OCI_GENAI_VECTOR_STORE_ID \|\| portalRuntimeConfig\.vectorStoreId \|\| finalVectorStore\.id/);
+  assert.match(server, /runtimeVectorStore = portalRuntimeConfig\.fileSearchVectorStore/);
+  assert.match(server, /runtimeVectorStoreFiles = portalRuntimeConfig\.fileSearchSeedDocuments/);
+  assert.match(server, /finalCodeInterpreterContainerStatus/);
   assert.match(server, /finalHostedAgentApplicationId = hostedAgentApplicationIdEnv \|\| hostedAgent\.hostedApplicationId/);
   assert.match(server, /finalOpenclawHostedUrl = hostedRuntimeUrl\(openclawHostedUrlEnv, openclawHostedUrl\)/);
 });

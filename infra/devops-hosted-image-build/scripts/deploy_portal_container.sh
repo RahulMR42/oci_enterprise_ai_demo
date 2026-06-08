@@ -136,6 +136,42 @@ for path, data in [(shape_file, shape), (vnics_file, vnics), (containers_file, c
 PY
 }
 
+hydrate_generated_runtime_from_config() {
+  [ -n "${PORTAL_RUNTIME_CONFIG_NAMESPACE:-}" ] || return 0
+  [ -n "${PORTAL_RUNTIME_CONFIG_BUCKET:-}" ] || return 0
+  [ -n "${PORTAL_RUNTIME_CONFIG_OBJECT:-}" ] || return 0
+
+  local runtime_config_file="/tmp/portal-runtime-config-${rollout_id}.json"
+  if ! oci os object get \
+    --namespace-name "$PORTAL_RUNTIME_CONFIG_NAMESPACE" \
+    --bucket-name "$PORTAL_RUNTIME_CONFIG_BUCKET" \
+    --name "$PORTAL_RUNTIME_CONFIG_OBJECT" \
+    --file "$runtime_config_file" \
+    --auth resource_principal \
+    --region "$OCI_REGION" >/dev/null 2>&1; then
+    echo "Portal runtime config object is not readable before rollout; continuing with build-run arguments."
+    return 0
+  fi
+
+  eval "$(python3 - "$runtime_config_file" <<'PY'
+import json
+import shlex
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+mapping = {
+    "PORTAL_VECTOR_STORE_ID": "vectorStoreId",
+    "PORTAL_CONVERSATION_ID": "conversationId",
+    "PORTAL_CODE_INTERPRETER_CONTAINER_ID": "codeInterpreterContainerId",
+}
+for env_name, key in mapping.items():
+    value = str(payload.get(key) or "").strip()
+    if value:
+        print(f"export {env_name}={shlex.quote(value)}")
+PY
+  )"
+}
+
 parse_container_id() {
   python3 - "$1" <<'PY'
 import json
@@ -495,6 +531,7 @@ create_file="/tmp/portal-create-${rollout_id}.json"
 get_file="/tmp/portal-get-${rollout_id}.json"
 
 mapfile -t old_backend_names < <(list_current_backends || true)
+hydrate_generated_runtime_from_config
 write_container_inputs "$shape_file" "$vnics_file" "$containers_file"
 
 create_active_container_instance

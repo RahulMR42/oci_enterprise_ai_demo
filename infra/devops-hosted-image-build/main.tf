@@ -447,6 +447,45 @@ resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
   depends_on = [oci_devops_build_pipeline_stage.deliver_image]
 }
 
+resource "oci_devops_build_pipeline_stage" "provision_generated_runtime" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "provision-generated-runtime"
+  description                        = "Creates or reuses OCI Generative AI runtime objects and updates portal runtime config before rollout."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_provision_generated_runtime.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 3600
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 1
+    memory_in_gbs     = 8
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [oci_devops_build_pipeline_stage.deliver_image]
+}
+
 resource "oci_devops_build_pipeline_stage" "deploy_portal" {
   count = var.enabled ? 1 : 0
 
@@ -463,6 +502,9 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
   build_pipeline_stage_predecessor_collection {
     items {
       id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
+    }
+    items {
+      id = oci_devops_build_pipeline_stage.provision_generated_runtime[0].id
     }
     dynamic "items" {
       for_each = oci_devops_build_pipeline_stage.deploy_hosted
@@ -490,7 +532,10 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
     }
   }
 
-  depends_on = [oci_devops_build_pipeline_stage.deliver_image]
+  depends_on = [
+    oci_devops_build_pipeline_stage.deliver_image,
+    oci_devops_build_pipeline_stage.provision_generated_runtime
+  ]
 }
 
 resource "oci_devops_build_run" "this" {
@@ -754,6 +799,7 @@ resource "oci_devops_build_run" "this" {
     oci_devops_build_pipeline_stage.build_image,
     oci_devops_build_pipeline_stage.deliver_image,
     oci_devops_build_pipeline_stage.deploy_hosted,
+    oci_devops_build_pipeline_stage.provision_generated_runtime,
     oci_devops_build_pipeline_stage.deploy_portal,
     oci_logging_log.devops,
     terraform_data.seed_devops_repository

@@ -1,7 +1,19 @@
 {
   "name": "OCI Enterprise AI Portal Change Log",
-  "generatedAt": "2026-06-08T12:50:50Z",
+  "generatedAt": "2026-06-08T13:14:35Z",
   "entries": [
+    {
+      "version": "0.0.24",
+      "releasedAt": "2026-06-08T13:14:35Z",
+      "localTime": "2026-06-08T18:44:35+0530",
+      "summary": "Move generated runtime provisioning into the OCI DevOps build pipeline.",
+      "changes": [
+        "Added a provision-generated-runtime DevOps build stage that creates or reuses the Conversation Store conversation, File Search Vector Store, bundled PDF seed documents, and Code Interpreter container with resource principal auth before portal rollout.",
+        "Resource Manager local-exec switches for Conversation Store, File Search, and Code Interpreter now default to false because the DevOps stage owns those generated runtime API calls.",
+        "The portal infrastructure view now reads DevOps-generated File Search seed metadata and Code Interpreter container status from runtime config.",
+        "Portal and administration assets now use version 0.0.24."
+      ]
+    },
     {
       "version": "0.0.23",
       "releasedAt": "2026-06-08T12:50:50Z",

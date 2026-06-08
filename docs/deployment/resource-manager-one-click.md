@@ -40,9 +40,9 @@ Keep these defaults for Resource Manager:
 | --- | --- |
 | `hosted_applications_local_exec_enabled` | `false` |
 | `responses_api_local_exec_enabled` | `false` |
-| `conversation_store_local_exec_enabled` | `true` |
-| `file_search_local_exec_enabled` | `true` |
-| `code_interpreter_local_exec_enabled` | `true` |
+| `conversation_store_local_exec_enabled` | `false` |
+| `file_search_local_exec_enabled` | `false` |
+| `code_interpreter_local_exec_enabled` | `false` |
 | `hosted_app_push_image` | `false` |
 | `devops_hosted_image_build_enabled` | `true` |
 | `devops_hosted_image_run_build` | `true` |
@@ -82,11 +82,7 @@ Keeping the branch and revision current makes Resource Manager seed the exact so
 
 Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. Langfuse is disabled by default; set `OCI_HA_LANGFUSE_DEPLOY=true` only when that hosted demo should be built and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal container is rolled after each DevOps build run; the rollout keeps the old backend available until the new backend passes load balancer health and public smoke tests.
 
-Keep `conversation_store_local_exec_enabled=true` on first-time deployments when the Conversation Store demo should use OCI-managed conversation state. This creates an OCI Conversations API object and injects the generated conversation ID into the portal runtime config.
-
-Keep `file_search_local_exec_enabled=true` on first-time deployments when the File Search demo should work. This creates the OCI Vector Store, uploads the bundled seed documents, and injects the generated Vector Store ID into the portal runtime config.
-
-Keep `code_interpreter_local_exec_enabled=true` on first-time deployments when the Code Interpreter demo should work. This creates the managed Code Interpreter container and injects the generated container ID into the portal runtime config.
+Keep `conversation_store_local_exec_enabled=false`, `file_search_local_exec_enabled=false`, and `code_interpreter_local_exec_enabled=false` for Resource Manager deployments. The OCI DevOps build pipeline includes a `provision-generated-runtime` stage that uses resource principal auth to create or reuse the Conversation Store conversation, File Search Vector Store and bundled PDFs, and Code Interpreter container before the portal rollout stage starts.
 
 ## Validate
 

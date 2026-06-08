@@ -292,19 +292,19 @@ variables:
     default: false
   conversation_store_local_exec_enabled:
     title: Enable Conversation Store Local-Exec
-    description: Enable this on first-time deployments to create an OCI Conversations API object and inject OCI_GENAI_CONVERSATION_ID into the portal runtime config.
+    description: Legacy/local fallback only. Leave disabled for Resource Manager; OCI DevOps creates or reuses the OCI Conversations API object with resource principal auth.
     type: boolean
-    default: true
+    default: false
   file_search_local_exec_enabled:
     title: Enable File Search Local-Exec
-    description: Enable this on first-time deployments to create the Vector Store and inject OCI_GENAI_VECTOR_STORE_ID into the portal runtime config.
+    description: Legacy/local fallback only. Leave disabled for Resource Manager; OCI DevOps creates or reuses the Vector Store and seeds bundled PDFs with resource principal auth.
     type: boolean
-    default: true
+    default: false
   code_interpreter_local_exec_enabled:
     title: Enable Code Interpreter Local-Exec
-    description: Enable this on first-time deployments to create the Code Interpreter container and inject OCI_GENAI_CODE_INTERPRETER_CONTAINER into the portal runtime config.
+    description: Legacy/local fallback only. Leave disabled for Resource Manager; OCI DevOps creates or reuses the Code Interpreter container with resource principal auth.
     type: boolean
-    default: true
+    default: false
   hosted_app_push_image:
     title: Build Images From Terraform Local-Exec
     type: boolean

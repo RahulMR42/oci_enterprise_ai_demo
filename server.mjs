@@ -2497,6 +2497,7 @@ export function devopsHostedDeploymentComponents({ buildRunId = "", buildPipelin
 }
 
 function demoRuntimeComponents() {
+  const portalRuntimeConfig = readPortalRuntimeConfig();
   const conversation = readJsonFile(join(demoGeneratedDirs["conversation-store"], "conversation.json"));
   const vectorStore = readJsonFile(join(demoGeneratedDirs["file-search-vector-store-rag"], "vector_store.json"));
   const vectorStoreFiles = readJsonFile(join(demoGeneratedDirs["file-search-vector-store-rag"], "vector_store_files.json"));
@@ -2565,10 +2566,17 @@ function demoRuntimeComponents() {
   const finalLlamaIndexDeploymentId = llamaIndexDeploymentIdEnv || llamaIndexControlTower.hostedDeploymentId;
   const finalLangfuseApplicationId = langfuseApplicationIdEnv || langfuseObservability.hostedApplicationId;
   const finalOpenclawApplicationId = openclawApplicationIdEnv || openclawGateway.hostedApplicationId;
-  const finalConversationId = process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId") || conversation.id;
-  const finalVectorStoreId = process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId") || vectorStore.id;
+  const runtimeVectorStore = portalRuntimeConfig.fileSearchVectorStore || {};
+  const runtimeVectorStoreFiles = portalRuntimeConfig.fileSearchSeedDocuments || {};
+  const finalVectorStore = vectorStore.id ? vectorStore : runtimeVectorStore;
+  const finalVectorStoreFiles =
+    Array.isArray(vectorStoreFiles.documents) && vectorStoreFiles.documents.length > 0 ? vectorStoreFiles : runtimeVectorStoreFiles;
+  const finalConversationId = process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeConfig.conversationId || conversation.id;
+  const finalVectorStoreId = process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeConfig.vectorStoreId || finalVectorStore.id;
   const finalCodeInterpreterContainerId =
-    process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeValue("codeInterpreterContainerId") || codeContainer.id;
+    process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeConfig.codeInterpreterContainerId || codeContainer.id;
+  const finalCodeInterpreterContainerStatus =
+    codeContainer.status || portalRuntimeConfig.codeInterpreterContainerStatus || (finalCodeInterpreterContainerId ? "created" : "");
   const finalLangfuseHostedUrl = hostedRuntimeUrl(langfuseHostedUrlEnv, langfuseHostedUrl);
   const finalOpenclawHostedUrl = hostedRuntimeUrl(openclawHostedUrlEnv, openclawHostedUrl);
   const finalLlamaIndexHostedUrl =
@@ -2593,18 +2601,18 @@ function demoRuntimeComponents() {
       finalConversationId ? "created" : "not-created",
       finalConversationId || "Run provisioning to create OCI conversation"
     ),
-    ...fileSearchRuntimeComponents({ vectorStore, vectorStoreFiles, vectorStoreId: finalVectorStoreId }),
+    ...fileSearchRuntimeComponents({ vectorStore: finalVectorStore, vectorStoreFiles: finalVectorStoreFiles, vectorStoreId: finalVectorStoreId }),
     component(
       "generated.code_interpreter_container",
       "Code Interpreter Container",
-      finalCodeInterpreterContainerId ? statusFromLifecycle(codeContainer.status, "created") : "not-created",
+      finalCodeInterpreterContainerId ? statusFromLifecycle(finalCodeInterpreterContainerStatus, "created") : "not-created",
       finalCodeInterpreterContainerId || "Run provisioning to create code container"
     ),
     component(
       "generated.code_interpreter_container_status",
       "Code Interpreter Container Status",
-      finalCodeInterpreterContainerId ? statusFromLifecycle(codeContainer.status, "created") : "not-created",
-      codeContainer.status || "Run provisioning to create code container"
+      finalCodeInterpreterContainerId ? statusFromLifecycle(finalCodeInterpreterContainerStatus, "created") : "not-created",
+      finalCodeInterpreterContainerStatus || "Run provisioning to create code container"
     ),
     component(
       "generated.hosted_agent_ocir_repository",

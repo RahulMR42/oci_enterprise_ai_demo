@@ -388,8 +388,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml"),
     read("infra/devops-hosted-image-build/build_spec_deploy_openclaw.yaml"),
     read("infra/devops-hosted-image-build/build_spec_deploy_llamaindex.yaml"),
+    read("infra/devops-hosted-image-build/build_spec_provision_generated_runtime.yaml"),
     read("infra/devops-hosted-image-build/build_spec_deploy_portal.yaml"),
     read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh"),
+    read("infra/devops-hosted-image-build/scripts/provision_generated_runtime.py"),
     read("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh")
   ].join("\n");
   const readme = read("infra/resource-manager-demo/README.md");
@@ -411,8 +413,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /conversation_store_local_exec_enabled/);
   assert.match(terraform, /portal_conversation_id/);
   assert.match(terraform, /conversationId/);
-  assert.match(terraform, /file_search_local_exec_enabled"[\s\S]*default\s+=\s+true/);
-  assert.match(terraform, /code_interpreter_local_exec_enabled"[\s\S]*default\s+=\s+true/);
+  assert.match(terraform, /file_search_local_exec_enabled"[\s\S]*default\s+=\s+false/);
+  assert.match(terraform, /code_interpreter_local_exec_enabled"[\s\S]*default\s+=\s+false/);
   assert.match(terraform, /module "shared_demo_security"/);
   assert.match(terraform, /source\s+=\s+"\.\.\/shared-demo-security"/);
   assert.match(terraform, /module "file_search_vector_store_rag"/);
@@ -435,9 +437,9 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.doesNotMatch(terraform, /variable "devops_ocir_auth_token"/);
   assert.doesNotMatch(terraform, /variable "ocir_username"/);
   assert.doesNotMatch(terraform, /variable "ocir_auth_token"/);
-  assert.match(terraform, /file_search_local_exec_enabled:[\s\S]*Enable this on first-time deployments to create the Vector Store/);
-  assert.match(terraform, /conversation_store_local_exec_enabled:[\s\S]*Enable this on first-time deployments to create an OCI Conversations API object/);
-  assert.match(terraform, /code_interpreter_local_exec_enabled:[\s\S]*Enable this on first-time deployments to create the Code Interpreter container/);
+  assert.match(terraform, /file_search_local_exec_enabled:[\s\S]*OCI DevOps creates or reuses the Vector Store/);
+  assert.match(terraform, /conversation_store_local_exec_enabled:[\s\S]*OCI DevOps creates or reuses the OCI Conversations API object/);
+  assert.match(terraform, /code_interpreter_local_exec_enabled:[\s\S]*OCI DevOps creates or reuses the Code Interpreter container/);
   assert.match(terraform, /DEPLOY_ONLY_APP/);
   assert.match(terraform, /variable "devops_source_branch"[\s\S]*default\s+=\s+"oci-rms"/);
   assert.match(terraform, /schemaVersion: 1\.1\.0/);
@@ -506,6 +508,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_image_portal\.yaml"/);
   assert.match(terraform, /build_spec_deploy_portal\.yaml/);
+  assert.match(terraform, /build_spec_provision_generated_runtime\.yaml/);
+  assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "provision_generated_runtime"/);
+  assert.match(terraform, /display_name\s+=\s+"provision-generated-runtime"/);
+  assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.provision_generated_runtime\[0\]\.id/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_portal"/);
   assert.match(terraform, /display_name\s+=\s+"deploy-portal-container"/);
   assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.deliver_image\["portal"\]\.id/);
@@ -669,11 +675,10 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(deployDocs, /OCI code links/);
   assert.match(deployDocs, /`devops_source_revision=<commit SHA on oci-rms>`/);
   assert.match(deployDocs, /deploy-langfuse/);
-  assert.match(deployDocs, /`conversation_store_local_exec_enabled` \| `true`/);
-  assert.match(deployDocs, /`code_interpreter_local_exec_enabled` \| `true`/);
-  assert.match(deployDocs, /Keep `conversation_store_local_exec_enabled=true` on first-time deployments/);
-  assert.match(deployDocs, /Keep `file_search_local_exec_enabled=true` on first-time deployments/);
-  assert.match(deployDocs, /Keep `code_interpreter_local_exec_enabled=true` on first-time deployments/);
+  assert.match(deployDocs, /`conversation_store_local_exec_enabled` \| `false`/);
+  assert.match(deployDocs, /`file_search_local_exec_enabled` \| `false`/);
+  assert.match(deployDocs, /`code_interpreter_local_exec_enabled` \| `false`/);
+  assert.match(deployDocs, /Keep `conversation_store_local_exec_enabled=false`, `file_search_local_exec_enabled=false`, and `code_interpreter_local_exec_enabled=false`/);
   assert.match(releaseWorkflow, /infra\/resource-manager-demo\/schema\.yaml/);
 });
 
@@ -687,6 +692,31 @@ test("generated runtime local-exec modules can be forced to refresh in Resource 
   assert.match(terraform, /resource "terraform_data" "conversation_store"[\s\S]*resource-manager-generated-runtime-files-20260608/);
   assert.match(terraform, /resource "terraform_data" "file_search_vector_store"[\s\S]*resource-manager-generated-runtime-files-20260608/);
   assert.match(terraform, /resource "terraform_data" "code_interpreter_container"[\s\S]*resource-manager-generated-runtime-files-20260608/);
+});
+
+test("DevOps build pipeline provisions generated runtime resources before portal rollout", () => {
+  const main = read("infra/devops-hosted-image-build/main.tf");
+  const buildSpec = read("infra/devops-hosted-image-build/build_spec_provision_generated_runtime.yaml");
+  const script = read("infra/devops-hosted-image-build/scripts/provision_generated_runtime.py");
+
+  assert.match(main, /resource "oci_devops_build_pipeline_stage" "provision_generated_runtime"/);
+  assert.match(main, /display_name\s+=\s+"provision-generated-runtime"/);
+  assert.match(main, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_provision_generated_runtime\.yaml"/);
+  assert.match(main, /build_pipeline_stage_predecessor_collection[\s\S]*oci_devops_build_pipeline_stage\.deliver_image\["portal"\]\.id/);
+  assert.match(main, /resource "oci_devops_build_pipeline_stage" "deploy_portal"[\s\S]*oci_devops_build_pipeline_stage\.provision_generated_runtime\[0\]\.id/);
+  assert.match(main, /depends_on = \[[\s\S]*oci_devops_build_pipeline_stage\.provision_generated_runtime/);
+  assert.match(buildSpec, /provision_generated_runtime\.py/);
+  assert.match(script, /OciResourcePrincipalAuth/);
+  assert.match(script, /service_endpoint=f"https:\/\/generativeai\.\{region\}\.oci\.oraclecloud\.com\/20231130"/);
+  assert.match(script, /existing_vector_store/);
+  assert.match(script, /client\.vector_stores\.create/);
+  assert.match(script, /client\.containers\.create/);
+  assert.match(script, /client\.conversations\.create/);
+  assert.match(script, /vector_stores\.files\.create/);
+  assert.match(script, /"os",[\s\S]*"object",[\s\S]*"put"/);
+  assert.match(script, /PORTAL_VECTOR_STORE_ID=/);
+  assert.match(script, /PORTAL_CONVERSATION_ID=/);
+  assert.match(script, /PORTAL_CODE_INTERPRETER_CONTAINER_ID=/);
 });
 
 test("DevOps rolls portal container through load balancer with smoke tests", () => {

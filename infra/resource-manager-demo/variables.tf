@@ -58,21 +58,21 @@ variable "responses_api_local_exec_enabled" {
 }
 
 variable "file_search_local_exec_enabled" {
-  description = "Enable File Search local-exec vector store provisioning so the portal receives OCI_GENAI_VECTOR_STORE_ID."
+  description = "Legacy/local fallback for File Search local-exec vector store provisioning. Keep false in Resource Manager; OCI DevOps provisions generated runtime resources with resource principal auth."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "conversation_store_local_exec_enabled" {
-  description = "Enable Conversation Store local-exec provisioning so the portal receives OCI_GENAI_CONVERSATION_ID."
+  description = "Legacy/local fallback for Conversation Store local-exec provisioning. Keep false in Resource Manager; OCI DevOps provisions generated runtime resources with resource principal auth."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "code_interpreter_local_exec_enabled" {
-  description = "Enable Code Interpreter local-exec container provisioning so the portal receives OCI_GENAI_CODE_INTERPRETER_CONTAINER."
+  description = "Legacy/local fallback for Code Interpreter local-exec container provisioning. Keep false in Resource Manager; OCI DevOps provisions generated runtime resources with resource principal auth."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "project_display_name" {
