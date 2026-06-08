@@ -1,7 +1,21 @@
 {
   "name": "OCI Enterprise AI Portal Change Log",
-  "generatedAt": "2026-06-08T14:08:00Z",
+  "generatedAt": "2026-06-08T17:27:14Z",
   "entries": [
+    {
+      "version": "0.0.26",
+      "releasedAt": "2026-06-08T17:27:14Z",
+      "localTime": "2026-06-08T22:57:14+0530",
+      "summary": "Add protected users and user-aware audit logs backed by the NL2SQL Autonomous Database.",
+      "changes": [
+        "The default oci bootstrap credentials remain available for admin login and deployment smoke tests.",
+        "Protected users can sign up and sign in with email/password credentials stored as salted hashes in the existing NL2SQL Autonomous Database.",
+        "Demo runs and hosted UI launches now record user identity, event type, status, and duration for administration filtering.",
+        "Resource Manager and DevOps pass NL2SQL Autonomous Database connection metadata into the portal container without creating a second database.",
+        "OCI DevOps now runs bootstrap-portal-auth-schema before portal rollout so the protected-user and audit tables are created before the portal receives traffic.",
+        "Portal and administration assets now use version 0.0.26."
+      ]
+    },
     {
       "version": "0.0.25",
       "releasedAt": "2026-06-08T14:08:00Z",
