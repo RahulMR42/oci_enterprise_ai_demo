@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 
 from backend import portal_auth_store as store
@@ -105,13 +106,17 @@ class PortalAuthStoreCommandTests(unittest.TestCase):
         secret_password = "plain-secret-password"
         secret_token = "secret-token-value-abcdef"
 
-        result = self.run_raw_command({
-            "action": secret_action,
-            "payload": {
-                "password": secret_password,
-                "authorization": f"Bearer {secret_token}",
-            },
-        })
+        with tempfile.NamedTemporaryFile() as handle:
+            result = self.run_raw_command(
+                {
+                    "action": secret_action,
+                    "payload": {
+                        "password": secret_password,
+                        "authorization": f"Bearer {secret_token}",
+                    },
+                },
+                env={"OCI_PORTAL_AUTH_STORE_TEST_FILE": handle.name},
+            )
         combined_output = result.stdout + result.stderr
         response = json.loads(result.stdout)
 
@@ -120,6 +125,81 @@ class PortalAuthStoreCommandTests(unittest.TestCase):
         self.assertNotIn(secret_action, combined_output)
         self.assertNotIn(secret_password, combined_output)
         self.assertNotIn(secret_token, combined_output)
+
+
+class PortalAuthStoreLocalModeTests(unittest.TestCase):
+    def run_local_command(self, path, action, payload):
+        env = os.environ.copy()
+        env["OCI_PORTAL_AUTH_STORE_TEST_FILE"] = path
+        result = subprocess.run(
+            [sys.executable, "backend/portal_auth_store.py"],
+            input=json.dumps({"action": action, "payload": payload}),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_signup_login_session_and_audit_workflow(self):
+        with tempfile.NamedTemporaryFile() as handle:
+            signup = self.run_local_command(handle.name, "signup", {
+                "email": "User@Example.com",
+                "password": "correct horse battery staple",
+            })
+            self.assertEqual(signup["status"], "success")
+            self.assertEqual(signup["user"]["email"], "user@example.com")
+            self.assertNotIn("password", json.dumps(signup).lower())
+
+            duplicate = self.run_local_command(handle.name, "signup", {
+                "email": "user@example.com",
+                "password": "correct horse battery staple",
+            })
+            self.assertEqual(duplicate["status"], "failed")
+
+            login = self.run_local_command(handle.name, "login", {
+                "email": "USER@example.com",
+                "password": "correct horse battery staple",
+            })
+            self.assertEqual(login["status"], "success")
+            self.assertEqual(login["identity"]["authType"], "protected_user")
+            self.assertEqual(login["identity"]["role"], "user")
+
+            failed = self.run_local_command(handle.name, "login", {
+                "email": "USER@example.com",
+                "password": "wrong password value",
+            })
+            self.assertEqual(failed["status"], "failed")
+
+            session = self.run_local_command(handle.name, "open_session", {
+                "sessionToken": "browser-token",
+                "identity": login["identity"],
+                "ip": "203.0.113.10",
+                "userAgent": "unit-test",
+            })
+            self.assertEqual(session["status"], "success")
+            self.assertTrue(session["sessionId"].startswith("sess_"))
+
+            event = self.run_local_command(handle.name, "record_event", {
+                "sessionId": session["sessionId"],
+                "identity": login["identity"],
+                "eventType": "demo_run",
+                "featureId": "responses-api",
+                "action": "run",
+                "status": "success",
+                "durationMs": 42,
+                "details": {"apiKey": "secret", "output": "ok"},
+            })
+            self.assertEqual(event["status"], "success")
+
+            activity = self.run_local_command(handle.name, "query_activity", {
+                "filters": {"userEmail": "user@example.com", "eventType": "demo_run"},
+            })
+            self.assertEqual(activity["status"], "success")
+            self.assertEqual(activity["metrics"]["totalEvents"], 1)
+            self.assertEqual(activity["events"][0]["featureId"], "responses-api")
+            self.assertNotIn("secret", json.dumps(activity))
 
 
 if __name__ == "__main__":
