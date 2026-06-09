@@ -499,11 +499,19 @@ class AdbStore:
         return raw_dsn.split("/", 1)[1].split("?", 1)[0].strip() or None
 
     @staticmethod
-    def _password_from_secret(secret_id):
+    def _oci_config(env=os.environ):
+        for key in ("OCI_REGION", "OCI_CLI_REGION", "OCI_RESOURCE_PRINCIPAL_REGION"):
+            region = str(env.get(key) or "").strip()
+            if region:
+                return {"region": region}
+        return {}
+
+    @classmethod
+    def _password_from_secret(cls, secret_id):
         import oci
 
         signer = oci.auth.signers.get_resource_principals_signer()
-        client = oci.secrets.SecretsClient(config={}, signer=signer)
+        client = oci.secrets.SecretsClient(config=cls._oci_config(), signer=signer)
         bundle = client.get_secret_bundle(secret_id).data
         encoded = bundle.secret_bundle_content.content
         return base64.b64decode(encoded).decode("utf-8")
@@ -552,13 +560,13 @@ class AdbStore:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(f"{wallet_password}\n")
 
-    @staticmethod
-    def _download_wallet(database_id, wallet_password):
+    @classmethod
+    def _download_wallet(cls, database_id, wallet_password):
         import oci
         from oci.database.models import GenerateAutonomousDatabaseWalletDetails
 
         signer = oci.auth.signers.get_resource_principals_signer()
-        client = oci.database.DatabaseClient(config={}, signer=signer)
+        client = oci.database.DatabaseClient(config=cls._oci_config(), signer=signer)
         details = GenerateAutonomousDatabaseWalletDetails(
             generate_type=GenerateAutonomousDatabaseWalletDetails.GENERATE_TYPE_SINGLE,
             password=wallet_password,

@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 import zipfile
 
@@ -207,6 +208,74 @@ class PortalAuthStoreCommandTests(unittest.TestCase):
                 sys.modules.pop("oracledb", None)
             else:
                 sys.modules["oracledb"] = original_oracledb
+
+    def test_resource_principal_clients_use_oci_region_config(self):
+        calls = []
+        original_modules = {
+            name: sys.modules.get(name)
+            for name in ("oci", "oci.database", "oci.database.models")
+        }
+        original_region = os.environ.get("OCI_REGION")
+
+        class FakeSigners:
+            @staticmethod
+            def get_resource_principals_signer():
+                return "fake-signer"
+
+        class FakeSecretsClient:
+            def __init__(self, config, signer):
+                calls.append(("secrets", config, signer))
+
+            def get_secret_bundle(self, secret_id):
+                encoded = store.base64.b64encode(b"db-password").decode("ascii")
+                content = types.SimpleNamespace(content=encoded)
+                data = types.SimpleNamespace(secret_bundle_content=content)
+                return types.SimpleNamespace(data=data)
+
+        class FakeDatabaseClient:
+            def __init__(self, config, signer):
+                calls.append(("database", config, signer))
+
+            def generate_autonomous_database_wallet(self, database_id, details):
+                return types.SimpleNamespace(data=b"wallet-bytes")
+
+        class FakeWalletDetails:
+            GENERATE_TYPE_SINGLE = "SINGLE"
+
+            def __init__(self, generate_type, password):
+                self.generate_type = generate_type
+                self.password = password
+
+        fake_oci = types.ModuleType("oci")
+        fake_database = types.ModuleType("oci.database")
+        fake_models = types.ModuleType("oci.database.models")
+        fake_oci.auth = types.SimpleNamespace(signers=FakeSigners)
+        fake_oci.secrets = types.SimpleNamespace(SecretsClient=FakeSecretsClient)
+        fake_oci.database = fake_database
+        fake_database.DatabaseClient = FakeDatabaseClient
+        fake_models.GenerateAutonomousDatabaseWalletDetails = FakeWalletDetails
+
+        try:
+            os.environ["OCI_REGION"] = "us-chicago-1"
+            sys.modules["oci"] = fake_oci
+            sys.modules["oci.database"] = fake_database
+            sys.modules["oci.database.models"] = fake_models
+
+            self.assertEqual(store.AdbStore._password_from_secret("secret-id"), "db-password")
+            self.assertEqual(store.AdbStore._download_wallet("database-id", "wallet-password"), b"wallet-bytes")
+
+            self.assertEqual(calls[0], ("secrets", {"region": "us-chicago-1"}, "fake-signer"))
+            self.assertEqual(calls[1], ("database", {"region": "us-chicago-1"}, "fake-signer"))
+        finally:
+            if original_region is None:
+                os.environ.pop("OCI_REGION", None)
+            else:
+                os.environ["OCI_REGION"] = original_region
+            for name, original in original_modules.items():
+                if original is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = original
 
 
 class PortalAuthStoreLocalModeTests(unittest.TestCase):
