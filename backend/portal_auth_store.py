@@ -33,6 +33,7 @@ UNSUPPORTED_ACTION_ERROR = "Unsupported auth store action."
 GENERIC_CLI_ERROR = "Auth store command failed."
 PUBLIC_CLI_ERRORS = {UNSUPPORTED_ACTION_ERROR}
 SESSION_HASH_KEY_ENV = "OCI_PORTAL_SESSION_HASH_KEY"
+DEBUG_ERROR_ENV = "OCI_PORTAL_AUTH_DEBUG"
 DEFAULT_SESSION_HASH_KEY = "enterprise-ai-demo-portal-auth-store-session-hash-key"
 DEFAULT_WALLET_CACHE_ROOT = "/tmp/enterprise-ai-portal-auth-wallets"
 WALLET_PASSWORD_FILE = ".wallet-password"
@@ -161,6 +162,22 @@ def redact_details(value):
         redacted = re.sub(r"(bearer\s+)[A-Za-z0-9._~+/=-]{12,}", r"\1<redacted>", value, flags=re.IGNORECASE)
         return IPV4_VALUE_PATTERN.sub("<redacted-ip>", redacted)
     return value
+
+
+def redact_error_text(value):
+    text = str(redact_details(str(value or "")))
+    text = re.sub(
+        r"(?i)\b(password|passwd|passphrase|token|authorization|api[_-]?key|client[_-]?secret|credential|cookie|session)\b(\s*[:=]\s*)\S+",
+        r"\1\2<redacted>",
+        text,
+    )
+    return text[:500]
+
+
+def safe_cli_error(exc):
+    message = redact_error_text(exc)
+    error_type = exc.__class__.__name__
+    return f"{GENERIC_CLI_ERROR}: {error_type}: {message}" if message else f"{GENERIC_CLI_ERROR}: {error_type}"
 
 
 def build_activity_filters(filters):
@@ -929,7 +946,7 @@ def main():
     except Exception as exc:
         error = str(exc)
         if error not in PUBLIC_CLI_ERRORS:
-            error = GENERIC_CLI_ERROR
+            error = safe_cli_error(exc) if os.environ.get(DEBUG_ERROR_ENV) == "public" else GENERIC_CLI_ERROR
         print(json.dumps({"ok": False, "status": "failed", "error": error}, separators=(",", ":")))
         return 0
     return 0

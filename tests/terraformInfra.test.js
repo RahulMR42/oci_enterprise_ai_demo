@@ -159,6 +159,7 @@ test("portal protected users reuse the nl2sql autonomous database", () => {
   assert.match(bootstrapBuildSpec, /export OCI_PORTAL_AUTH_DB_USER="\$\{PORTAL_AUTH_DB_USER:-ADMIN\}"/);
   assert.match(bootstrapBuildSpec, /export OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID="\$PORTAL_AUTH_DB_PASSWORD_SECRET_ID"/);
   assert.match(bootstrapBuildSpec, /export OCI_RESOURCE_PRINCIPAL_VERSION="\$\{OCI_RESOURCE_PRINCIPAL_VERSION:-2\.2\}"/);
+  assert.match(bootstrapBuildSpec, /export OCI_PORTAL_AUTH_DEBUG="\$\{OCI_PORTAL_AUTH_DEBUG:-public\}"/);
   assert.match(bootstrapBuildSpec, /export PIP_CONFIG_FILE=\/dev\/null/);
   assert.match(bootstrapBuildSpec, /python -m pip --isolated install/);
   assert.match(bootstrapBuildSpec, /json\.loads\(os\.environ\["PORTAL_AUTH_SCHEMA_RESPONSE"\]\)/);

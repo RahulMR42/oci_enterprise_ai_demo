@@ -39,6 +39,15 @@ class PortalAuthStoreCoreTests(unittest.TestCase):
         self.assertNotIn("plain", serialized)
         self.assertNotIn("secret-token", serialized)
 
+    def test_safe_cli_error_redacts_sensitive_text(self):
+        error = store.safe_cli_error(RuntimeError(
+            "password=plain-secret-password authorization=Bearer secret-token-value-abcdef from 203.0.113.10"
+        ))
+        self.assertIn("Auth store command failed.: RuntimeError:", error)
+        self.assertNotIn("plain-secret-password", error)
+        self.assertNotIn("secret-token-value-abcdef", error)
+        self.assertNotIn("203.0.113.10", error)
+
     def test_build_activity_filters_accepts_user_duration_feature_event_status(self):
         where, binds = store.build_activity_filters({
             "userEmail": "USER@EXAMPLE.COM",

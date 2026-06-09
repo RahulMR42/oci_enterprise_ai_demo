@@ -28,6 +28,7 @@ steps:
       export OCI_PORTAL_AUTH_DB_USER="${PORTAL_AUTH_DB_USER:-ADMIN}"
       export OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID="$PORTAL_AUTH_DB_PASSWORD_SECRET_ID"
       export OCI_RESOURCE_PRINCIPAL_VERSION="${OCI_RESOURCE_PRINCIPAL_VERSION:-2.2}"
+      export OCI_PORTAL_AUTH_DEBUG="${OCI_PORTAL_AUTH_DEBUG:-public}"
       export PIP_CONFIG_FILE=/dev/null
       python3 -m venv /tmp/portal-auth-schema-venv
       /tmp/portal-auth-schema-venv/bin/python -m pip --isolated install --no-cache-dir --upgrade pip
