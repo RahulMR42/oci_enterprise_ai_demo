@@ -94,6 +94,7 @@ env = {
     "OCI_PORTAL_PASSWORD": os.environ["PORTAL_AUTH_PASSWORD"],
     "OCI_PORTAL_AUTH_STORE_MODE": "adb" if os.environ.get("PORTAL_AUTH_DB_DSN") else "",
     "OCI_PORTAL_AUTH_DB_DSN": os.environ.get("PORTAL_AUTH_DB_DSN", ""),
+    "OCI_PORTAL_AUTH_DB_ID": os.environ.get("PORTAL_AUTH_DB_ID", ""),
     "OCI_PORTAL_AUTH_DB_USER": os.environ.get("PORTAL_AUTH_DB_USER", "ADMIN"),
     "OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID": os.environ.get("PORTAL_AUTH_DB_PASSWORD_SECRET_ID", ""),
     "OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE": os.environ.get("PORTAL_RUNTIME_CONFIG_NAMESPACE", ""),

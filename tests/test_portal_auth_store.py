@@ -1,9 +1,11 @@
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 
 from backend import portal_auth_store as store
 
@@ -60,6 +62,10 @@ class PortalAuthStoreCommandTests(unittest.TestCase):
         "OCI_PORTAL_AUTH_DB_USER",
         "OCI_PORTAL_AUTH_DB_PASSWORD",
         "OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID",
+        "OCI_PORTAL_AUTH_DB_ID",
+        "OCI_PORTAL_AUTH_DB_WALLET_DIR",
+        "OCI_PORTAL_AUTH_DB_WALLET_PASSWORD",
+        "OCI_PORTAL_AUTH_DB_WALLET_CACHE_DIR",
     )
 
     def run_raw_command(self, payload, env=None):
@@ -125,6 +131,37 @@ class PortalAuthStoreCommandTests(unittest.TestCase):
         self.assertNotIn(secret_action, combined_output)
         self.assertNotIn(secret_password, combined_output)
         self.assertNotIn(secret_token, combined_output)
+
+    def test_wallet_from_env_generates_and_reuses_cache(self):
+        calls = []
+        original_download_wallet = store.AdbStore._download_wallet
+
+        def fake_download_wallet(database_id, wallet_password):
+            calls.append((database_id, wallet_password))
+            handle = io.BytesIO()
+            with zipfile.ZipFile(handle, "w") as archive:
+                archive.writestr("tnsnames.ora", "alias = descriptor")
+                archive.writestr("sqlnet.ora", "wallet_location = .")
+            return handle.getvalue()
+
+        try:
+            store.AdbStore._download_wallet = staticmethod(fake_download_wallet)
+            with tempfile.TemporaryDirectory() as cache_dir:
+                env = {
+                    "OCI_PORTAL_AUTH_DB_ID": "ocid1.autonomousdatabase.oc1.example",
+                    "OCI_PORTAL_AUTH_DB_WALLET_CACHE_DIR": cache_dir,
+                }
+                wallet_dir, wallet_password = store.AdbStore._wallet_from_env(env)
+                reused_dir, reused_password = store.AdbStore._wallet_from_env(env)
+
+                self.assertEqual(wallet_dir, cache_dir)
+                self.assertEqual(reused_dir, cache_dir)
+                self.assertEqual(wallet_password, reused_password)
+                self.assertTrue(os.path.exists(os.path.join(cache_dir, "tnsnames.ora")))
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(calls[0][0], env["OCI_PORTAL_AUTH_DB_ID"])
+        finally:
+            store.AdbStore._download_wallet = original_download_wallet
 
 
 class PortalAuthStoreLocalModeTests(unittest.TestCase):

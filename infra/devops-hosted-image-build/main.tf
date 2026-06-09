@@ -265,6 +265,11 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "NL2SQL Autonomous Database connection string used by portal protected-user auth."
     }
     items {
+      name          = "PORTAL_AUTH_DB_ID"
+      default_value = var.portal_auth_db_id
+      description   = "NL2SQL Autonomous Database OCID used to generate the portal protected-user auth wallet."
+    }
+    items {
       name          = "PORTAL_AUTH_DB_USER"
       default_value = var.portal_auth_db_user
       description   = "NL2SQL Autonomous Database user for portal protected-user auth."
@@ -718,6 +723,10 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "PORTAL_AUTH_DB_DSN"
       value = var.portal_auth_db_dsn
+    }
+    items {
+      name  = "PORTAL_AUTH_DB_ID"
+      value = var.portal_auth_db_id
     }
     items {
       name  = "PORTAL_AUTH_DB_USER"

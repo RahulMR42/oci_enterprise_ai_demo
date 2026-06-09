@@ -177,6 +177,12 @@ variable "portal_auth_db_dsn" {
   default     = ""
 }
 
+variable "portal_auth_db_id" {
+  description = "NL2SQL Autonomous Database OCID used to generate the portal protected-user auth wallet."
+  type        = string
+  default     = ""
+}
+
 variable "portal_auth_db_user" {
   description = "NL2SQL Autonomous Database user for portal protected-user auth."
   type        = string

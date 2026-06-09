@@ -134,13 +134,17 @@ test("portal protected users reuse the nl2sql autonomous database", () => {
 
   assert.match(nl2sqlOutputs, /output "autonomous_database_connection_string"/);
   assert.match(nl2sqlOutputs, /value\s+=\s+local\.sql_search_connection_string/);
+  assert.match(nl2sqlOutputs, /output "autonomous_database_id"/);
   assert.match(nl2sqlOutputs, /output "database_user_name"/);
   assert.match(resourceManagerMain, /portal_auth_db_dsn\s+=\s+module\.nl2sql_sql_search\.autonomous_database_connection_string/);
+  assert.match(resourceManagerMain, /portal_auth_db_id\s+=\s+module\.nl2sql_sql_search\.autonomous_database_id/);
   assert.match(resourceManagerMain, /portal_auth_db_user\s+=\s+module\.nl2sql_sql_search\.database_user_name/);
   assert.match(resourceManagerMain, /portal_auth_db_password_secret_id\s+=\s+module\.nl2sql_sql_search\.database_password_secret_id/);
   assert.match(devopsVariables, /variable "portal_auth_db_dsn"/);
+  assert.match(devopsVariables, /variable "portal_auth_db_id"/);
   assert.match(devopsVariables, /variable "portal_auth_db_password_secret_id"/);
   assert.match(devopsMain, /PORTAL_AUTH_DB_DSN/);
+  assert.match(devopsMain, /PORTAL_AUTH_DB_ID/);
   assert.match(devopsMain, /PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
   assert.match(devopsMain, /bootstrap_portal_auth_schema/);
   assert.match(devopsMain, /build_spec_bootstrap_portal_auth_schema\.yaml/);
@@ -148,15 +152,20 @@ test("portal protected users reuse the nl2sql autonomous database", () => {
   assert.match(bootstrapBuildSpec, /backend\/portal_auth_store\.py/);
   assert.match(bootstrapBuildSpec, /"action": "init_schema"/);
   assert.match(bootstrapBuildSpec, /PORTAL_AUTH_DB_DSN is required/);
+  assert.match(bootstrapBuildSpec, /PORTAL_AUTH_DB_ID is required/);
   assert.match(bootstrapBuildSpec, /PORTAL_AUTH_DB_PASSWORD_SECRET_ID is required/);
   assert.match(bootstrapBuildSpec, /export OCI_PORTAL_AUTH_DB_DSN="\$PORTAL_AUTH_DB_DSN"/);
+  assert.match(bootstrapBuildSpec, /export OCI_PORTAL_AUTH_DB_ID="\$PORTAL_AUTH_DB_ID"/);
   assert.match(bootstrapBuildSpec, /export OCI_PORTAL_AUTH_DB_USER="\$\{PORTAL_AUTH_DB_USER:-ADMIN\}"/);
   assert.match(bootstrapBuildSpec, /export OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID="\$PORTAL_AUTH_DB_PASSWORD_SECRET_ID"/);
   assert.match(bootstrapBuildSpec, /export OCI_RESOURCE_PRINCIPAL_VERSION="\$\{OCI_RESOURCE_PRINCIPAL_VERSION:-2\.2\}"/);
+  assert.match(bootstrapBuildSpec, /export PIP_CONFIG_FILE=\/dev\/null/);
+  assert.match(bootstrapBuildSpec, /python -m pip --isolated install/);
   assert.match(bootstrapBuildSpec, /json\.loads\(os\.environ\["PORTAL_AUTH_SCHEMA_RESPONSE"\]\)/);
   assert.match(bootstrapBuildSpec, /response\.get\("status"\) != "success"/);
   assert.match(bootstrapBuildSpec, /Portal auth schema bootstrap failed/);
   assert.match(deployScript, /OCI_PORTAL_AUTH_DB_DSN/);
+  assert.match(deployScript, /OCI_PORTAL_AUTH_DB_ID/);
   assert.match(deployScript, /OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
   assert.match(resourceManagerReadme, /bootstrap-portal-auth-schema/);
   assert.match(resourceManagerReadme, /init_schema/);

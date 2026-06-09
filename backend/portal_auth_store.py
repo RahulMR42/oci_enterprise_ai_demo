@@ -2,11 +2,13 @@
 import base64
 import hashlib
 import hmac
+import io
 import json
 import os
 import re
 import secrets
 import sys
+import zipfile
 from datetime import datetime, timezone
 
 HASH_ALGORITHM = "PBKDF2-HMAC-SHA256"
@@ -32,6 +34,8 @@ GENERIC_CLI_ERROR = "Auth store command failed."
 PUBLIC_CLI_ERRORS = {UNSUPPORTED_ACTION_ERROR}
 SESSION_HASH_KEY_ENV = "OCI_PORTAL_SESSION_HASH_KEY"
 DEFAULT_SESSION_HASH_KEY = "enterprise-ai-demo-portal-auth-store-session-hash-key"
+DEFAULT_WALLET_CACHE_ROOT = "/tmp/enterprise-ai-portal-auth-wallets"
+WALLET_PASSWORD_FILE = ".wallet-password"
 ALLOWED_STORE_ACTIONS = {
     "init_schema",
     "signup",
@@ -411,20 +415,31 @@ class LocalJsonStore:
 
 
 class AdbStore:
-    def __init__(self, user, password, dsn):
+    def __init__(self, user, password, dsn, wallet_dir=None, wallet_password=None):
         import oracledb
 
-        self.connection = oracledb.connect(user=user, password=password, dsn=dsn)
+        connect_args = {"user": user, "password": password, "dsn": dsn}
+        if wallet_dir:
+            connect_args.update({
+                "config_dir": wallet_dir,
+                "wallet_location": wallet_dir,
+            })
+        if wallet_password:
+            connect_args["wallet_password"] = wallet_password
+        self.connection = oracledb.connect(**connect_args)
 
     @classmethod
     def from_env(cls, env=os.environ):
         password = env.get("OCI_PORTAL_AUTH_DB_PASSWORD")
         if not password:
             password = cls._password_from_secret(env["OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID"])
+        wallet_dir, wallet_password = cls._wallet_from_env(env)
         return cls(
             user=env["OCI_PORTAL_AUTH_DB_USER"],
             password=password,
             dsn=env["OCI_PORTAL_AUTH_DB_DSN"],
+            wallet_dir=wallet_dir,
+            wallet_password=wallet_password,
         )
 
     @staticmethod
@@ -436,6 +451,78 @@ class AdbStore:
         bundle = client.get_secret_bundle(secret_id).data
         encoded = bundle.secret_bundle_content.content
         return base64.b64decode(encoded).decode("utf-8")
+
+    @classmethod
+    def _wallet_from_env(cls, env):
+        wallet_dir = env.get("OCI_PORTAL_AUTH_DB_WALLET_DIR")
+        wallet_password = env.get("OCI_PORTAL_AUTH_DB_WALLET_PASSWORD")
+        if wallet_dir:
+            return wallet_dir, wallet_password or None
+
+        database_id = env.get("OCI_PORTAL_AUTH_DB_ID")
+        if not database_id:
+            return None, None
+
+        cache_dir = env.get("OCI_PORTAL_AUTH_DB_WALLET_CACHE_DIR") or os.path.join(
+            DEFAULT_WALLET_CACHE_ROOT,
+            hashlib.sha256(database_id.encode("utf-8")).hexdigest()[:16],
+        )
+        return cls._ensure_wallet(database_id, cache_dir, wallet_password)
+
+    @classmethod
+    def _ensure_wallet(cls, database_id, cache_dir, wallet_password=None):
+        os.makedirs(cache_dir, mode=0o700, exist_ok=True)
+        password_file = os.path.join(cache_dir, WALLET_PASSWORD_FILE)
+        tnsnames_file = os.path.join(cache_dir, "tnsnames.ora")
+        if os.path.exists(tnsnames_file):
+            return cache_dir, wallet_password or cls._read_wallet_password(password_file)
+
+        generated_password = wallet_password or secrets.token_urlsafe(32)
+        wallet_bytes = cls._download_wallet(database_id, generated_password)
+        cls._extract_wallet(wallet_bytes, cache_dir)
+        cls._write_wallet_password(password_file, generated_password)
+        return cache_dir, generated_password
+
+    @staticmethod
+    def _read_wallet_password(password_file):
+        if not os.path.exists(password_file):
+            return None
+        with open(password_file, "r", encoding="utf-8") as handle:
+            return handle.read().strip() or None
+
+    @staticmethod
+    def _write_wallet_password(password_file, wallet_password):
+        fd = os.open(password_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(f"{wallet_password}\n")
+
+    @staticmethod
+    def _download_wallet(database_id, wallet_password):
+        import oci
+        from oci.database.models import GenerateAutonomousDatabaseWalletDetails
+
+        signer = oci.auth.signers.get_resource_principals_signer()
+        client = oci.database.DatabaseClient(config={}, signer=signer)
+        details = GenerateAutonomousDatabaseWalletDetails(
+            generate_type=GenerateAutonomousDatabaseWalletDetails.GENERATE_TYPE_SINGLE,
+            password=wallet_password,
+        )
+        data = client.generate_autonomous_database_wallet(database_id, details).data
+        if hasattr(data, "read"):
+            data = data.read()
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        return data
+
+    @staticmethod
+    def _extract_wallet(wallet_bytes, cache_dir):
+        cache_root = os.path.abspath(cache_dir)
+        with zipfile.ZipFile(io.BytesIO(wallet_bytes)) as archive:
+            for member in archive.infolist():
+                target = os.path.abspath(os.path.join(cache_dir, member.filename))
+                if target != cache_root and not target.startswith(f"{cache_root}{os.sep}"):
+                    raise ValueError("Wallet archive contains an unsafe path.")
+                archive.extract(member, cache_dir)
 
     def init_schema(self, payload):
         with self.connection.cursor() as cursor:
