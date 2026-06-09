@@ -588,11 +588,29 @@ class AdbStore:
             generate_type=GenerateAutonomousDatabaseWalletDetails.GENERATE_TYPE_SINGLE,
             password=wallet_password,
         )
-        data = client.generate_autonomous_database_wallet(database_id, details).data
+        data = client.generate_autonomous_database_wallet(database_id, details)
+        data = cls._wallet_response_bytes(data)
+        return data
+
+    @staticmethod
+    def _wallet_response_bytes(data):
+        seen = set()
+        while (
+            hasattr(data, "data")
+            and id(data) not in seen
+            and not isinstance(data, (bytes, bytearray, str))
+            and not hasattr(data, "read")
+        ):
+            seen.add(id(data))
+            data = data.data
         if hasattr(data, "read"):
             data = data.read()
         if isinstance(data, str):
             data = data.encode("utf-8")
+        if isinstance(data, bytearray):
+            data = bytes(data)
+        if not isinstance(data, bytes):
+            raise TypeError("Downloaded wallet response was not bytes.")
         return data
 
     @staticmethod

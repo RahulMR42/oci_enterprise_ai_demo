@@ -246,7 +246,7 @@ class PortalAuthStoreCommandTests(unittest.TestCase):
                 calls.append(("database", config, signer))
 
             def generate_autonomous_database_wallet(self, database_id, details):
-                return types.SimpleNamespace(data=b"wallet-bytes")
+                return types.SimpleNamespace(data=types.SimpleNamespace(data=b"wallet-bytes"))
 
         class FakeWalletDetails:
             GENERATE_TYPE_SINGLE = "SINGLE"
