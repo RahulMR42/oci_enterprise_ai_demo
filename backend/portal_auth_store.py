@@ -603,6 +603,10 @@ class AdbStore:
         ):
             seen.add(id(data))
             data = data.data
+        if hasattr(data, "content"):
+            content = data.content
+            if isinstance(content, (bytes, bytearray, str)):
+                data = content
         if hasattr(data, "read"):
             data = data.read()
         if isinstance(data, str):
