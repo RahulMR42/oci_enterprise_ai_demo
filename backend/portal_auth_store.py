@@ -418,7 +418,8 @@ class AdbStore:
     def __init__(self, user, password, dsn, wallet_dir=None, wallet_password=None):
         import oracledb
 
-        connect_args = {"user": user, "password": password, "dsn": dsn}
+        effective_dsn = self._resolve_wallet_dsn(dsn, wallet_dir) if wallet_dir else dsn
+        connect_args = {"user": user, "password": password, "dsn": effective_dsn}
         if wallet_dir:
             connect_args.update({
                 "config_dir": wallet_dir,
@@ -441,6 +442,61 @@ class AdbStore:
             wallet_dir=wallet_dir,
             wallet_password=wallet_password,
         )
+
+    @classmethod
+    def _resolve_wallet_dsn(cls, dsn, wallet_dir):
+        entries = cls._tnsnames_entries(wallet_dir)
+        if not dsn or not entries:
+            return dsn
+
+        raw_dsn = str(dsn).strip()
+        aliases = {alias.lower(): alias for alias, _ in entries}
+        if raw_dsn.lower() in aliases:
+            return aliases[raw_dsn.lower()]
+
+        target_service_name = cls._service_name_from_dsn(raw_dsn)
+        if not target_service_name:
+            return dsn
+
+        target_service_name = target_service_name.lower()
+        for alias, descriptor in entries:
+            entry_service_name = cls._service_name_from_dsn(descriptor)
+            if entry_service_name and entry_service_name.lower() == target_service_name:
+                return alias
+
+        for alias, _ in entries:
+            if alias.lower() in target_service_name:
+                return alias
+        return dsn
+
+    @staticmethod
+    def _tnsnames_entries(wallet_dir):
+        path = os.path.join(wallet_dir, "tnsnames.ora")
+        if not os.path.exists(path):
+            return []
+        with open(path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+        matches = list(re.finditer(r"(?im)^\s*([A-Za-z0-9_.-]+(?:\s*,\s*[A-Za-z0-9_.-]+)*)\s*=", content))
+        entries = []
+        for index, match in enumerate(matches):
+            value_end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+            descriptor = content[match.end():value_end].strip()
+            for alias in match.group(1).split(","):
+                alias = alias.strip()
+                if alias:
+                    entries.append((alias, descriptor))
+        return entries
+
+    @staticmethod
+    def _service_name_from_dsn(dsn):
+        match = re.search(r"service_name\s*=\s*([^\s)]+)", str(dsn), flags=re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+
+        raw_dsn = str(dsn).strip()
+        if raw_dsn.startswith("(") or "/" not in raw_dsn:
+            return None
+        return raw_dsn.split("/", 1)[1].split("?", 1)[0].strip() or None
 
     @staticmethod
     def _password_from_secret(secret_id):

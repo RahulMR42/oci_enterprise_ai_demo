@@ -163,6 +163,51 @@ class PortalAuthStoreCommandTests(unittest.TestCase):
         finally:
             store.AdbStore._download_wallet = original_download_wallet
 
+    def test_wallet_descriptor_dsn_uses_matching_tns_alias(self):
+        calls = []
+        original_oracledb = sys.modules.get("oracledb")
+        descriptor = (
+            "(description= (retry_count=20)(retry_delay=3)"
+            "(address=(protocol=tcps)(port=1522)(host=adb.us-chicago-1.oraclecloud.com))"
+            "(connect_data=(service_name=g7f11b42ea9546b_eadsqlfd2ed9_high.adb.oraclecloud.com))"
+            "(security=(ssl_server_dn_match=yes)))"
+        )
+
+        class FakeOracleDb:
+            @staticmethod
+            def connect(**kwargs):
+                calls.append(kwargs)
+                return object()
+
+        try:
+            sys.modules["oracledb"] = FakeOracleDb
+            with tempfile.TemporaryDirectory() as wallet_dir:
+                with open(os.path.join(wallet_dir, "tnsnames.ora"), "w", encoding="utf-8") as handle:
+                    handle.write(
+                        "eadsqlfd2ed9_high = (description=(connect_data="
+                        "(service_name=g7f11b42ea9546b_eadsqlfd2ed9_high.adb.oraclecloud.com)))\n\n"
+                        "eadsqlfd2ed9_low = (description=(connect_data="
+                        "(service_name=g7f11b42ea9546b_eadsqlfd2ed9_low.adb.oraclecloud.com)))\n"
+                    )
+
+                store.AdbStore(
+                    user="ADMIN",
+                    password="test-password",
+                    dsn=descriptor,
+                    wallet_dir=wallet_dir,
+                    wallet_password="wallet-password",
+                )
+
+            self.assertEqual(calls[0]["dsn"], "eadsqlfd2ed9_high")
+            self.assertEqual(calls[0]["config_dir"], wallet_dir)
+            self.assertEqual(calls[0]["wallet_location"], wallet_dir)
+            self.assertEqual(calls[0]["wallet_password"], "wallet-password")
+        finally:
+            if original_oracledb is None:
+                sys.modules.pop("oracledb", None)
+            else:
+                sys.modules["oracledb"] = original_oracledb
+
 
 class PortalAuthStoreLocalModeTests(unittest.TestCase):
     def run_local_command(self, path, action, payload):
