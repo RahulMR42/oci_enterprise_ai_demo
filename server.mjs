@@ -9,6 +9,9 @@ import { appVersion } from "./src/version.js";
 const port = Number.parseInt(process.env.PORT ?? "5173", 10);
 const host = process.env.HOST ?? "127.0.0.1";
 const root = process.cwd();
+const pythonExecutable = existsSync(join(root, "env/bin/python")) ? join(root, "env/bin/python") : "python3";
+const ociCliExecutable = process.env.OCI_CLI_PATH || (existsSync(join(root, "env/bin/oci")) ? join(root, "env/bin/oci") : "oci");
+const resolvedSecretReferenceCache = new Map();
 const portalAuthUser = "oci";
 const portalAuthPasswordFile = process.env.OCI_PORTAL_PASSWORD_FILE || join(root, ".oci-portal-password");
 const portalAuthPasswordConfig = resolvePortalAuthPassword();
@@ -31,7 +34,6 @@ const demoGeneratedDirs = {
   "code-interpreter": join(root, "infra/code-interpreter/.terraform/generated"),
   "hosted-agentic-applications": join(root, "infra/hosted-agentic-applications/.terraform/generated")
 };
-const pythonExecutable = existsSync(join(root, "env/bin/python")) ? join(root, "env/bin/python") : "python3";
 const portalAuthStoreScript = process.env.OCI_PORTAL_AUTH_STORE_SCRIPT || join(root, "backend/portal_auth_store.py");
 const portalAuthStoreClientError = "Protected user authentication is unavailable.";
 const portalRuntimeConfigObject = {
@@ -96,6 +98,71 @@ export function demoProcessEnv(baseEnv = process.env, overrides = {}) {
     delete env[key];
   }
   return env;
+}
+
+function isVaultSecretReference(value = "") {
+  return /^ocid1\.vaultsecret\./.test(String(value || "").trim());
+}
+
+function vaultSecretRegion(secretId = "") {
+  return (
+    String(secretId || "").match(/^ocid1\.vaultsecret\.oc1\.([a-z0-9-]+)\./)?.[1] ||
+    process.env.OCI_GENAI_REGION ||
+    process.env.OCI_REGION ||
+    "us-chicago-1"
+  );
+}
+
+function hasResourcePrincipalAuth(env = process.env) {
+  return Object.keys(env || {}).some((key) => key.startsWith("OCI_RESOURCE_PRINCIPAL_"));
+}
+
+function readVaultSecretBundleValue(secretId, { region = vaultSecretRegion(secretId), spawn = spawnSync, cli = ociCliExecutable, env = process.env } = {}) {
+  const args = [
+    "secrets",
+    "secret-bundle",
+    "get",
+    "--secret-id",
+    secretId,
+    "--region",
+    region,
+    "--query",
+    'data."secret-bundle-content".content',
+    "--raw-output"
+  ];
+  if (hasResourcePrincipalAuth(env)) {
+    args.unshift("--auth", "resource_principal");
+  }
+  const result = spawn(cli, args, {
+    cwd: root,
+    encoding: "utf8",
+    env: demoProcessEnv(env),
+    timeout: 30_000
+  });
+  if (result.status !== 0) {
+    throw new Error(`Failed to resolve Vault secret ${secretId}: ${redactSensitiveText(result.stderr || result.error?.message || "unknown error")}`);
+  }
+  return Buffer.from(String(result.stdout || "").trim(), "base64").toString("utf8").trim();
+}
+
+export function resolveSecretReferenceValue(value = "", { cache = resolvedSecretReferenceCache, fetchSecret = readVaultSecretBundleValue } = {}) {
+  const trimmed = String(value || "").trim();
+  if (!isVaultSecretReference(trimmed)) {
+    return trimmed;
+  }
+  if (cache.has(trimmed)) {
+    return cache.get(trimmed);
+  }
+  const resolved = String(fetchSecret(trimmed) || "").trim();
+  if (!resolved) {
+    throw new Error(`Vault secret ${trimmed} resolved to an empty value.`);
+  }
+  cache.set(trimmed, resolved);
+  return resolved;
+}
+
+function resolveRuntimeSecret(name, fallback = "") {
+  return resolveSecretReferenceValue(process.env[name] || process.env[`${name}_SECRET_ID`] || fallback || "");
 }
 
 function persistLocalSecret(filePath, value) {
@@ -164,12 +231,21 @@ function redactSensitiveText(value = "") {
     );
 }
 
-function writeDemoLog(featureId, payload = {}) {
-  const logDir = join(root, "logs/demos", safeLogName(featureId));
-  mkdirSync(logDir, { recursive: true });
-  const createdAt = new Date().toISOString();
+export function writeDemoLog(featureId, payload = {}, options = {}) {
+  const {
+    logRoot = join(root, "logs/demos"),
+    mkdir = mkdirSync,
+    writeFile = writeFileSync,
+    writePersistentRecord = writePersistentDemoRunRecord,
+    now = () => new Date(),
+    randomHex = () => randomBytes(4).toString("hex"),
+    warn = (message) => console.warn(message)
+  } = options;
+  const logDir = join(logRoot, safeLogName(featureId));
+  const createdAtValue = typeof now === "function" ? now() : now;
+  const createdAt = createdAtValue instanceof Date ? createdAtValue.toISOString() : String(createdAtValue || new Date().toISOString());
   const timestamp = createdAt.replace(/[:.]/g, "-");
-  const logFile = join(logDir, `${timestamp}-${randomBytes(4).toString("hex")}.json`);
+  const localLogFile = join(logDir, `${timestamp}-${randomHex()}.json`);
   const rawRecord = { featureId, createdAt, ...payload };
   const record = {
     ...redactForDemoLog(rawRecord),
@@ -178,8 +254,25 @@ function writeDemoLog(featureId, payload = {}) {
     authType: rawRecord.authType || "",
     sessionId: publicPortalSessionId(rawRecord.sessionId)
   };
-  writeFileSync(logFile, JSON.stringify(record, null, 2));
-  writePersistentDemoRunRecord({ ...record, logFile });
+  let logFile = "";
+  try {
+    mkdir(logDir, { recursive: true });
+    writeFile(localLogFile, JSON.stringify(record, null, 2));
+    logFile = localLogFile;
+  } catch (error) {
+    warn(`[demo-run] local log write skipped feature=${safeLogName(featureId)} error=${redactSensitiveText(error?.message || error)}`);
+  }
+
+  try {
+    writePersistentRecord({
+      ...record,
+      logFile,
+      logSource: logFile ? "local-and-object-storage" : "object-storage"
+    });
+  } catch (error) {
+    warn(`[demo-run] persistent log write skipped feature=${safeLogName(featureId)} error=${redactSensitiveText(error?.message || error)}`);
+  }
+
   return logFile;
 }
 
@@ -441,12 +534,14 @@ import sys
 import oci
 
 namespace, bucket, object_name = sys.argv[1:4]
+region = os.environ.get("OCI_GENAI_REGION") or os.environ.get("OCI_REGION") or "us-chicago-1"
 try:
     signer = oci.auth.signers.get_resource_principals_signer()
-    client = oci.object_storage.ObjectStorageClient(config={}, signer=signer)
+    client = oci.object_storage.ObjectStorageClient(config={"region": region}, signer=signer)
     response = client.get_object(namespace, bucket, object_name)
     sys.stdout.write(response.data.content.decode("utf-8"))
-except Exception:
+except Exception as exc:
+    sys.stderr.write(str(exc))
     sys.stdout.write("{}")
 `;
   const result = spawnSync(pythonExecutable, ["-c", script, reference.namespace, reference.bucket, reference.object], {
@@ -454,11 +549,16 @@ except Exception:
     env: demoProcessEnv()
   });
   if (result.status !== 0 || !result.stdout.trim()) {
+    const detail = redactSensitiveText(result.stderr || result.error?.message || `exit ${result.status}`);
+    if (detail) {
+      console.warn(`[object-storage] read failed object=${reference.bucket}/${reference.object} error=${detail}`);
+    }
     return {};
   }
   try {
     return JSON.parse(result.stdout);
-  } catch {
+  } catch (error) {
+    console.warn(`[object-storage] read failed object=${reference.bucket}/${reference.object} error=${redactSensitiveText(error.message)}`);
     return {};
   }
 }
@@ -470,12 +570,14 @@ function writeObjectStorageJson(reference = {}, payload = {}) {
 
   const script = `
 import sys
+import os
 import oci
 
 namespace, bucket, object_name = sys.argv[1:4]
+region = os.environ.get("OCI_GENAI_REGION") or os.environ.get("OCI_REGION") or "us-chicago-1"
 content = sys.stdin.read()
 signer = oci.auth.signers.get_resource_principals_signer()
-client = oci.object_storage.ObjectStorageClient(config={}, signer=signer)
+client = oci.object_storage.ObjectStorageClient(config={"region": region}, signer=signer)
 client.put_object(namespace, bucket, object_name, content.encode("utf-8"), content_type="application/json")
 `;
   const result = spawnSync(pythonExecutable, ["-c", script, reference.namespace, reference.bucket, reference.object], {
@@ -483,7 +585,12 @@ client.put_object(namespace, bucket, object_name, content.encode("utf-8"), conte
     env: demoProcessEnv(),
     input: JSON.stringify(payload, null, 2)
   });
-  return result.status === 0;
+  const ok = result.status === 0;
+  if (!ok) {
+    const detail = redactSensitiveText(result.stderr || result.error?.message || `exit ${result.status}`);
+    console.warn(`[object-storage] write failed object=${reference.bucket}/${reference.object} error=${detail}`);
+  }
+  return ok;
 }
 
 function readPortalRuntimeConfig({ refresh = false } = {}) {
@@ -568,17 +675,36 @@ export function readPortalChangeLog() {
 }
 
 function resolvePortalAuthPassword() {
-  if (existsSync(portalAuthPasswordFile)) {
-    const password = readFileSync(portalAuthPasswordFile, "utf8").trim();
+  return resolvePortalAuthPasswordValue({
+    passwordFile: portalAuthPasswordFile,
+    envPassword: process.env.OCI_PORTAL_PASSWORD
+  });
+}
+
+export function resolvePortalAuthPasswordValue({
+  passwordFile = portalAuthPasswordFile,
+  envPassword = process.env.OCI_PORTAL_PASSWORD,
+  exists = existsSync,
+  read = readFileSync,
+  persist = persistLocalSecret,
+  generate = () => randomBytes(9).toString("base64url"),
+  resolveSecret = resolveSecretReferenceValue
+} = {}) {
+  if (exists(passwordFile)) {
+    const password = read(passwordFile, "utf8").trim();
     if (password) {
       return { password, source: "local-file" };
     }
   }
 
-  const envPassword = String(process.env.OCI_PORTAL_PASSWORD || "").trim();
-  const password = envPassword || randomBytes(9).toString("base64url");
-  persistLocalSecret(portalAuthPasswordFile, password);
-  return { password, source: envPassword ? "env-file" : "generated-file" };
+  const passwordFromEnv = String(envPassword || "").trim();
+  if (passwordFromEnv) {
+    return { password: resolveSecret(passwordFromEnv), source: "env" };
+  }
+
+  const password = generate();
+  persist(passwordFile, password);
+  return { password, source: "generated-file" };
 }
 
 export function resolvePath(urlPath) {
@@ -785,11 +911,21 @@ function portalAuthStoreFailure() {
   return { ok: false, status: "failed", error: portalAuthStoreClientError };
 }
 
+function portalAuthStoreEnv(env = process.env) {
+  const nextEnv = { ...env };
+  const passwordValue = String(nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD || "").trim();
+  if (isVaultSecretReference(passwordValue) && !nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID) {
+    nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID = passwordValue;
+    delete nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD;
+  }
+  return demoProcessEnv(nextEnv);
+}
+
 export function callPortalAuthStore(action, payload = {}, { env = process.env, script = portalAuthStoreScript } = {}) {
   const result = spawnSync(pythonExecutable, [script], {
     cwd: root,
     encoding: "utf8",
-    env: demoProcessEnv(env),
+    env: portalAuthStoreEnv(env),
     input: JSON.stringify({ action, payload })
   });
   if (result.status !== 0) {
@@ -967,7 +1103,7 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
       <p class="subtext">Sign in to access the demo portal and Oracle Cloud Enterprise AI workflows.</p>
       ${noticeMarkup}
       ${errorMarkup}
-      <form method="post" action="/login">
+      <form method="post" action="./login">
         <label>
           Username
           <input name="username" value="oci" autocomplete="username" required />
@@ -978,7 +1114,7 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         </label>
         <button type="submit">Sign in</button>
       </form>
-      <form method="post" action="/signup" aria-label="Protected user sign-up">
+      <form method="post" action="./signup" aria-label="Protected user sign-up">
         <label>
           Email
           <input name="email" type="email" autocomplete="email" />
@@ -989,7 +1125,7 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         </label>
         <button type="submit">Sign up</button>
       </form>
-      <form class="forgot-password" method="post" action="/forgot-password">
+      <form class="forgot-password" method="post" action="./forgot-password">
         <button type="submit">Forgot password</button>
       </form>
       <p class="version">Version ${appVersion}</p>
@@ -1016,7 +1152,7 @@ function requestLogin(request, response, requestPath) {
   }
 
   response.writeHead(302, {
-    Location: "/login",
+    Location: "./login",
     "Cache-Control": "no-store"
   });
   response.end();
@@ -1174,7 +1310,7 @@ export function readProvisionedDetails() {
     projectDisplayName: project["display-name"] || project.displayName || "",
     apiKeyId: apiKey.id || "",
     apiKeyDisplayName: apiKey["display-name"] || apiKey.displayName || "",
-    apiKeySecret: process.env.OCI_GENAI_API_KEY || primaryKey.key || "",
+    apiKeySecret: resolveRuntimeSecret("OCI_GENAI_API_KEY", primaryKey.key || ""),
     apiKeyMask: primaryKey["key-mask"] || "",
     apiKeyState: primaryKey.state || apiKey["lifecycle-state"] || ""
   };
@@ -2081,9 +2217,11 @@ function readHostedAppIdcsLaunchConfig() {
       (domainUrl ? `${domainUrl}/oauth2/v1/token` : "")
   );
   const clientId = String(process.env.IDCS_CLIENT_ID || process.env.OCI_HOSTED_APP_IDCS_CLIENT_ID || generated.clientId || "");
-  const clientSecret = String(
+  const clientSecret = resolveSecretReferenceValue(
     process.env.IDCS_CLIENT_SECRET ||
+      process.env.IDCS_CLIENT_SECRET_ID ||
       process.env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET ||
+      process.env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET_SECRET_ID ||
       generated.clientSecret ||
       ""
   );
@@ -3396,7 +3534,7 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
     projectDisplayName:
       localProvisionedDetails.projectDisplayName ||
       (portalRuntimeConfig.resourceSuffix ? `${baseProjectDisplayName}-${portalRuntimeConfig.resourceSuffix}` : ""),
-    apiKeySecret: localProvisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY || ""
+    apiKeySecret: localProvisionedDetails.apiKeySecret || resolveRuntimeSecret("OCI_GENAI_API_KEY")
   };
   const runtimeComponents = [
     ...demoRuntimeComponents(),
@@ -3613,12 +3751,14 @@ export function readAdminLogSummary(filters = {}) {
       { name: "demo", count: demoLogs.length },
       { name: "bootstrap", count: bootstrapLogs.length },
       { name: "audit", count: auditLogs.length },
-      { name: "container", count: 0 }
+      { name: "hosted-application", count: 0 }
     ],
     containerLogs: {
-      status: "manual",
-      note: "Portal startup logs are shown from local log capture. OCI container logs can be retrieved with the container retrieve-logs command when a container OCID is available.",
-      command: `oci container-instances container retrieve-logs --container-id <container-ocid> --region ${process.env.OCI_GENAI_REGION || "us-chicago-1"}`
+      status: hasObjectStorageReference(portalRunHistoryObject) ? "object-storage" : "local",
+      note: hasObjectStorageReference(portalRunHistoryObject)
+        ? `Demo logs, counters, and metrics are read from Object Storage object ${portalRunHistoryObject.bucket}/${portalRunHistoryObject.object}. Hosted application runtime logs are available through OCI service logging.`
+        : "Demo logs, counters, and metrics are read from local portal log capture. Hosted application runtime logs are available through OCI service logging.",
+      command: ""
     },
     logs
   });
@@ -3910,7 +4050,7 @@ export function runFeatureDemo(featureId, payload, { identity = bootstrapPortalI
   const runtimeConfig = {
     region: payload.region || process.env.OCI_GENAI_REGION || "",
     projectConfigured: Boolean(payload.projectId || provisionedDetails.projectId || process.env.OCI_GENAI_PROJECT_ID),
-    apiKeyConfigured: Boolean(payload.apiKey || provisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY),
+    apiKeyConfigured: Boolean(payload.apiKey || provisionedDetails.apiKeySecret || resolveRuntimeSecret("OCI_GENAI_API_KEY")),
     conversationConfigured: Boolean(payload.conversationId || process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId")),
     vectorStoreConfigured: Boolean(payload.vectorStoreId || process.env.OCI_GENAI_VECTOR_STORE_ID),
     codeInterpreterContainerConfigured: Boolean(payload.codeInterpreterContainer || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER),
@@ -3936,7 +4076,7 @@ export function runFeatureDemo(featureId, payload, { identity = bootstrapPortalI
       env: demoProcessEnv(process.env, {
         OCI_GENAI_REGION: payload.region || process.env.OCI_GENAI_REGION || "",
         OCI_GENAI_PROJECT_ID: payload.projectId || provisionedDetails.projectId || process.env.OCI_GENAI_PROJECT_ID || "",
-        OCI_GENAI_API_KEY: payload.apiKey || provisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY || "",
+        OCI_GENAI_API_KEY: payload.apiKey || provisionedDetails.apiKeySecret || resolveRuntimeSecret("OCI_GENAI_API_KEY"),
         OCI_GENAI_CONVERSATION_ID: payload.conversationId || process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId"),
         OCI_GENAI_VECTOR_STORE_ID: payload.vectorStoreId || process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId"),
         OCI_GENAI_CODE_INTERPRETER_CONTAINER:
@@ -4106,9 +4246,35 @@ export const server = createServer(async (request, response) => {
   const parsedUrl = new URL(requestUrl, `http://${host}:${port}`);
   const requestPath = parsedUrl.pathname;
 
+  if ((request.method === "GET" || request.method === "HEAD") && ["/health", "/healthz", "/readyz"].includes(requestPath)) {
+    if (request.method === "HEAD") {
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store"
+      });
+      response.end();
+      return;
+    }
+    sendJson(response, 200, { status: "ok" });
+    return;
+  }
+
+  if ((request.method === "GET" || request.method === "HEAD") && requestPath === "/" && !isAuthorizedRequest(request)) {
+    if (request.method === "HEAD") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store"
+      });
+      response.end();
+      return;
+    }
+    sendLoginPage(response);
+    return;
+  }
+
   if (request.method === "GET" && requestPath === "/login") {
     if (isAuthorizedRequest(request)) {
-      response.writeHead(302, { Location: "/" });
+      response.writeHead(302, { Location: "./" });
       response.end();
       return;
     }
@@ -4127,7 +4293,7 @@ export const server = createServer(async (request, response) => {
       const token = createPortalSessionForIdentity(signup.identity);
       openPortalAuthSession(token, signup.identity, request);
       response.writeHead(302, {
-        Location: "/",
+        Location: "./",
         "Set-Cookie": sessionCookie(token),
         "Cache-Control": "no-store"
       });
@@ -4147,7 +4313,7 @@ export const server = createServer(async (request, response) => {
     if (username === portalAuthUser && password === portalAuthPassword) {
       const token = createPortalSessionForIdentity(bootstrapPortalIdentity());
       response.writeHead(302, {
-        Location: "/",
+        Location: "./",
         "Set-Cookie": sessionCookie(token),
         "Cache-Control": "no-store"
       });
@@ -4160,7 +4326,7 @@ export const server = createServer(async (request, response) => {
       const token = createPortalSessionForIdentity(protectedLogin.identity);
       openPortalAuthSession(token, protectedLogin.identity, request);
       response.writeHead(302, {
-        Location: "/",
+        Location: "./",
         "Set-Cookie": sessionCookie(token),
         "Cache-Control": "no-store"
       });
@@ -4191,7 +4357,7 @@ export const server = createServer(async (request, response) => {
     }
 
     response.writeHead(302, {
-      Location: "/login",
+      Location: "./login",
       "Set-Cookie": clearSessionCookie(),
       "Cache-Control": "no-store"
     });
@@ -4403,7 +4569,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(`Portal login username: ${portalAuthUser}`);
     if (portalAuthPasswordConfig.source === "local-file") {
       console.log(`Portal login password source: ${portalAuthPasswordFile}`);
-    } else if (portalAuthPasswordConfig.source === "env-file") {
+    } else if (portalAuthPasswordConfig.source === "env") {
       console.log("Portal login password source: OCI_PORTAL_PASSWORD");
     } else {
       console.log(`Generated portal login password: ${portalAuthPassword}`);

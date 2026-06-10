@@ -26,6 +26,10 @@ const adminState = {
   runtimeEnv: {}
 };
 
+function portalRelativeUrl(path = "") {
+  return `./${String(path || "").replace(/^\/+/, "")}`;
+}
+
 function renderMetrics(summary = {}) {
   const metrics = summary.metrics || {};
   document.getElementById("admin-metric-grid").innerHTML = [
@@ -218,11 +222,11 @@ export async function loadAdministrationDashboard() {
   try {
     const activityQuery = adminActivityQuery();
     const [history, runtimeEnv, infra, logs, changeLog] = await Promise.all([
-      fetchJson(`/api/admin/demo-runs${activityQuery}`),
-      fetchJson("/api/admin/runtime-env"),
-      fetchJson("/api/admin/infra"),
-      fetchJson(`/api/admin/logs${activityQuery}`),
-      fetchJson("/api/admin/change-log")
+      fetchJson(portalRelativeUrl(`/api/admin/demo-runs${activityQuery}`)),
+      fetchJson(portalRelativeUrl("/api/admin/runtime-env")),
+      fetchJson(portalRelativeUrl("/api/admin/infra")),
+      fetchJson(portalRelativeUrl(`/api/admin/logs${activityQuery}`)),
+      fetchJson(portalRelativeUrl("/api/admin/change-log"))
     ]);
     adminState.history = history;
     adminState.runtimeEnv = runtimeEnv;

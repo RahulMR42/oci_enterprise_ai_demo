@@ -20,6 +20,10 @@ const defaultProvisionConfig = {
   sourceBranch: "oci-rms"
 };
 
+function portalRelativeUrl(path = "") {
+  return `./${String(path || "").replace(/^\/+/, "")}`;
+}
+
 const infraState = {
   status: "not-created",
   projectId: "",
@@ -59,7 +63,7 @@ const hostedApplicationLaunchConfigs = {
   "langfuse-hosted-observability": {
     label: "Langfuse Hosted Observability",
     shortLabel: "Langfuse",
-    launchUrl: "/api/langfuse/launch/auth/sign-in",
+    launchUrl: portalRelativeUrl("/api/langfuse/launch/auth/sign-in"),
     hostedUrlKey: "langfuseHostedUrl",
     hostedDeploymentIdKey: "langfuseHostedDeploymentId",
     hostedDeploymentStatusKey: "langfuseHostedDeploymentStatus",
@@ -68,7 +72,7 @@ const hostedApplicationLaunchConfigs = {
   "openclaw-hosted-agent-gateway": {
     label: "OpenClaw Hosted Agent Gateway",
     shortLabel: "OpenClaw",
-    launchUrl: "/api/openclaw/launch/",
+    launchUrl: portalRelativeUrl("/api/openclaw/launch/"),
     hostedUrlKey: "openclawHostedUrl",
     hostedDeploymentIdKey: "openclawHostedDeploymentId",
     hostedDeploymentStatusKey: "openclawHostedDeploymentStatus",
@@ -1308,8 +1312,8 @@ function renderPortal() {
           </div>
           <div class="nav-actions">
             <a class="nav-link" href="#catalog">Catalog</a>
-            <a class="nav-link" href="/admin.html" target="_blank" rel="noreferrer">Administration</a>
-            <form method="post" action="/logout">
+            <a class="nav-link" href="${portalRelativeUrl("/admin.html")}" target="_blank" rel="noreferrer">Administration</a>
+            <form method="post" action="${portalRelativeUrl("/logout")}">
               <button class="nav-link logout-button" type="submit">Logout</button>
             </form>
           </div>
@@ -1626,7 +1630,7 @@ function attachCardInteractions() {
   document.querySelectorAll("[data-destroy-demo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      window.open("/admin.html", "_blank", "noopener");
+      window.open(portalRelativeUrl("/admin.html"), "_blank", "noopener");
     });
   });
 }
@@ -2662,7 +2666,7 @@ function syncDemoInfraFields() {
 
 async function loadResponsesInfrastructureState({ refresh = false } = {}) {
   try {
-    const response = await fetch(`/api/features/responses-api/state${refresh ? "?refresh=true" : ""}`);
+    const response = await fetch(portalRelativeUrl(`/api/features/responses-api/state${refresh ? "?refresh=true" : ""}`));
     const result = await response.json();
 
     if (Array.isArray(result.components) && result.components.length > 0) {
@@ -2774,7 +2778,7 @@ document.getElementById("responses-run-button").addEventListener("click", async 
   runButton.textContent = "Running...";
 
   try {
-    const response = await fetch(`/api/features/${activeDemoId}/run`, {
+    const response = await fetch(portalRelativeUrl(`/api/features/${activeDemoId}/run`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

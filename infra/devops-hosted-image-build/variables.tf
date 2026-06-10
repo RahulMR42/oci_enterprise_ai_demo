@@ -110,65 +110,10 @@ variable "portal_container_repository_id" {
   default     = ""
 }
 
-variable "portal_private_subnet_id" {
-  description = "Private subnet OCID where the DevOps portal rollout creates replacement container instances."
-  type        = string
-  default     = ""
-}
-
-variable "portal_network_security_group_id" {
-  description = "Network security group OCID assigned to DevOps-created portal container instances."
-  type        = string
-  default     = ""
-}
-
-variable "portal_load_balancer_id" {
-  description = "Load balancer OCID whose backend set receives DevOps-created portal container instances."
-  type        = string
-  default     = ""
-}
-
-variable "portal_backend_set_name" {
-  description = "Load balancer backend set name used for rolling portal container cutovers."
-  type        = string
-  default     = ""
-}
-
-variable "portal_public_url" {
-  description = "Public portal URL used by the DevOps rollout smoke tests after backend cutover."
-  type        = string
-  default     = ""
-}
-
-variable "portal_container_port" {
-  description = "TCP port exposed by the portal container."
-  type        = number
-  default     = 5173
-}
-
-variable "portal_container_shape" {
-  description = "OCI Container Instance shape used by the DevOps portal rollout."
-  type        = string
-  default     = "CI.Standard.E4.Flex"
-}
-
-variable "portal_container_ocpus" {
-  description = "OCPUs assigned to DevOps-created portal container instances."
-  type        = number
-  default     = 1
-}
-
-variable "portal_container_memory_gbs" {
-  description = "Memory assigned to DevOps-created portal container instances."
-  type        = number
-  default     = 4
-}
-
-variable "portal_auth_password" {
-  description = "Portal basic-auth password injected into DevOps-created portal container instances and smoke tests."
+variable "portal_auth_password_secret_id" {
+  description = "OCI Vault secret OCID containing the portal login password for the hosted application."
   type        = string
   sensitive   = true
-  default     = ""
 }
 
 variable "portal_auth_db_dsn" {
@@ -251,19 +196,19 @@ variable "portal_change_log_object" {
 }
 
 variable "portal_vector_store_id" {
-  description = "File Search vector store ID injected into DevOps-created portal container instances."
+  description = "File Search vector store ID injected into the portal hosted application."
   type        = string
   default     = ""
 }
 
 variable "portal_conversation_id" {
-  description = "OCI Conversations API conversation ID injected into DevOps-created portal container instances."
+  description = "OCI Conversations API conversation ID injected into the portal hosted application."
   type        = string
   default     = ""
 }
 
 variable "portal_code_interpreter_container_id" {
-  description = "Code Interpreter container ID injected into DevOps-created portal container instances."
+  description = "Code Interpreter container ID injected into the portal hosted application."
   type        = string
   default     = ""
 }
@@ -298,21 +243,21 @@ variable "hosted_app_idcs_client_id" {
   default     = ""
 }
 
-variable "hosted_app_idcs_client_secret" {
-  description = "IDCS OAuth client secret used by the portal hosted UI launch proxy."
+variable "hosted_app_idcs_client_secret_id" {
+  description = "OCI Vault secret OCID containing the IDCS OAuth client secret used by the portal hosted UI launch proxy."
   type        = string
   sensitive   = true
   default     = ""
 }
 
 variable "oci_genai_project_id" {
-  description = "OCI Generative AI project OCID injected into the portal container."
+  description = "OCI Generative AI project OCID injected into the portal hosted application."
   type        = string
   default     = ""
 }
 
-variable "oci_genai_api_key" {
-  description = "OCI Generative AI API key injected into the portal container."
+variable "oci_genai_api_key_secret_id" {
+  description = "OCI Vault secret OCID containing the OCI Generative AI API key injected into the portal hosted application."
   type        = string
   sensitive   = true
   default     = ""
@@ -423,7 +368,7 @@ variable "run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, hosted application deployment commands exit as skipped so only the portal app container is redeployed."
+  description = "When true, hosted application deployment commands exit as skipped so only the portal hosted application is updated."
   type        = bool
   default     = false
 }

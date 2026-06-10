@@ -1,5 +1,5 @@
 title: Enterprise AI Demo Resource Manager Stack
-description: Deploys the Enterprise AI demo portal, shared OCI Generative AI resources, OCI DevOps image pipeline, hosted applications, and portal container instance.
+description: Deploys the Enterprise AI demo portal, shared OCI Generative AI resources, OCI DevOps image pipeline, and hosted applications.
 schemaVersion: 1.1.0
 version: 20260527
 locale: en
@@ -32,30 +32,24 @@ variableGroups:
       - oci_ha_llamaindex_deploy
       - existing_hosted_deployment_exports_json
       - existing_portal_runtime_config_json
-  - title: Portal Container
+  - title: Portal Hosted Application
     variables:
       - portal_container_enabled
       - portal_container_repository_id
       - portal_container_repository_name
       - portal_container_image_tag
-      - portal_container_port
-      - portal_container_shape
-      - portal_container_ocpus
-      - portal_container_memory_gbs
-      - portal_vcn_cidr
-      - portal_subnet_cidr
-      - portal_private_subnet_cidr
-      - portal_auth_password
+      - portal_auth_password_secret_id
   - title: OCI Generative AI Runtime
     variables:
       - project_display_name
       - oci_genai_project_id
-      - oci_genai_api_key
+      - oci_genai_api_key_secret_id
   - title: Hosted Application Auth
     variables:
       - idcs_domain_url
       - idcs_audience
       - idcs_scope
+      - hosted_app_idcs_client_secret_id
       - openclaw_gateway_token
   - title: Advanced and Local-Exec Switches
     variables:
@@ -195,7 +189,8 @@ variables:
     required: false
     default: "{}"
   portal_container_enabled:
-    title: Deploy Portal Container Instance
+    title: Deploy Portal Hosted Application
+    description: Builds and deploys the portal as a no-auth OCI Generative AI hosted application.
     type: boolean
     default: true
   portal_container_repository_id:
@@ -211,45 +206,11 @@ variables:
     title: Portal Image Tag
     type: string
     default: latest
-  portal_container_port:
-    title: Portal Port
-    type: integer
-    default: 5173
-    minimum: 1024
-    maximum: 65535
-  portal_container_shape:
-    title: Portal Container Shape
-    type: string
-    default: CI.Standard.E4.Flex
-  portal_container_ocpus:
-    title: Portal OCPUs
-    type: number
-    default: 1
-    minimum: 1
-    maximum: 4
-  portal_container_memory_gbs:
-    title: Portal Memory GB
-    type: number
-    default: 4
-    minimum: 1
-    maximum: 64
-  portal_vcn_cidr:
-    title: Portal VCN CIDR
-    type: string
-    default: 10.42.0.0/16
-  portal_subnet_cidr:
-    title: Portal Public Subnet CIDR
-    type: string
-    default: 10.42.1.0/24
-  portal_private_subnet_cidr:
-    title: Portal Private Subnet CIDR
-    type: string
-    default: 10.42.2.0/24
-  portal_auth_password:
-    title: Optional Portal Login Password
-    description: Leave empty to generate a sensitive Terraform output.
-    type: password
-    required: false
+  portal_auth_password_secret_id:
+    title: Portal Password Secret OCID
+    description: OCI Vault secret OCID containing the portal login password. The hosted application receives it as a VAULT environment variable.
+    type: ocid
+    required: true
     sensitive: true
   project_display_name:
     title: OCI Generative AI Project Display Name Prefix
@@ -259,9 +220,10 @@ variables:
     title: Existing OCI Generative AI Project OCID
     type: ocid
     required: false
-  oci_genai_api_key:
-    title: Existing OCI Generative AI API Key
-    type: password
+  oci_genai_api_key_secret_id:
+    title: OCI GenAI API Key Secret OCID
+    description: Optional OCI Vault secret OCID containing the OCI Generative AI API key for the portal hosted application.
+    type: ocid
     required: false
     sensitive: true
   idcs_domain_url:
@@ -277,6 +239,12 @@ variables:
     title: IDCS Scope
     type: string
     required: true
+  hosted_app_idcs_client_secret_id:
+    title: Hosted Launch Client Secret OCID
+    description: Optional OCI Vault secret OCID containing the IDCS OAuth client secret used by portal launch proxy routes.
+    type: ocid
+    required: false
+    sensitive: true
   openclaw_gateway_token:
     title: OpenClaw Gateway Token
     type: password

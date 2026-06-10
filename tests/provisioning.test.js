@@ -35,6 +35,8 @@ import {
   hostedRuntimeUrl,
   hostedApplicationIdFromInvokeUrl,
   readAdminLogSummary,
+  resolvePortalAuthPasswordValue,
+  resolveSecretReferenceValue,
   safeEnvironmentSnapshot,
   selectHostedRuntimeCandidate,
   summarizeAdminInfrastructureState,
@@ -165,6 +167,113 @@ test("server exposes login, forgot password, and logout routes", () => {
   assert.match(server, /OCI_PORTAL_PASSWORD_FILE/);
   assert.match(server, /writeFileSync\(filePath, `\$\{value\}\\n`, \{ mode: 0o600 \}\)/);
   assert.match(gitignore, /^\.oci-portal-password$/m);
+});
+
+test("portal auth password from environment does not write a local secret file", () => {
+  const persistedSecrets = [];
+  const result = resolvePortalAuthPasswordValue({
+    passwordFile: "/read-only/.oci-portal-password",
+    envPassword: " vault-password ",
+    exists: () => false,
+    persist: (...args) => persistedSecrets.push(args),
+    generate: () => {
+      throw new Error("environment password should not generate a fallback password");
+    }
+  });
+
+  assert.deepEqual(result, { password: "vault-password", source: "env" });
+  assert.deepEqual(persistedSecrets, []);
+});
+
+test("portal auth password resolves Vault secret references before use", () => {
+  const persistedSecrets = [];
+  const result = resolvePortalAuthPasswordValue({
+    passwordFile: "/read-only/.oci-portal-password",
+    envPassword: " ocid1.vaultsecret.oc1.us-chicago-1.testsecret ",
+    exists: () => false,
+    persist: (...args) => persistedSecrets.push(args),
+    resolveSecret: (value) => {
+      assert.equal(value, "ocid1.vaultsecret.oc1.us-chicago-1.testsecret");
+      return "resolved-vault-password";
+    }
+  });
+
+  assert.deepEqual(result, { password: "resolved-vault-password", source: "env" });
+  assert.deepEqual(persistedSecrets, []);
+});
+
+test("Vault secret references resolve through a cache-backed fetcher", () => {
+  const calls = [];
+  const cache = new Map();
+  const fetchSecret = (secretId) => {
+    calls.push(secretId);
+    return "secret-value";
+  };
+
+  assert.equal(
+    resolveSecretReferenceValue(" ocid1.vaultsecret.oc1.us-chicago-1.testsecret ", { cache, fetchSecret }),
+    "secret-value"
+  );
+  assert.equal(resolveSecretReferenceValue("ocid1.vaultsecret.oc1.us-chicago-1.testsecret", { cache, fetchSecret }), "secret-value");
+  assert.equal(resolveSecretReferenceValue("plain-value", { cache, fetchSecret }), "plain-value");
+  assert.deepEqual(calls, ["ocid1.vaultsecret.oc1.us-chicago-1.testsecret"]);
+});
+
+test("server exposes unauthenticated readiness responses for hosted runtimes", async () => {
+  const app = serverModule.server;
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  try {
+    const { port } = app.address();
+    const rootResponse = await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" });
+    const healthResponse = await fetch(`http://127.0.0.1:${port}/health`, { redirect: "manual" });
+
+    assert.equal(rootResponse.status, 200);
+    const rootHtml = await rootResponse.text();
+    assert.match(rootHtml, /OCI Enterprise AI Portal Login/);
+    assert.match(rootHtml, /action="\.\/login"/);
+    assert.doesNotMatch(rootHtml, /action="\//);
+    assert.equal(healthResponse.status, 200);
+    assert.deepEqual(await healthResponse.json(), { status: "ok" });
+  } finally {
+    await new Promise((resolve, reject) => app.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+test("server uses document-relative redirects for hosted runtime paths", async () => {
+  const app = serverModule.server;
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  try {
+    const { port } = app.address();
+    const protectedResponse = await fetch(`http://127.0.0.1:${port}/admin.html`, { redirect: "manual" });
+    const logoutResponse = await fetch(`http://127.0.0.1:${port}/logout`, {
+      method: "POST",
+      redirect: "manual"
+    });
+
+    assert.equal(protectedResponse.status, 302);
+    assert.equal(protectedResponse.headers.get("location"), "./login");
+    assert.equal(logoutResponse.status, 302);
+    assert.equal(logoutResponse.headers.get("location"), "./login");
+  } finally {
+    await new Promise((resolve, reject) => app.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+test("browser entrypoints use relative URLs for hosted invoke prefixes", () => {
+  const index = readFileSync("index.html", "utf8");
+  const adminHtml = readFileSync("admin.html", "utf8");
+  const main = readFileSync("src/main.js", "utf8");
+  const admin = readFileSync("src/admin.js", "utf8");
+
+  assert.match(index, /href="\.\/src\/styles\.css/);
+  assert.match(index, /src="\.\/src\/main\.js/);
+  assert.doesNotMatch(index, /\b(?:href|src)="\//);
+  assert.match(adminHtml, /href="\.\/src\/styles\.css/);
+  assert.match(adminHtml, /src="\.\/src\/admin\.js/);
+  assert.match(adminHtml, /href="\.\/"/);
+  assert.doesNotMatch(adminHtml, /\b(?:href|src)="\//);
+  assert.doesNotMatch(main, /(?:href|action)="\/(?:admin\.html|logout)|window\.open\("\/admin\.html"|fetch\(`\/api|fetch\("\/api|launchUrl: "\/api/);
+  assert.doesNotMatch(admin, /fetchJson\(`\/api|fetchJson\("\/api|fetch\(`\/api|fetch\("\/api/);
 });
 
 test("server exposes signup route and protected auth store command", () => {
@@ -384,7 +493,7 @@ test("administration exposes object-storage backed portal change log", () => {
   const moduleMain = readFileSync("infra/resource-manager-demo/main.tf", "utf8");
   const devopsMain = readFileSync("infra/devops-hosted-image-build/main.tf", "utf8");
   const devopsVariables = readFileSync("infra/devops-hosted-image-build/variables.tf", "utf8");
-  const portalScript = readFileSync("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh", "utf8");
+  const portalScript = readFileSync("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh", "utf8");
   const changeLog = JSON.parse(readFileSync("change-log.json", "utf8"));
 
   assert.equal(changeLog.name, "OCI Enterprise AI Portal Change Log");
@@ -421,10 +530,10 @@ test("server exposes redacted administration infrastructure and logs", () => {
     },
     components: [
       {
-        address: "oci_core_vcn.portal[0]",
-        name: "Portal VCN",
+        address: "oci_artifacts_container_repository.portal[0]",
+        name: "Portal Repository",
         status: "created",
-        value: "enterprise-ai-demo-vcn"
+        value: "enterprise-ai-demo/portal-rm"
       },
       {
         address: "terraform_data.example",
@@ -444,7 +553,7 @@ test("server exposes redacted administration infrastructure and logs", () => {
   });
 
   assert.equal(infra.summary.totalResources, 2);
-  assert.equal(infra.schema.resourceTypes.some((item) => item.type === "oci_core_vcn"), true);
+  assert.equal(infra.schema.resourceTypes.some((item) => item.type === "oci_artifacts_container_repository"), true);
   assert.equal(JSON.stringify(infra).includes("very-sensitive"), false);
   assert.match(server, /requestPath === "\/api\/admin\/infra"/);
   assert.match(server, /requestPath === "\/api\/admin\/logs"/);
@@ -487,6 +596,48 @@ test("administration run history keeps failure details available for troubleshoo
   assert.equal(run.diagnostics.stage, "idcs-token");
   assert.equal(run.upstream.target.includes("/auth/sign-in"), true);
   assert.equal(JSON.stringify(run).includes("secret-token"), false);
+});
+
+test("demo run log persistence keeps bucket history when local files are unavailable", () => {
+  const records = [];
+  const warnings = [];
+  assert.equal(typeof serverModule.writeDemoLog, "function");
+  const logFile = serverModule.writeDemoLog(
+    "responses-api",
+    {
+      status: "success",
+      durationMs: 321,
+      request: { apiKey: "secret-api-key", prompt: "hello" },
+      stdout: "ok"
+    },
+    {
+      mkdir: () => {
+        throw new Error("EROFS: read-only file system, mkdir '/app/logs'");
+      },
+      writePersistentRecord: (record) => records.push(record),
+      warn: (message) => warnings.push(message),
+      now: () => new Date("2026-06-10T10:00:00.000Z"),
+      randomHex: () => "abcd1234"
+    }
+  );
+
+  assert.equal(logFile, "");
+  assert.equal(records.length, 1);
+  assert.equal(records[0].featureId, "responses-api");
+  assert.equal(records[0].status, "success");
+  assert.equal(records[0].logSource, "object-storage");
+  assert.equal(records[0].createdAt, "2026-06-10T10:00:00.000Z");
+  assert.equal(JSON.stringify(records[0]).includes("secret-api-key"), false);
+  assert.equal(warnings.some((message) => message.includes("local log write skipped")), true);
+});
+
+test("object storage run history helpers use the configured region with resource principals", () => {
+  const server = readFileSync("server.mjs", "utf8");
+
+  assert.match(server, /region = os\.environ\.get\("OCI_GENAI_REGION"\)/);
+  assert.match(server, /ObjectStorageClient\(config=\{"region": region\}, signer=signer\)/);
+  assert.match(server, /\[object-storage\] read failed/);
+  assert.match(server, /\[object-storage\] write failed/);
 });
 
 test("portal admin route is handled before Langfuse passthrough routes", () => {

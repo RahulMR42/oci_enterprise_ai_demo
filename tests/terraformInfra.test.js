@@ -130,7 +130,7 @@ test("portal protected users reuse the nl2sql autonomous database", () => {
   const devopsVariables = read("infra/devops-hosted-image-build/variables.tf");
   const devopsMain = read("infra/devops-hosted-image-build/main.tf");
   const bootstrapBuildSpec = read("infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml");
-  const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh");
+  const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh");
 
   assert.match(nl2sqlOutputs, /output "autonomous_database_connection_string"/);
   assert.match(nl2sqlOutputs, /value\s+=\s+local\.sql_search_connection_string/);
@@ -167,7 +167,8 @@ test("portal protected users reuse the nl2sql autonomous database", () => {
   assert.match(bootstrapBuildSpec, /Portal auth schema bootstrap failed/);
   assert.match(deployScript, /OCI_PORTAL_AUTH_DB_DSN/);
   assert.match(deployScript, /OCI_PORTAL_AUTH_DB_ID/);
-  assert.match(deployScript, /OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
+  assert.match(deployScript, /PORTAL_AUTH_DB_PASSWORD_SECRET_ID/);
+  assert.match(deployScript, /OCI_PORTAL_AUTH_DB_PASSWORD/);
   assert.match(resourceManagerReadme, /bootstrap-portal-auth-schema/);
   assert.match(resourceManagerReadme, /init_schema/);
   assert.doesNotMatch(resourceManagerMain, /module "portal_auth_database"/);
@@ -442,7 +443,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
     read("infra/devops-hosted-image-build/build_spec_deploy_portal.yaml"),
     read("infra/devops-hosted-image-build/scripts/deploy_hosted_application.sh"),
     read("infra/devops-hosted-image-build/scripts/provision_generated_runtime.py"),
-    read("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh")
+    read("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh")
   ].join("\n");
   const readme = read("infra/resource-manager-demo/README.md");
   const deployDocs = read("docs/deployment/resource-manager-one-click.md");
@@ -502,9 +503,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.doesNotMatch(deployDocs, /OCIR username|OCIR auth token/);
   assert.match(terraform, /devops_source_revision:[\s\S]*pattern: "\^\$\|\^\[A-Fa-f0-9\]\{7,40\}\$"/);
   assert.match(terraform, /validation\s+\{[\s\S]*resource_suffix[\s\S]*\^\[a-z0-9\]\{6\}\$/);
-  assert.match(terraform, /validation\s+\{[\s\S]*portal_container_port >= 1024/);
   assert.match(terraform, /validation\s+\{[\s\S]*contains\(\["GITHUB", "DEVOPS_CODE_REPOSITORY"\]/);
-  assert.match(terraform, /validation\s+\{[\s\S]*can\(cidrhost\(var\.portal_vcn_cidr, 1\)\)/);
+  assert.match(terraform, /portal_auth_password_secret_id must be a valid OCI Vault secret OCID/);
   assert.match(terraform, /devops_repository_branch\s+=\s+var\.devops_repository_branch/);
   assert.match(terraform, /resource "oci_devops_project" "this"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline" "this"/);
@@ -553,7 +553,6 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /codeSourceBranch\s+=\s+var\.devops_source_branch/);
   assert.match(terraform, /devopsHostedImageBuildRunId\s+=\s+module\.devops_hosted_image_build\.build_run_id/);
   assert.match(terraform, /devopsHostedImageBuildPipelineId\s+=\s+module\.devops_hosted_image_build\.build_pipeline_id/);
-  assert.match(terraform, /OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID/);
   assert.match(terraform, /portal\s+=\s+"enterprise-ai-demo\/portal-rm"/);
   assert.match(terraform, /artifact_name\s+=\s+"portal-image"/);
   assert.match(terraform, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_image_portal\.yaml"/);
@@ -563,7 +562,7 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /display_name\s+=\s+"provision-generated-runtime"/);
   assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.provision_generated_runtime\[0\]\.id/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_portal"/);
-  assert.match(terraform, /display_name\s+=\s+"deploy-portal-container"/);
+  assert.match(terraform, /display_name\s+=\s+"deploy-portal-hosted-application"/);
   assert.match(terraform, /id\s+=\s+oci_devops_build_pipeline_stage\.deliver_image\["portal"\]\.id/);
   assert.match(terraform, /Legacy build stage retained for OCI DevOps state compatibility/);
   assert.match(terraform, /podman build --platform linux\/amd64 -t portal-image/);
@@ -584,6 +583,18 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /variable "portal_container_repository_id"/);
   assert.match(terraform, /var\.portal_container_repository_id != ""/);
   assert.match(terraform, /try\(oci_artifacts_container_repository\.portal\[0\]\.id, ""\)/);
+  assert.match(terraform, /variable "portal_auth_password_secret_id"/);
+  assert.match(terraform, /portal_auth_password_secret_id\s+=\s+var\.portal_auth_password_secret_id/);
+  assert.match(terraform, /PORTAL_AUTH_PASSWORD_SECRET_ID/);
+  assert.match(terraform, /OCI_GENAI_API_KEY_SECRET_ID/);
+  assert.match(terraform, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID/);
+  assert.match(terraform, /deploy_portal_hosted_application\.sh/);
+  assert.match(terraform, /create_or_update_portal_hosted_application/);
+  assert.match(terraform, /NO_AUTH_CONFIG/);
+  assert.match(terraform, /"type": "VAULT"/);
+  assert.match(terraform, /PORTAL_HOSTED_APPLICATION_ID/);
+  assert.match(terraform, /PORTAL_HOSTED_DEPLOYMENT_ID/);
+  assert.match(terraform, /PORTAL_URL/);
   assert.match(terraform, /shared_policy_id\s+=\s+module\.shared_demo_security\.policy_id/);
   assert.match(terraform, /build_pipeline_stage_type\s+=\s+"DELIVER_ARTIFACT"/);
   assert.match(terraform, /deploy_artifact_type\s+=\s+"DOCKER_IMAGE"/);
@@ -636,46 +647,48 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /git clone --branch '\$\{self\.input\.source_branch\}'/);
   assert.match(terraform, /HEAD:refs\/heads\/\$\{self\.input\.devops_repository_branch\}/);
   assert.match(terraform, /branch\s+=\s+var\.create_devops_repository \? var\.devops_repository_branch : var\.source_branch/);
-  assert.match(terraform, /resource "oci_core_vcn" "portal"/);
-  assert.match(terraform, /resource "oci_core_internet_gateway" "portal"/);
-  assert.match(terraform, /resource "oci_core_nat_gateway" "portal"/);
-  assert.match(terraform, /resource "oci_core_subnet" "portal_public"/);
-  assert.match(terraform, /resource "oci_core_subnet" "portal_private"/);
-  assert.match(terraform, /resource "oci_core_network_security_group" "portal"/);
-  assert.match(terraform, /resource "oci_core_network_security_group" "portal_lb"/);
-  assert.match(terraform, /resource "oci_load_balancer_load_balancer" "portal"/);
-  assert.match(terraform, /resource "oci_load_balancer_backend_set" "portal"/);
-  assert.match(terraform, /resource "oci_load_balancer_listener" "portal_http"/);
+  assert.doesNotMatch(terraform, /resource "oci_core_vcn" "portal"/);
+  assert.doesNotMatch(terraform, /resource "oci_core_internet_gateway" "portal"/);
+  assert.doesNotMatch(terraform, /resource "oci_core_nat_gateway" "portal"/);
+  assert.doesNotMatch(terraform, /resource "oci_core_subnet" "portal_public"/);
+  assert.doesNotMatch(terraform, /resource "oci_core_subnet" "portal_private"/);
+  assert.doesNotMatch(terraform, /resource "oci_core_network_security_group" "portal"/);
+  assert.doesNotMatch(terraform, /resource "oci_core_network_security_group" "portal_lb"/);
+  assert.doesNotMatch(terraform, /resource "oci_load_balancer_load_balancer" "portal"/);
+  assert.doesNotMatch(terraform, /resource "oci_load_balancer_backend_set" "portal"/);
+  assert.doesNotMatch(terraform, /resource "oci_load_balancer_listener" "portal_http"/);
   assert.doesNotMatch(terraform, /resource "oci_load_balancer_backend" "portal"/);
   assert.doesNotMatch(terraform, /resource "oci_container_instances_container_instance" "portal"/);
   assert.doesNotMatch(terraform, /data "oci_core_vnic" "portal"/);
-  assert.match(terraform, /destination\s+=\s+var\.portal_private_subnet_cidr/);
-  assert.match(terraform, /network_entity_id\s+=\s+oci_core_nat_gateway\.portal\[0\]\.id/);
-  assert.match(terraform, /default_backend_set_name\s+=\s+oci_load_balancer_backend_set\.portal\[0\]\.name/);
-  assert.match(terraform, /portal_private_subnet_id\s+=\s+try\(oci_core_subnet\.portal_private\[0\]\.id, ""\)/);
-  assert.match(terraform, /portal_network_security_group_id\s+=\s+try\(oci_core_network_security_group\.portal\[0\]\.id, ""\)/);
-  assert.match(terraform, /portal_load_balancer_id\s+=\s+try\(oci_load_balancer_load_balancer\.portal\[0\]\.id, ""\)/);
-  assert.match(terraform, /portal_backend_set_name\s+=\s+try\(oci_load_balancer_backend_set\.portal\[0\]\.name, ""\)/);
-  assert.match(terraform, /PORTAL_PRIVATE_SUBNET_ID/);
-  assert.match(terraform, /PORTAL_NETWORK_SECURITY_GROUP_ID/);
-  assert.match(terraform, /PORTAL_LOAD_BALANCER_ID/);
-  assert.match(terraform, /PORTAL_BACKEND_SET_NAME/);
+  assert.doesNotMatch(terraform, /destination\s+=\s+var\.portal_private_subnet_cidr/);
+  assert.doesNotMatch(terraform, /network_entity_id\s+=\s+oci_core_nat_gateway\.portal\[0\]\.id/);
+  assert.doesNotMatch(terraform, /default_backend_set_name\s+=\s+oci_load_balancer_backend_set\.portal\[0\]\.name/);
+  assert.doesNotMatch(terraform, /portal_private_subnet_id\s+=/);
+  assert.doesNotMatch(terraform, /portal_network_security_group_id\s+=/);
+  assert.doesNotMatch(terraform, /portal_load_balancer_id\s+=/);
+  assert.doesNotMatch(terraform, /portal_backend_set_name\s+=/);
+  assert.doesNotMatch(terraform, /PORTAL_PRIVATE_SUBNET_ID/);
+  assert.doesNotMatch(terraform, /PORTAL_NETWORK_SECURITY_GROUP_ID/);
+  assert.doesNotMatch(terraform, /PORTAL_LOAD_BALANCER_ID/);
+  assert.doesNotMatch(terraform, /PORTAL_BACKEND_SET_NAME/);
   assert.match(terraform, /PORTAL_RUNTIME_CONFIG_BUCKET/);
-  assert.match(terraform, /PORTAL_AUTH_PASSWORD/);
+  assert.doesNotMatch(terraform, /name\s+=\s+"PORTAL_AUTH_PASSWORD"/);
   assert.match(terraform, /variable "oci_genai_project_id"/);
   assert.match(terraform, /variable "oci_genai_api_key"/);
   assert.match(terraform, /oci_genai_project_id\s+=\s+var\.oci_genai_project_id/);
   assert.match(terraform, /oci_genai_api_key\s+=\s+var\.oci_genai_api_key/);
-  assert.match(terraform, /"OCI_GENAI_REGION": os\.environ\["OCI_REGION"\]/);
+  assert.match(terraform, /plain\("OCI_GENAI_REGION", os\.environ\["OCI_REGION"\]\)/);
+  assert.match(terraform, /plain\("OCI_GENAI_PROJECT_ID", os\.getenv\("OCI_GENAI_PROJECT_ID", ""\)\)/);
   assert.match(terraform, /value = var\.portal_vector_store_id != null && var\.portal_vector_store_id != "" \? var\.portal_vector_store_id : " "/);
   assert.match(terraform, /value = var\.portal_code_interpreter_container_id != null && var\.portal_code_interpreter_container_id != "" \? var\.portal_code_interpreter_container_id : " "/);
   assert.doesNotMatch(terraform, /ocir_username\s+=\s+var\.devops_ocir_username/);
   assert.doesNotMatch(terraform, /ocir_auth_token\s+=\s+var\.devops_ocir_auth_token/);
   assert.doesNotMatch(terraform, /name\s+=\s+"OCIR_USERNAME"/);
   assert.doesNotMatch(terraform, /name\s+=\s+"OCIR_AUTH_TOKEN"/);
-  assert.match(terraform, /def env_value\(name, default=""\):/);
-  assert.match(terraform, /"OCI_GENAI_VECTOR_STORE_ID": env_value\("PORTAL_VECTOR_STORE_ID"\)/);
-  assert.match(terraform, /"OCI_GENAI_CODE_INTERPRETER_CONTAINER": env_value\("PORTAL_CODE_INTERPRETER_CONTAINER_ID"\)/);
+  assert.doesNotMatch(terraform, /name\s+=\s+"OCI_GENAI_API_KEY"/);
+  assert.doesNotMatch(terraform, /name\s+=\s+"OCI_HOSTED_APP_IDCS_CLIENT_SECRET"/);
+  assert.match(terraform, /plain\("OCI_RESOURCE_SUFFIX", os\.environ\["RESOURCE_SUFFIX"\]\)/);
+  assert.match(terraform, /vault\("OCI_PORTAL_PASSWORD", os\.environ\["PORTAL_AUTH_PASSWORD_SECRET_ID"\]\)/);
   assert.match(terraform, /data "external" "file_search_vector_store"/);
   assert.match(terraform, /data "external" "code_interpreter_container"/);
   assert.match(terraform, /data "external" "conversation_store"/);
@@ -685,8 +698,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.doesNotMatch(terraform, /fileexists\(local\.code_interpreter_container_generated_file\)/);
   assert.match(terraform, /output "portal_vector_store_id"/);
   assert.match(terraform, /output "portal_code_interpreter_container_id"/);
-  assert.match(terraform, /"OCI_GENAI_API_KEY": os\.environ\.get\("OCI_GENAI_API_KEY", ""\)/);
-  assert.match(terraform, /"OCI_PORTAL_PASSWORD": os\.environ\["PORTAL_AUTH_PASSWORD"\]/);
+  assert.match(terraform, /vault\("OCI_GENAI_API_KEY", os\.getenv\("OCI_GENAI_API_KEY_SECRET_ID", ""\)\)/);
+  assert.match(terraform, /vault\("OCI_PORTAL_PASSWORD", os\.environ\["PORTAL_AUTH_PASSWORD_SECRET_ID"\]\)/);
   assert.doesNotMatch(terraform, /--image-pull-secrets/);
   assert.doesNotMatch(terraform, /"secretType": "BASIC"/);
   assert.doesNotMatch(terraform, /image_pull_secrets/);
@@ -703,10 +716,11 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /output "resource_suffix"/);
   assert.match(terraform, /output "portal_public_ip"/);
   assert.match(terraform, /output "portal_url"/);
-  assert.match(terraform, /oci_load_balancer_load_balancer\.portal\[0\]\.ip_address_details\[0\]\.ip_address/);
-  assert.match(terraform, /"http:\/\/\$\{oci_load_balancer_load_balancer\.portal\[0\]\.ip_address_details\[0\]\.ip_address\}"/);
+  assert.doesNotMatch(terraform, /oci_load_balancer_load_balancer\.portal\[0\]\.ip_address_details\[0\]\.ip_address/);
+  assert.doesNotMatch(terraform, /"http:\/\/\$\{oci_load_balancer_load_balancer\.portal\[0\]\.ip_address_details\[0\]\.ip_address\}"/);
   assert.match(terraform, /output "portal_login_user"/);
   assert.match(terraform, /output "portal_login_password"/);
+  assert.match(terraform, /output "portal_login_password_secret_id"/);
   assert.match(terraform, /output "portal_container_repository_id"/);
   assert.match(terraform, /output "langfuse_postgres_private_endpoint"/);
   assert.match(terraform, /output "langfuse_clickhouse_url"/);
@@ -720,7 +734,8 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(readme, /Enterprise AI portal image repository/);
   assert.match(readme, /Langfuse hosted observability/);
   assert.match(readme, /default source branch is `oci-rms`/);
-  assert.match(readme, /delete-then-create semantics/);
+  assert.match(readme, /create-or-update semantics/);
+  assert.match(readme, /no-auth hosted application/);
   assert.match(deployDocs, /`devops_source_branch` \| `oci-rms`/);
   assert.match(deployDocs, /OCI code links/);
   assert.match(deployDocs, /`devops_source_revision=<commit SHA on oci-rms>`/);
@@ -769,62 +784,44 @@ test("DevOps build pipeline provisions generated runtime resources before portal
   assert.match(script, /PORTAL_CODE_INTERPRETER_CONTAINER_ID=/);
 });
 
-test("DevOps rolls portal container through load balancer with smoke tests", () => {
+test("DevOps deploys the portal as a no-auth hosted application with create-or-update rollout", () => {
   const main = read("infra/devops-hosted-image-build/main.tf");
   const variables = read("infra/devops-hosted-image-build/variables.tf");
   const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_portal.yaml");
-  const script = read("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh");
+  const script = read("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh");
 
-  assert.match(variables, /variable "portal_private_subnet_id"/);
-  assert.match(variables, /variable "portal_network_security_group_id"/);
-  assert.match(variables, /variable "portal_load_balancer_id"/);
-  assert.match(variables, /variable "portal_backend_set_name"/);
-  assert.match(variables, /variable "portal_auth_password"/);
+  assert.match(variables, /variable "portal_auth_password_secret_id"/);
   assert.match(variables, /variable "portal_runtime_config_bucket"/);
   assert.match(main, /resource "oci_devops_build_pipeline_stage" "deploy_portal"/);
+  assert.match(main, /display_name\s+=\s+"deploy-portal-hosted-application"/);
   assert.match(main, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_deploy_portal\.yaml"/);
-  assert.match(main, /PORTAL_PRIVATE_SUBNET_ID/);
-  assert.match(main, /PORTAL_NETWORK_SECURITY_GROUP_ID/);
-  assert.match(main, /PORTAL_LOAD_BALANCER_ID/);
-  assert.match(main, /PORTAL_BACKEND_SET_NAME/);
+  assert.match(main, /PORTAL_AUTH_PASSWORD_SECRET_ID/);
+  assert.match(main, /OCI_GENAI_API_KEY_SECRET_ID/);
+  assert.match(main, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID/);
   assert.match(main, /PORTAL_RUNTIME_CONFIG_BUCKET/);
-  assert.match(buildSpec, /deploy_portal_container\.sh/);
-  assert.match(script, /container-instances container-instance create/);
-  assert.doesNotMatch(script, /OCIR_USERNAME is required/);
-  assert.doesNotMatch(script, /OCIR_AUTH_TOKEN is required/);
-  assert.doesNotMatch(script, /write_image_pull_secrets/);
-  assert.doesNotMatch(script, /--image-pull-secrets/);
-  assert.doesNotMatch(script, /PORTAL_CONTAINER_CREATE_MAX_WAIT_SECONDS/);
-  assert.match(script, /PORTAL_CONTAINER_ACTIVE_POLL_ATTEMPTS/);
-  assert.match(script, /PORTAL_CONTAINER_CREATE_ROUNDS/);
-  assert.match(script, /PORTAL_CONTAINER_RETRY_DELAY_SECONDS/);
-  assert.match(script, /print_container_failure_details/);
-  assert.match(script, /create_active_container_instance/);
-  assert.match(script, /Portal container instance .* retrying another availability domain/);
-  assert.match(script, /waiting .* before retrying portal container creation/);
-  assert.match(script, /No portal container instance became ACTIVE in any availability domain/);
-  assert.match(script, /def dns_label\(value\):/);
-  assert.match(script, /hostnameLabel": hostname_label/);
-  assert.match(script, /PORTAL_ROLLOUT_ID/);
-  assert.doesNotMatch(script, /"hostnameLabel": "portal"/);
-  assert.match(script, /if str\(v\)\.strip\(\)/);
-  assert.match(script, /healthChecks/);
-  assert.match(script, /healthCheckType": "HTTP"/);
-  assert.match(script, /failureAction": "KILL"/);
-  assert.match(script, /--container-restart-policy ALWAYS/);
-  assert.match(script, /container-instances container get/);
-  assert.match(script, /container-instances container retrieve-logs/);
-  assert.match(script, /Container instance details/);
-  assert.match(script, /lb backend create/);
-  assert.match(script, /smoke_direct/);
-  assert.match(script, /smoke_public/);
-  assert.match(script, /\/login/);
+  assert.doesNotMatch(main, /PORTAL_LOAD_BALANCER_ID/);
+  assert.doesNotMatch(main, /PORTAL_BACKEND_SET_NAME/);
+  assert.doesNotMatch(main, /name\s+=\s+"PORTAL_AUTH_PASSWORD"/);
+  assert.match(buildSpec, /deploy_portal_hosted_application\.sh/);
+  assert.match(script, /hosted-application-collection list-hosted-applications/);
+  assert.match(script, /hosted-deployment-collection list-hosted-deployments/);
+  assert.match(script, /create_or_update_portal_hosted_application/);
+  assert.match(script, /add-artifact-create-single-docker-artifact-details/);
+  assert.match(script, /hosted-deployment update/);
+  assert.match(script, /NO_AUTH_CONFIG/);
+  assert.match(script, /"type": "VAULT"/);
+  assert.match(script, /OCI_PORTAL_PASSWORD/);
+  assert.match(script, /PORTAL_AUTH_PASSWORD_SECRET_ID/);
+  assert.match(script, /OCI_GENAI_API_KEY_SECRET_ID/);
+  assert.match(script, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID/);
+  assert.match(script, /invoke_url/);
+  assert.match(script, /\/health/);
   assert.match(script, /\/api\/admin\/demo-runs/);
   assert.match(script, /\/api\/features\/responses-api\/state/);
-  assert.match(script, /mark_existing_backends_drain/);
-  assert.match(script, /delete_old_portal_instances/);
-  assert.match(script, /container-instances container-instance delete/);
-  assert.match(script, /trap rollback_new_backend ERR/);
+  assert.doesNotMatch(script, /container-instances container-instance create/);
+  assert.doesNotMatch(script, /lb backend create/);
+  assert.doesNotMatch(script, /PORTAL_AUTH_PASSWORD:\?/);
+  assert.doesNotMatch(script, /os\.environ\["PORTAL_AUTH_PASSWORD"\]/);
 });
 
 test("startup script captures logs to a directory by default and can disable file capture", () => {
@@ -884,7 +881,7 @@ test("administration page is separate while runtime metadata stays available", (
   assert.match(server, /hostedApplicationInvokeUrl/);
   assert.match(server, /application\.generativeai\.\$\{region\}\.oci\.oraclecloud\.com\/20251112\/hostedApplications/);
   assert.doesNotMatch(server, /IDCS_CLIENT_SECRET=.*[0-9a-f-]{30,}/);
-  assert.match(main, /href="\/admin\.html"/);
+  assert.match(main, /href="\$\{portalRelativeUrl\("\/admin\.html"\)\}"/);
   assert.doesNotMatch(main, /id="administration"/);
   assert.match(adminHtml, /id="administration"/);
   assert.match(adminHtml, /admin-tab-runs/);
@@ -927,7 +924,7 @@ test("server refresh discovers hosted runtime metadata when generated files are 
   const server = read("server.mjs");
   const portalRollout = [
     read("infra/resource-manager-demo/main.tf"),
-    read("infra/devops-hosted-image-build/scripts/deploy_portal_container.sh")
+    read("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh")
   ].join("\n");
 
   assert.match(server, /function resolveHostedRuntimeResourceSuffix/);
@@ -939,8 +936,9 @@ test("server refresh discovers hosted runtime metadata when generated files are 
   assert.match(server, /discoverGeneratedHostedRuntimeState/);
   assert.match(portalRollout, /OCI_RESOURCE_SUFFIX/);
   assert.match(portalRollout, /hosted_app_idcs_client_id\s+=\s+module\.hosted_agentic_applications\.hosted_app_idcs_launch_client_id/);
-  assert.match(portalRollout, /hosted_app_idcs_client_secret\s+=\s+module\.hosted_agentic_applications\.hosted_app_idcs_launch_client_secret/);
-  assert.match(portalRollout, /OCI_HOSTED_APP_IDCS_TOKEN_URL/);
+  assert.match(portalRollout, /hosted_app_idcs_client_secret_id\s+=\s+var\.hosted_app_idcs_client_secret_id/);
+  assert.match(portalRollout, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID/);
+  assert.doesNotMatch(portalRollout, /hosted_app_idcs_client_secret\s+=\s+module\.hosted_agentic_applications\.hosted_app_idcs_launch_client_secret/);
 });
 
 test("DevOps hosted deployment creates replacements before best-effort cleanup", () => {
@@ -1013,7 +1011,7 @@ test("run dialog renders user-facing demo brief", () => {
   assert.match(main, /docs\/wiring\/\$\{featureId\}\.svg/);
   assert.match(main, /OCI wiring diagram/);
   assert.match(main, /demo-header-copy/);
-  assert.match(main, /action="\/logout"/);
+  assert.match(main, /action="\$\{portalRelativeUrl\("\/logout"\)\}"/);
   assert.doesNotMatch(main, /demo-quick-actions/);
   assert.doesNotMatch(main, /demo-flow-button/);
   assert.doesNotMatch(main, /demo-code-button/);

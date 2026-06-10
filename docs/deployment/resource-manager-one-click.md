@@ -6,19 +6,19 @@ Use the GitHub release asset to open OCI Resource Manager with the stack package
 
 ## What the Stack Creates
 
-The Resource Manager root is `infra/resource-manager-demo`. It deploys the shared demo infrastructure, OCI DevOps pipeline, hosted app image repositories, hosted app deployments, and the stable public load balancer used by the portal.
+The Resource Manager root is `infra/resource-manager-demo`. It deploys the shared demo infrastructure, OCI DevOps pipeline, hosted app image repositories, hosted app deployments, and the portal OCI Generative AI hosted application path.
 
 The OCI DevOps pipeline created by the stack:
 
 - clones the public GitHub branch into an OCI DevOps code repository,
 - always builds and delivers the Enterprise AI portal image,
 - keeps the hosted image and deployment stages stable so Resource Manager updates do not delete OCI DevOps stages,
-- runs hosted-deployment commands only when `APP_DEPLOY` or the matching `OCI_HA_*_DEPLOY` switch selects that hosted app; otherwise the stage logs that it was skipped.
-- rolls a replacement portal container instance behind the load balancer, waits for backend health, switches traffic, runs smoke tests, and deletes the old portal container instance after the new one is serving.
+- runs hosted-deployment commands only when `APP_DEPLOY` or the matching `OCI_HA_*_DEPLOY` switch selects that hosted app; otherwise the stage logs that it was skipped,
+- creates or updates the portal no-auth hosted application, promotes the latest portal image artifact, and runs smoke tests against the hosted invoke URL.
 
-The stack package includes `infra/resource-manager-demo/schema.yaml`, so OCI Resource Manager renders grouped inputs for target tenancy/compartment, source branch, DevOps credentials, portal settings, OCI Generative AI runtime values, and hosted application auth. Terraform variable validation enforces OCID shapes, branch names, CIDR syntax, port and size ranges, and the Resource Manager-safe defaults.
+The stack package includes `infra/resource-manager-demo/schema.yaml`, so OCI Resource Manager renders grouped inputs for target tenancy/compartment, source branch, DevOps credentials, portal settings, OCI Generative AI runtime values, and hosted application auth. Terraform variable validation enforces OCID shapes, branch names, and the Resource Manager-safe defaults.
 
-The portal is exposed on the stack output `portal_url`. The load balancer IP remains stable across portal rollouts. The login user is `oci`; read the sensitive `portal_login_password` output from the Resource Manager job or stack outputs.
+The portal is exposed on the stack output `portal_url`. The login user is `oci`; store the portal password in OCI Vault and provide its OCID through `portal_auth_password_secret_id`. The hosted application receives that password as a `VAULT` environment variable rather than plaintext.
 
 ## Before You Click
 
@@ -31,7 +31,8 @@ Create or collect these values:
 | Six-character resource suffix | Keeps names stable across reruns, for example `fd2ed9`. |
 | OCI DevOps Git username | Resource Manager pushes the cloned GitHub source into the OCI DevOps repo. |
 | OCI DevOps Git password/auth token | Used only for that OCI DevOps repo push. |
-| OCI Generative AI project ID and API key | Injected into the portal so non-hosted demos can call OCI Responses API. |
+| Portal password Vault secret OCID | Injected into the hosted application as a `VAULT` environment variable for portal login. |
+| OCI Generative AI project ID and optional API key secret OCID | Used by the portal so non-hosted demos can call OCI Responses API. |
 | IDCS domain URL, audience, and scope | Used for hosted application inbound auth. |
 
 Keep these defaults for Resource Manager:
@@ -69,7 +70,7 @@ Keep these defaults for Resource Manager:
 6. Leave **Run apply** selected.
 7. Create the stack.
 
-The apply can run for more than 20 minutes because the DevOps build compiles images, publishes artifacts, creates hosted deployments, and rolls the portal container through the load balancer. The Terraform build-run resource waits up to 90 minutes.
+The apply can run for more than 20 minutes because the DevOps build compiles images, publishes artifacts, creates hosted deployments, and creates or updates the portal hosted application. The Terraform build-run resource waits up to 90 minutes.
 
 OCI code links in the portal are generated from `devops_source_repo_url` and `devops_source_branch`. Keep `devops_source_branch=oci-rms` for this Resource Manager deployment path, and set `devops_source_repo_url` to the customer fork when the portal should open source actions against their repository. The portal shows source buttons on demand in each demo's OCI feature code panel instead of displaying raw repository URLs.
 
@@ -80,9 +81,9 @@ For iterative deployments, update both of these values before applying the same 
 
 Keeping the branch and revision current makes Resource Manager seed the exact source into the OCI DevOps repository and starts a new build run without creating a second Resource Manager stack.
 
-Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. Langfuse is disabled by default; set `OCI_HA_LANGFUSE_DEPLOY=true` only when that hosted demo should be built and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal container is rolled after each DevOps build run; the rollout keeps the old backend available until the new backend passes load balancer health and public smoke tests.
+Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. Langfuse is disabled by default; set `OCI_HA_LANGFUSE_DEPLOY=true` only when that hosted demo should be built and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal hosted application stage runs after each DevOps build run and updates the existing portal app when the display name is already present.
 
-Keep `conversation_store_local_exec_enabled=false`, `file_search_local_exec_enabled=false`, and `code_interpreter_local_exec_enabled=false` for Resource Manager deployments. The OCI DevOps build pipeline includes a `provision-generated-runtime` stage that uses resource principal auth to create or reuse the Conversation Store conversation, File Search Vector Store and bundled PDFs, and Code Interpreter container before the portal rollout stage starts.
+Keep `conversation_store_local_exec_enabled=false`, `file_search_local_exec_enabled=false`, and `code_interpreter_local_exec_enabled=false` for Resource Manager deployments. The OCI DevOps build pipeline includes a `provision-generated-runtime` stage that uses resource principal auth to create or reuse the Conversation Store conversation, File Search Vector Store and bundled PDFs, and Code Interpreter container before the portal hosted application stage starts.
 
 ## Validate
 
@@ -90,12 +91,11 @@ After apply finishes, check these outputs:
 
 | Output | Expected value |
 | --- | --- |
-| `portal_url` | Public URL for the portal load balancer. |
+| `portal_url` | Invoke URL for the portal hosted application. |
 | `portal_login_user` | `oci` |
-| `portal_login_password` | Sensitive generated password. |
+| `portal_login_password_secret_id` | Vault secret OCID containing the portal password. |
 | `devops_hosted_image_build_run_id` | OCI DevOps build run OCID. |
 | `devops_hosted_deployment_exports` | Hosted app URLs and deployment OCIDs. |
-| `portal_public_ip` | Stable public IP attached to the portal load balancer. |
 
 Open `portal_url`, log in, and run both normal demos and hosted deployment demos. If a hosted demo is unavailable, open the DevOps build run from `devops_hosted_image_build_run_id` and check the per-app stages:
 
@@ -104,9 +104,9 @@ Open `portal_url`, log in, and run both normal demos and hosted deployment demos
 - `deploy-langfuse`
 - `deploy-openclaw`
 - `deploy-llamaindex-control-tower`
-- `deploy-portal-container`
+- `deploy-portal-hosted-application`
 
-Each deploy stage deletes older hosted deployments and hosted applications with the same display name before creating the replacement, so reruns do not accumulate duplicate active hosted apps.
+Non-portal hosted deploy stages clean up older duplicate hosted deployments and applications with the same display name. The portal deploy stage reuses the existing active portal hosted application when present and updates its environment and active image artifact.
 
 ## Publish a New Release Asset
 

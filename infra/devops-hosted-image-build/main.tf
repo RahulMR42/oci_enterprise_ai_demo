@@ -202,7 +202,7 @@ resource "oci_devops_build_pipeline" "this" {
     items {
       name          = "DEPLOY_ONLY_APP"
       default_value = local.deploy_only_app_pipeline_value
-      description   = "When true, hosted app deployment stages are skipped and only the portal app container redeploys."
+      description   = "When true, non-portal hosted app deployment stages are skipped and only the portal hosted application is updated."
     }
     items {
       name          = "OCI_HA_LANGFUSE_DEPLOY"
@@ -240,24 +240,9 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Portal OCIR repository dependency marker."
     }
     items {
-      name          = "PORTAL_PRIVATE_SUBNET_ID"
-      default_value = var.portal_private_subnet_id
-      description   = "Private subnet used by the rolling portal deployment stage."
-    }
-    items {
-      name          = "PORTAL_NETWORK_SECURITY_GROUP_ID"
-      default_value = var.portal_network_security_group_id
-      description   = "NSG assigned to rolling portal container instances."
-    }
-    items {
-      name          = "PORTAL_LOAD_BALANCER_ID"
-      default_value = var.portal_load_balancer_id
-      description   = "Load balancer updated by the rolling portal deployment stage."
-    }
-    items {
-      name          = "PORTAL_BACKEND_SET_NAME"
-      default_value = var.portal_backend_set_name
-      description   = "Load balancer backend set updated by the rolling portal deployment stage."
+      name          = "PORTAL_AUTH_PASSWORD_SECRET_ID"
+      default_value = var.portal_auth_password_secret_id
+      description   = "OCI Vault secret OCID containing the portal login password."
     }
     items {
       name          = "PORTAL_AUTH_DB_DSN"
@@ -303,6 +288,16 @@ resource "oci_devops_build_pipeline" "this" {
       name          = "OCI_HOSTED_APP_IDCS_CLIENT_ID"
       default_value = var.hosted_app_idcs_client_id
       description   = "Identity domain OAuth client id used by portal hosted UI launch proxy."
+    }
+    items {
+      name          = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID"
+      default_value = var.hosted_app_idcs_client_secret_id
+      description   = "OCI Vault secret OCID containing the hosted UI launch proxy OAuth client secret."
+    }
+    items {
+      name          = "OCI_GENAI_API_KEY_SECRET_ID"
+      default_value = var.oci_genai_api_key_secret_id
+      description   = "OCI Vault secret OCID containing the OCI Generative AI API key."
     }
     items {
       name          = "LANGFUSE_CLICKHOUSE_USER"
@@ -553,8 +548,8 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
-  display_name                       = "deploy-portal-container"
-  description                        = "Creates a replacement portal container instance, smoke-tests it, switches the load balancer, and removes old portal instances."
+  display_name                       = "deploy-portal-hosted-application"
+  description                        = "Creates or updates the no-auth portal OCI Generative AI hosted application and promotes the latest portal image artifact."
   build_spec_file                    = "infra/devops-hosted-image-build/build_spec_deploy_portal.yaml"
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
@@ -681,44 +676,8 @@ resource "oci_devops_build_run" "this" {
       value = var.portal_container_repository_id
     }
     items {
-      name  = "PORTAL_PRIVATE_SUBNET_ID"
-      value = var.portal_private_subnet_id
-    }
-    items {
-      name  = "PORTAL_NETWORK_SECURITY_GROUP_ID"
-      value = var.portal_network_security_group_id
-    }
-    items {
-      name  = "PORTAL_LOAD_BALANCER_ID"
-      value = var.portal_load_balancer_id
-    }
-    items {
-      name  = "PORTAL_BACKEND_SET_NAME"
-      value = var.portal_backend_set_name
-    }
-    items {
-      name  = "PORTAL_PUBLIC_URL"
-      value = var.portal_public_url
-    }
-    items {
-      name  = "PORTAL_CONTAINER_PORT"
-      value = tostring(var.portal_container_port)
-    }
-    items {
-      name  = "PORTAL_CONTAINER_SHAPE"
-      value = var.portal_container_shape
-    }
-    items {
-      name  = "PORTAL_CONTAINER_OCPUS"
-      value = tostring(var.portal_container_ocpus)
-    }
-    items {
-      name  = "PORTAL_CONTAINER_MEMORY_GBS"
-      value = tostring(var.portal_container_memory_gbs)
-    }
-    items {
-      name  = "PORTAL_AUTH_PASSWORD"
-      value = var.portal_auth_password
+      name  = "PORTAL_AUTH_PASSWORD_SECRET_ID"
+      value = var.portal_auth_password_secret_id
     }
     items {
       name  = "PORTAL_AUTH_DB_DSN"
@@ -805,16 +764,16 @@ resource "oci_devops_build_run" "this" {
       value = var.hosted_app_idcs_client_id
     }
     items {
-      name  = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET"
-      value = var.hosted_app_idcs_client_secret
+      name  = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID"
+      value = var.hosted_app_idcs_client_secret_id
     }
     items {
       name  = "OCI_GENAI_PROJECT_ID"
       value = var.oci_genai_project_id
     }
     items {
-      name  = "OCI_GENAI_API_KEY"
-      value = var.oci_genai_api_key
+      name  = "OCI_GENAI_API_KEY_SECRET_ID"
+      value = var.oci_genai_api_key_secret_id
     }
     items {
       name  = "OPENCLAW_GATEWAY_TOKEN"

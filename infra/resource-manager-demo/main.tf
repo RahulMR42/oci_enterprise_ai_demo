@@ -71,34 +71,34 @@ module "nl2sql_sql_search" {
 module "devops_hosted_image_build" {
   source = "../devops-hosted-image-build"
 
-  enabled                        = var.devops_hosted_image_build_enabled
-  compartment_id                 = var.compartment_id
-  region                         = var.region
-  resource_suffix                = var.resource_suffix
-  source_repo_url                = var.devops_source_repo_url
-  source_branch                  = var.devops_source_branch
-  source_revision                = var.devops_source_revision
-  devops_repository_branch       = var.devops_repository_branch
-  source_connection_type         = var.devops_source_connection_type
-  source_connection_id           = var.devops_source_connection_id
-  source_repository_id           = var.devops_source_repository_id
-  create_devops_repository       = var.devops_create_repository
-  devops_repository_git_username = var.devops_repository_git_username
-  devops_repository_git_password = var.devops_repository_git_password
-  create_github_connection       = var.devops_create_github_connection
-  source_access_token_secret_id  = var.devops_source_access_token_secret_id
-  ocir_region_key                = var.hosted_app_ocir_region_key
-  image_tag                      = local.devops_image_tag
-  idcs_domain_url                = var.idcs_domain_url
-  idcs_audience                  = var.idcs_audience
-  idcs_scope                     = var.idcs_scope
-  hosted_app_idcs_client_id      = module.hosted_agentic_applications.hosted_app_idcs_launch_client_id
-  hosted_app_idcs_client_secret  = module.hosted_agentic_applications.hosted_app_idcs_launch_client_secret
-  oci_genai_project_id           = var.oci_genai_project_id
-  oci_genai_api_key              = var.oci_genai_api_key
-  openclaw_gateway_token         = var.openclaw_gateway_token
-  langfuse_database_url          = try(module.hosted_agentic_applications.langfuse_database_url, "")
-  langfuse_clickhouse_url        = try(module.hosted_agentic_applications.langfuse_clickhouse_url, "")
+  enabled                          = var.devops_hosted_image_build_enabled
+  compartment_id                   = var.compartment_id
+  region                           = var.region
+  resource_suffix                  = var.resource_suffix
+  source_repo_url                  = var.devops_source_repo_url
+  source_branch                    = var.devops_source_branch
+  source_revision                  = var.devops_source_revision
+  devops_repository_branch         = var.devops_repository_branch
+  source_connection_type           = var.devops_source_connection_type
+  source_connection_id             = var.devops_source_connection_id
+  source_repository_id             = var.devops_source_repository_id
+  create_devops_repository         = var.devops_create_repository
+  devops_repository_git_username   = var.devops_repository_git_username
+  devops_repository_git_password   = var.devops_repository_git_password
+  create_github_connection         = var.devops_create_github_connection
+  source_access_token_secret_id    = var.devops_source_access_token_secret_id
+  ocir_region_key                  = var.hosted_app_ocir_region_key
+  image_tag                        = local.devops_image_tag
+  idcs_domain_url                  = var.idcs_domain_url
+  idcs_audience                    = var.idcs_audience
+  idcs_scope                       = var.idcs_scope
+  hosted_app_idcs_client_id        = module.hosted_agentic_applications.hosted_app_idcs_launch_client_id
+  hosted_app_idcs_client_secret_id = var.hosted_app_idcs_client_secret_id
+  oci_genai_project_id             = var.oci_genai_project_id
+  oci_genai_api_key_secret_id      = var.oci_genai_api_key_secret_id
+  openclaw_gateway_token           = var.openclaw_gateway_token
+  langfuse_database_url            = try(module.hosted_agentic_applications.langfuse_database_url, "")
+  langfuse_clickhouse_url          = try(module.hosted_agentic_applications.langfuse_clickhouse_url, "")
   langfuse_clickhouse_migration_url = try(
     module.hosted_agentic_applications.langfuse_clickhouse_migration_url,
     ""
@@ -119,16 +119,7 @@ module "devops_hosted_image_build" {
     ? var.portal_container_repository_id
     : try(oci_artifacts_container_repository.portal[0].id, "")
   )
-  portal_private_subnet_id               = try(oci_core_subnet.portal_private[0].id, "")
-  portal_network_security_group_id       = try(oci_core_network_security_group.portal[0].id, "")
-  portal_load_balancer_id                = try(oci_load_balancer_load_balancer.portal[0].id, "")
-  portal_backend_set_name                = try(oci_load_balancer_backend_set.portal[0].name, "")
-  portal_public_url                      = local.portal_url
-  portal_container_port                  = var.portal_container_port
-  portal_container_shape                 = var.portal_container_shape
-  portal_container_ocpus                 = var.portal_container_ocpus
-  portal_container_memory_gbs            = var.portal_container_memory_gbs
-  portal_auth_password                   = local.portal_auth_password
+  portal_auth_password_secret_id         = var.portal_auth_password_secret_id
   portal_auth_db_dsn                     = module.nl2sql_sql_search.autonomous_database_connection_string
   portal_auth_db_id                      = module.nl2sql_sql_search.autonomous_database_id
   portal_auth_db_user                    = module.nl2sql_sql_search.database_user_name
