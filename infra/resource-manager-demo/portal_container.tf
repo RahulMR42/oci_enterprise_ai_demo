@@ -357,9 +357,15 @@ locals {
     key => value
     if contains(keys(local.default_hosted_deployment_exports), key)
   }
-  deploy_all_hosted_applications = trimspace(var.app_deploy) == "" || lower(var.app_deploy) == "all"
-  effective_deploy_only_app      = local.deploy_all_hosted_applications ? false : var.deploy_only_app
-  selected_hosted_deployment_export_keys = local.deploy_all_hosted_applications ? keys(local.default_hosted_deployment_exports) : concat(
+  normalized_app_deploy          = lower(trimspace(var.app_deploy))
+  deploy_all_hosted_applications = local.normalized_app_deploy == "all"
+  deploy_portal_only             = local.normalized_app_deploy == "portal"
+  effective_deploy_only_app      = local.deploy_all_hosted_applications ? false : (local.deploy_portal_only || var.deploy_only_app)
+  selected_hosted_deployment_export_keys = local.effective_deploy_only_app ? [
+    "PORTAL_HOSTED_APPLICATION_ID",
+    "PORTAL_HOSTED_DEPLOYMENT_ID",
+    "PORTAL_URL"
+  ] : local.deploy_all_hosted_applications ? keys(local.default_hosted_deployment_exports) : concat(
     var.oci_ha_hosted_agent_deploy ? ["HOSTED_AGENT_DEPLOYMENT_ID", "HOSTED_AGENT_URL"] : [],
     var.oci_ha_langgraph_deploy ? ["LANGGRAPH_DEPLOYMENT_ID", "LANGGRAPH_URL"] : [],
     var.oci_ha_langfuse_deploy ? ["LANGFUSE_DEPLOYMENT_ID", "LANGFUSE_URL"] : [],

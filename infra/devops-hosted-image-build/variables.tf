@@ -380,13 +380,13 @@ variable "deploy_langfuse_hosted_application" {
 }
 
 variable "app_deploy" {
-  description = "Hosted application deployment selector. Use all to deploy every hosted application, or leave empty to use the per-application switches."
+  description = "Hosted application deployment selector. Use all to deploy every hosted application, portal to deploy only the Enterprise AI portal hosted application, or leave empty to use the per-application switches."
   type        = string
   default     = "all"
 
   validation {
-    condition     = contains(["", "all"], lower(var.app_deploy))
-    error_message = "app_deploy must be empty or all."
+    condition     = contains(["", "all", "portal"], lower(trimspace(var.app_deploy)))
+    error_message = "app_deploy must be empty, all, or portal."
   }
 }
 

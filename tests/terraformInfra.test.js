@@ -174,6 +174,25 @@ test("portal protected users reuse the nl2sql autonomous database", () => {
   assert.doesNotMatch(resourceManagerMain, /module "portal_auth_database"/);
 });
 
+test("resource manager supports portal-only hosted app build runs", () => {
+  const resourceManagerVariables = read("infra/resource-manager-demo/variables.tf");
+  const resourceManagerPortal = read("infra/resource-manager-demo/portal_container.tf");
+  const resourceManagerSchema = read("infra/resource-manager-demo/schema.yaml");
+  const devopsVariables = read("infra/devops-hosted-image-build/variables.tf");
+  const devopsLocals = read("infra/devops-hosted-image-build/locals.tf");
+
+  assert.match(resourceManagerVariables, /contains\(\["", "all", "portal"\], lower\(trimspace\(var\.app_deploy\)\)\)/);
+  assert.match(devopsVariables, /contains\(\["", "all", "portal"\], lower\(trimspace\(var\.app_deploy\)\)\)/);
+  assert.match(resourceManagerSchema, /portal to deploy only the Enterprise AI portal hosted application/);
+  assert.match(resourceManagerPortal, /deploy_portal_only\s+=\s+local\.normalized_app_deploy == "portal"/);
+  assert.match(resourceManagerPortal, /effective_deploy_only_app\s+=\s+local\.deploy_all_hosted_applications \? false : \(local\.deploy_portal_only \|\| var\.deploy_only_app\)/);
+  assert.match(resourceManagerPortal, /selected_hosted_deployment_export_keys\s+=\s+local\.effective_deploy_only_app \? \[/);
+  assert.match(devopsLocals, /deploy_portal_only\s+=\s+local\.normalized_app_deploy == "portal"/);
+  assert.match(devopsLocals, /app_deploy_pipeline_value\s+=\s+local\.deploy_all_hosted_applications \? "all" : local\.deploy_portal_only \? "portal" : "none"/);
+  assert.match(devopsLocals, /deploy_only_app_pipeline_value\s+=\s+local\.effective_deploy_only_app \? "true" : "false"/);
+  assert.match(devopsLocals, /if !local\.effective_deploy_only_app/);
+});
+
 test("hosted agent terraform creates OCIR repository and OCI hosted deployment", () => {
   const hostedAppIdcsClient = read("infra/hosted-agentic-applications/hosted_app_idcs_client.tf");
   const terraform = [
@@ -521,12 +540,14 @@ test("resource manager aggregate stack covers all Terraform deployment modules",
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deliver_image"/);
   assert.match(terraform, /resource "oci_devops_build_pipeline_stage" "deploy_hosted"/);
   assert.match(terraform, /selected_hosted_application_deployments\s+=\s+\{/);
-  assert.match(terraform, /deploy_all_hosted_applications\s+=\s+trimspace\(var\.app_deploy\) == "" \|\| lower\(var\.app_deploy\) == "all"/);
-  assert.match(terraform, /effective_deploy_only_app\s+=\s+local\.deploy_all_hosted_applications \? false : var\.deploy_only_app/);
-  assert.match(terraform, /app_deploy_pipeline_value\s+=\s+local\.deploy_all_hosted_applications \? "all" : "none"/);
+  assert.match(terraform, /normalized_app_deploy\s+=\s+lower\(trimspace\(var\.app_deploy\)\)/);
+  assert.match(terraform, /deploy_all_hosted_applications\s+=\s+local\.normalized_app_deploy == "all"/);
+  assert.match(terraform, /deploy_portal_only\s+=\s+local\.normalized_app_deploy == "portal"/);
+  assert.match(terraform, /effective_deploy_only_app\s+=\s+local\.deploy_all_hosted_applications \? false : \(local\.deploy_portal_only \|\| var\.deploy_only_app\)/);
+  assert.match(terraform, /app_deploy_pipeline_value\s+=\s+local\.deploy_all_hosted_applications \? "all" : local\.deploy_portal_only \? "portal" : "none"/);
   assert.match(terraform, /deploy_only_app_pipeline_value\s+=\s+local\.effective_deploy_only_app \? "true" : "false"/);
   assert.match(devopsLocals, /selected_hosted_image_artifacts\s+=\s+\{/);
-  assert.match(devopsLocals, /selected_hosted_image_artifacts\s+=\s+\{[\s\S]*if key != "portal"/);
+  assert.match(devopsLocals, /selected_hosted_image_artifacts\s+=\s+\{[\s\S]*if key != "portal" && !local\.effective_deploy_only_app/);
   assert.doesNotMatch(devopsLocals, /selected_hosted_image_artifacts\s+=\s+\{[\s\S]*!var\.deploy_only_app/);
   assert.doesNotMatch(devopsLocals, /selected_hosted_image_artifacts\s+=\s+\{[\s\S]*contains\(keys\(local\.selected_hosted_application_deployments\), key\)/);
   assert.doesNotMatch(devopsLocals, /if key != "portal" && \(var\.deploy_only_app \|\| contains/);

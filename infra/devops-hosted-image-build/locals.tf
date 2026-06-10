@@ -86,23 +86,25 @@ locals {
     }
   }
 
-  deploy_all_hosted_applications = trimspace(var.app_deploy) == "" || lower(var.app_deploy) == "all"
-  effective_deploy_only_app      = local.deploy_all_hosted_applications ? false : var.deploy_only_app
-  app_deploy_pipeline_value      = local.deploy_all_hosted_applications ? "all" : "none"
+  normalized_app_deploy          = lower(trimspace(var.app_deploy))
+  deploy_all_hosted_applications = local.normalized_app_deploy == "all"
+  deploy_portal_only             = local.normalized_app_deploy == "portal"
+  effective_deploy_only_app      = local.deploy_all_hosted_applications ? false : (local.deploy_portal_only || var.deploy_only_app)
+  app_deploy_pipeline_value      = local.deploy_all_hosted_applications ? "all" : local.deploy_portal_only ? "portal" : "none"
   deploy_only_app_pipeline_value = local.effective_deploy_only_app ? "true" : "false"
   selected_hosted_application_deployments = {
     for key, deployment in local.hosted_application_deployments : key => deployment
-    if local.deploy_all_hosted_applications || contains(compact([
+    if !local.effective_deploy_only_app && (local.deploy_all_hosted_applications || contains(compact([
       var.deploy_hosted_agent_hosted_application ? "hosted_agent" : "",
       var.deploy_langgraph_hosted_application ? "langgraph" : "",
       var.deploy_langfuse_hosted_application ? "langfuse" : "",
       var.deploy_openclaw_hosted_application ? "openclaw" : "",
       var.deploy_llamaindex_hosted_application ? "llamaindex" : ""
-    ]), key)
+    ]), key))
   }
   selected_hosted_image_artifacts = {
     for key, artifact in local.image_artifacts : key => artifact
-    if key != "portal"
+    if key != "portal" && !local.effective_deploy_only_app
   }
   selected_image_artifacts = merge(
     { portal = local.image_artifacts.portal },

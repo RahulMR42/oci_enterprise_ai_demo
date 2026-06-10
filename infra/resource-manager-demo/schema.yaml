@@ -148,7 +148,7 @@ variables:
     default: false
   app_deploy:
     title: APP_DEPLOY
-    description: Set to all to build, deliver, and deploy every hosted application. Leave empty to use the OCI_HA_* per-application switches; enable the needed switches on the first deployment so those hosted apps are created.
+    description: Set to all to build, deliver, and deploy every hosted application, portal to deploy only the Enterprise AI portal hosted application, or leave empty to use the OCI_HA_* per-application switches; enable the needed switches on the first deployment so those hosted apps are created.
     type: string
     default: all
   oci_ha_hosted_agent_deploy:
