@@ -56,12 +56,6 @@ values = [
     plain("OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE", os.getenv("PORTAL_RUNTIME_CONFIG_NAMESPACE", "")),
     plain("OCI_PORTAL_RUNTIME_CONFIG_BUCKET", os.getenv("PORTAL_RUNTIME_CONFIG_BUCKET", "")),
     plain("OCI_PORTAL_RUNTIME_CONFIG_OBJECT", os.getenv("PORTAL_RUNTIME_CONFIG_OBJECT", "portal-runtime-config.json")),
-    plain("OCI_PORTAL_RUN_HISTORY_NAMESPACE", os.getenv("PORTAL_RUN_HISTORY_NAMESPACE", "")),
-    plain("OCI_PORTAL_RUN_HISTORY_BUCKET", os.getenv("PORTAL_RUN_HISTORY_BUCKET", "")),
-    plain("OCI_PORTAL_RUN_HISTORY_OBJECT", os.getenv("PORTAL_RUN_HISTORY_OBJECT", "portal-demo-run-summary.json")),
-    plain("OCI_PORTAL_CHANGE_LOG_NAMESPACE", os.getenv("PORTAL_CHANGE_LOG_NAMESPACE", "")),
-    plain("OCI_PORTAL_CHANGE_LOG_BUCKET", os.getenv("PORTAL_CHANGE_LOG_BUCKET", "")),
-    plain("OCI_PORTAL_CHANGE_LOG_OBJECT", os.getenv("PORTAL_CHANGE_LOG_OBJECT", "portal-change-log.json")),
     plain("OCI_PORTAL_AUTH_STORE_MODE", "adb" if os.getenv("PORTAL_AUTH_DB_DSN", "") else ""),
     plain("OCI_PORTAL_AUTH_DB_DSN", os.getenv("PORTAL_AUTH_DB_DSN", "")),
     plain("OCI_PORTAL_AUTH_DB_ID", os.getenv("PORTAL_AUTH_DB_ID", "")),
@@ -76,7 +70,7 @@ values = [
     vault("OCI_PORTAL_AUTH_DB_PASSWORD", os.getenv("PORTAL_AUTH_DB_PASSWORD_SECRET_ID", "")),
 ]
 env = [item for item in values if item]
-if len(env) > 24:
+if len(env) > 20:
     raise SystemExit(f"Portal hosted environment has {len(env)} variables; reduce it before deployment.")
 with open(output_file, "w", encoding="utf-8") as handle:
     json.dump(env, handle)

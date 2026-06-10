@@ -522,6 +522,45 @@ function hasObjectStorageReference(reference = {}) {
   return Boolean(reference.namespace && reference.bucket && reference.object);
 }
 
+export function resolvePortalObjectStorageReference(envReference = {}, runtimeConfig = {}, options = {}) {
+  const { namespaceKey = "", bucketKey = "", objectKey = "", defaultObject = "" } = options;
+  return {
+    namespace: String(
+      envReference.namespace ||
+        (namespaceKey ? runtimeConfig[namespaceKey] : "") ||
+        runtimeConfig.runtimeConfigObjectNamespace ||
+        portalRuntimeConfigObject.namespace ||
+        ""
+    ).trim(),
+    bucket: String(
+      envReference.bucket ||
+        (bucketKey ? runtimeConfig[bucketKey] : "") ||
+        runtimeConfig.runtimeConfigObjectBucket ||
+        portalRuntimeConfigObject.bucket ||
+        ""
+    ).trim(),
+    object: String(envReference.object || (objectKey ? runtimeConfig[objectKey] : "") || defaultObject || "").trim()
+  };
+}
+
+function portalRunHistoryReference() {
+  return resolvePortalObjectStorageReference(portalRunHistoryObject, readPortalRuntimeConfig(), {
+    namespaceKey: "runHistoryObjectNamespace",
+    bucketKey: "runHistoryObjectBucket",
+    objectKey: "runHistoryObjectName",
+    defaultObject: "portal-demo-run-summary.json"
+  });
+}
+
+function portalChangeLogReference() {
+  return resolvePortalObjectStorageReference(portalChangeLogObject, readPortalRuntimeConfig(), {
+    namespaceKey: "changeLogObjectNamespace",
+    bucketKey: "changeLogObjectBucket",
+    objectKey: "changeLogObjectName",
+    defaultObject: "portal-change-log.json"
+  });
+}
+
 function readObjectStorageJson(reference = {}) {
   if (!hasObjectStorageReference(reference)) {
     return {};
@@ -634,19 +673,20 @@ function portalRuntimeValue(key) {
 }
 
 function readPersistentDemoRunRecords() {
-  const payload = readObjectStorageJson(portalRunHistoryObject);
+  const payload = readObjectStorageJson(portalRunHistoryReference());
   return Array.isArray(payload.runs) ? payload.runs : [];
 }
 
 function writePersistentDemoRunRecord(record = {}) {
-  if (!hasObjectStorageReference(portalRunHistoryObject)) {
+  const reference = portalRunHistoryReference();
+  if (!hasObjectStorageReference(reference)) {
     return;
   }
 
   const current = readPersistentDemoRunRecords();
   const seen = new Set(current.map(demoRunKey));
   const next = seen.has(demoRunKey(record)) ? current : [record, ...current].slice(0, 250);
-  writeObjectStorageJson(portalRunHistoryObject, {
+  writeObjectStorageJson(reference, {
     updatedAt: new Date().toISOString(),
     metrics: summarizeDemoRunHistory(next).metrics,
     runs: next
@@ -656,18 +696,19 @@ function writePersistentDemoRunRecord(record = {}) {
 export function readPortalChangeLog() {
   const localPath = join(root, "change-log.json");
   const localPayload = existsSync(localPath) ? JSON.parse(readFileSync(localPath, "utf8")) : {};
-  const objectPayload = readObjectStorageJson(portalChangeLogObject);
+  const reference = portalChangeLogReference();
+  const objectPayload = readObjectStorageJson(reference);
   const payload = Object.keys(objectPayload).length ? objectPayload : localPayload;
   const entries = Array.isArray(payload.entries) ? payload.entries : [];
   return redactForDemoLog({
     name: payload.name || "OCI Enterprise AI Portal Change Log",
     generatedAt: payload.generatedAt || new Date().toISOString(),
-    source: hasObjectStorageReference(portalChangeLogObject) && Object.keys(objectPayload).length ? "object-storage" : "local-file",
-    object: hasObjectStorageReference(portalChangeLogObject)
+    source: hasObjectStorageReference(reference) && Object.keys(objectPayload).length ? "object-storage" : "local-file",
+    object: hasObjectStorageReference(reference)
       ? {
-          namespace: portalChangeLogObject.namespace,
-          bucket: portalChangeLogObject.bucket,
-          name: portalChangeLogObject.object
+          namespace: reference.namespace,
+          bucket: reference.bucket,
+          name: reference.object
         }
       : {},
     entries
@@ -3745,6 +3786,7 @@ export function readAdminLogSummary(filters = {}) {
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
     .slice(0, 60);
 
+  const runHistoryReference = portalRunHistoryReference();
   return redactForDemoLog({
     generatedAt: new Date().toISOString(),
     sources: [
@@ -3754,9 +3796,9 @@ export function readAdminLogSummary(filters = {}) {
       { name: "hosted-application", count: 0 }
     ],
     containerLogs: {
-      status: hasObjectStorageReference(portalRunHistoryObject) ? "object-storage" : "local",
-      note: hasObjectStorageReference(portalRunHistoryObject)
-        ? `Demo logs, counters, and metrics are read from Object Storage object ${portalRunHistoryObject.bucket}/${portalRunHistoryObject.object}. Hosted application runtime logs are available through OCI service logging.`
+      status: hasObjectStorageReference(runHistoryReference) ? "object-storage" : "local",
+      note: hasObjectStorageReference(runHistoryReference)
+        ? `Demo logs, counters, and metrics are read from Object Storage object ${runHistoryReference.bucket}/${runHistoryReference.object}. Hosted application runtime logs are available through OCI service logging.`
         : "Demo logs, counters, and metrics are read from local portal log capture. Hosted application runtime logs are available through OCI service logging.",
       command: ""
     },

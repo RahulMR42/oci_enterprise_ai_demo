@@ -811,6 +811,7 @@ test("DevOps deploys the portal as a no-auth hosted application with create-or-u
   const variables = read("infra/devops-hosted-image-build/variables.tf");
   const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_portal.yaml");
   const script = read("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh");
+  const hostedEnvironmentNames = [...script.matchAll(/(?:plain|vault)\("([^"]+)"/g)].map((match) => match[1]);
 
   assert.match(variables, /variable "portal_auth_password_secret_id"/);
   assert.match(variables, /variable "portal_runtime_config_bucket"/);
@@ -840,6 +841,9 @@ test("DevOps deploys the portal as a no-auth hosted application with create-or-u
   assert.match(script, /\/health/);
   assert.match(script, /\/api\/admin\/demo-runs/);
   assert.match(script, /\/api\/features\/responses-api\/state/);
+  assert.ok(hostedEnvironmentNames.length <= 20, `portal hosted application environment has ${hostedEnvironmentNames.length} variables`);
+  assert.doesNotMatch(script, /plain\("OCI_PORTAL_RUN_HISTORY_/);
+  assert.doesNotMatch(script, /plain\("OCI_PORTAL_CHANGE_LOG_/);
   assert.doesNotMatch(script, /container-instances container-instance create/);
   assert.doesNotMatch(script, /lb backend create/);
   assert.doesNotMatch(script, /PORTAL_AUTH_PASSWORD:\?/);

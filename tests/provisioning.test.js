@@ -36,6 +36,7 @@ import {
   hostedApplicationIdFromInvokeUrl,
   readAdminLogSummary,
   resolvePortalAuthPasswordValue,
+  resolvePortalObjectStorageReference,
   resolveSecretReferenceValue,
   safeEnvironmentSnapshot,
   selectHostedRuntimeCandidate,
@@ -515,7 +516,33 @@ test("administration exposes object-storage backed portal change log", () => {
   assert.match(moduleMain, /portal_change_log_object\s+=\s+"portal-change-log\.json"/);
   assert.match(devopsMain, /PORTAL_CHANGE_LOG_NAMESPACE/);
   assert.match(devopsVariables, /variable "portal_change_log_object"/);
-  assert.match(portalScript, /OCI_PORTAL_CHANGE_LOG_OBJECT/);
+  assert.doesNotMatch(portalScript, /plain\("OCI_PORTAL_CHANGE_LOG_/);
+  assert.match(server, /portalChangeLogReference/);
+  assert.match(server, /changeLogObjectName/);
+});
+
+test("portal object storage references can come from runtime config", () => {
+  assert.deepEqual(
+    resolvePortalObjectStorageReference(
+      { namespace: "", bucket: "", object: "" },
+      {
+        runtimeConfigObjectNamespace: "runtime-ns",
+        runtimeConfigObjectBucket: "runtime-bucket",
+        runHistoryObjectName: "runs.json"
+      },
+      {
+        namespaceKey: "runHistoryObjectNamespace",
+        bucketKey: "runHistoryObjectBucket",
+        objectKey: "runHistoryObjectName",
+        defaultObject: "portal-demo-run-summary.json"
+      }
+    ),
+    {
+      namespace: "runtime-ns",
+      bucket: "runtime-bucket",
+      object: "runs.json"
+    }
+  );
 });
 
 test("server exposes redacted administration infrastructure and logs", () => {
