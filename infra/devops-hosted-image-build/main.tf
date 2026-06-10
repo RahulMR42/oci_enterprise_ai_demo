@@ -308,7 +308,7 @@ resource "oci_devops_build_pipeline" "this" {
 }
 
 resource "oci_devops_build_pipeline_stage" "build" {
-  count = var.enabled && !local.effective_deploy_only_app ? 1 : 0
+  count = var.enabled ? 1 : 0
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
