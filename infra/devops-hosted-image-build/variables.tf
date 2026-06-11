@@ -243,6 +243,12 @@ variable "hosted_app_idcs_client_id" {
   default     = ""
 }
 
+variable "hosted_app_idcs_client_app_id" {
+  description = "Identity Domains app OCID for the Terraform-managed hosted UI launch OAuth client."
+  type        = string
+  default     = ""
+}
+
 variable "hosted_app_idcs_client_secret_id" {
   description = "OCI Vault secret OCID containing the IDCS OAuth client secret used by the portal hosted UI launch proxy."
   type        = string

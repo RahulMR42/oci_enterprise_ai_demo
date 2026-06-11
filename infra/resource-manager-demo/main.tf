@@ -93,6 +93,7 @@ module "devops_hosted_image_build" {
   idcs_audience                    = var.idcs_audience
   idcs_scope                       = var.idcs_scope
   hosted_app_idcs_client_id        = module.hosted_agentic_applications.hosted_app_idcs_launch_client_id
+  hosted_app_idcs_client_app_id    = module.hosted_agentic_applications.hosted_app_idcs_launch_client_app_id
   hosted_app_idcs_client_secret_id = var.hosted_app_idcs_client_secret_id
   oci_genai_project_id             = var.oci_genai_project_id
   oci_genai_api_key_secret_id      = var.oci_genai_api_key_secret_id

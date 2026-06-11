@@ -48,6 +48,11 @@ output "hosted_app_idcs_launch_client_id" {
   value       = var.hosted_app_idcs_launch_client_enabled ? local.hosted_app_idcs_client_name : ""
 }
 
+output "hosted_app_idcs_launch_client_app_id" {
+  description = "Identity Domains app OCID for the Terraform-managed hosted UI launch confidential app."
+  value       = var.hosted_app_idcs_launch_client_enabled ? oci_identity_domains_app.hosted_app_launch_client[0].id : ""
+}
+
 output "hosted_app_idcs_launch_client_secret" {
   description = "Client secret for the Terraform-managed hosted UI launch confidential app."
   value       = var.hosted_app_idcs_launch_client_enabled ? oci_identity_domains_app.hosted_app_launch_client[0].client_secret : ""

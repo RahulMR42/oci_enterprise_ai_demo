@@ -9,6 +9,7 @@ export PATH="$HOME/.local/bin:$PATH"
 oci --version
 oci generative-ai hosted-application update -h >/dev/null
 oci generative-ai hosted-deployment add-artifact-create-single-docker-artifact-details -h >/dev/null
+oci identity-domains app patch -h >/dev/null
 
 : "${RESOURCE_SUFFIX:?RESOURCE_SUFFIX is required}"
 : "${OCI_REGION:?OCI_REGION is required}"
@@ -30,6 +31,85 @@ portal_deployment_json="/tmp/portal-hosted-deployment.json"
 invoke_url() {
   local app_id="$1"
   printf 'https://application.generativeai.%s.oci.oraclecloud.com/20251112/hostedApplications/%s/actions/invoke/\n' "$OCI_REGION" "$app_id"
+}
+
+portal_sso_callback_url() {
+  local app_id="$1"
+  local url
+  url="$(invoke_url "$app_id")"
+  printf '%s/auth/sso/callback\n' "${url%/}"
+}
+
+patch_portal_idcs_redirect_uri() {
+  local portal_app_id="$1"
+  local idcs_app_id="${OCI_HOSTED_APP_IDCS_APP_ID:-}"
+  local callback_uri app_json operations_json
+
+  if [ -z "$idcs_app_id" ]; then
+    if [ -n "${OCI_HOSTED_APP_IDCS_CLIENT_ID:-}" ] || [ -n "${OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID:-}" ]; then
+      echo "OCI_HOSTED_APP_IDCS_APP_ID is required to register the portal SSO callback on the Terraform-managed IDCS app." >&2
+      exit 1
+    fi
+    return 0
+  fi
+  if [ -z "${IDCS_DOMAIN_URL:-}" ]; then
+    echo "IDCS_DOMAIN_URL is required to register the portal SSO callback." >&2
+    exit 1
+  fi
+
+  callback_uri="$(portal_sso_callback_url "$portal_app_id")"
+  app_json="/tmp/portal-idcs-app.json"
+  operations_json="/tmp/portal-idcs-app-patch.json"
+
+  oci identity-domains app get \
+    --endpoint "$IDCS_DOMAIN_URL" \
+    --app-id "$idcs_app_id" \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json > "$app_json"
+
+  python3 - "$app_json" "$callback_uri" "$operations_json" <<'PY'
+import json
+import sys
+
+app_file, callback_uri, operations_file = sys.argv[1:4]
+payload = json.load(open(app_file, encoding="utf-8"))
+data = payload.get("data") or payload
+
+def read_list(*names):
+    for name in names:
+        value = data.get(name)
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+redirect_uris = read_list("redirectUris", "redirect-uris", "redirect_uris")
+allowed_grants = read_list("allowedGrants", "allowed-grants", "allowed_grants")
+for uri in [callback_uri]:
+    if uri and uri not in redirect_uris:
+        redirect_uris.append(uri)
+for grant in ["client_credentials", "authorization_code"]:
+    if grant not in allowed_grants:
+        allowed_grants.append(grant)
+
+operations = [
+    {"op": "replace", "path": "redirectUris", "value": redirect_uris},
+    {"op": "replace", "path": "allowedGrants", "value": allowed_grants},
+]
+with open(operations_file, "w", encoding="utf-8") as handle:
+    json.dump(operations, handle)
+PY
+
+  oci identity-domains app patch \
+    --endpoint "$IDCS_DOMAIN_URL" \
+    --app-id "$idcs_app_id" \
+    --schemas '["urn:ietf:params:scim:api:messages:2.0:PatchOp"]' \
+    --operations "file://${operations_json}" \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json >/tmp/portal-idcs-app-patch-response.json
+
+  export OCI_PORTAL_SSO_REDIRECT_URI="$callback_uri"
 }
 
 write_portal_environment() {
@@ -64,6 +144,8 @@ values = [
     plain("OCI_HOSTED_APP_IDCS_AUDIENCE", os.getenv("IDCS_AUDIENCE", "")),
     plain("OCI_HOSTED_APP_IDCS_SCOPE", os.getenv("IDCS_SCOPE", "")),
     plain("OCI_HOSTED_APP_IDCS_CLIENT_ID", os.getenv("OCI_HOSTED_APP_IDCS_CLIENT_ID", "")),
+    plain("OCI_PORTAL_SSO_REDIRECT_URI", os.getenv("OCI_PORTAL_SSO_REDIRECT_URI", "")),
+    plain("OCI_PORTAL_SSO_ADMIN_EMAILS", os.getenv("OCI_PORTAL_SSO_ADMIN_EMAILS", os.getenv("PORTAL_SSO_ADMIN_EMAILS", ""))),
     vault("OCI_PORTAL_PASSWORD", os.environ["PORTAL_AUTH_PASSWORD_SECRET_ID"]),
     vault("OCI_GENAI_API_KEY", os.getenv("OCI_GENAI_API_KEY_SECRET_ID", "")),
     vault("OCI_HOSTED_APP_IDCS_CLIENT_SECRET", os.getenv("OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID", "")),
@@ -265,14 +347,18 @@ create_or_update_portal_hosted_application() {
     echo "Creating portal hosted application ${portal_display_name}."
     app_id="$(create_portal_hosted_application "$env_file")"
   else
-    echo "Updating portal hosted application ${app_id} (${portal_display_name})."
-    update_portal_hosted_application "$app_id" "$env_file"
+    echo "Found portal hosted application ${app_id} (${portal_display_name})."
   fi
 
   if [ -z "$app_id" ]; then
     echo "Portal hosted application id was not returned." >&2
     exit 1
   fi
+
+  patch_portal_idcs_redirect_uri "$app_id"
+  write_portal_environment "$env_file"
+  echo "Updating portal hosted application ${app_id} (${portal_display_name})."
+  update_portal_hosted_application "$app_id" "$env_file"
 
   dep_id="$(active_or_attention_deployment_id_by_app_id "$app_id" || true)"
   if [ -z "$dep_id" ]; then

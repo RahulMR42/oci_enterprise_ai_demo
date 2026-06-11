@@ -258,6 +258,7 @@ test("hosted agent terraform creates OCIR repository and OCI hosted deployment",
   assert.match(terraform, /hosted_app_idcs_client\.json/);
   assert.match(terraform, /HOSTED_APP_IDCS_CLIENT_SECRET = oci_identity_domains_app\.hosted_app_launch_client\[0\]\.client_secret/);
   assert.match(terraform, /hosted_app_idcs_launch_client_id/);
+  assert.match(terraform, /hosted_app_idcs_launch_client_app_id/);
   assert.match(terraform, /terraform_data\.hosted_app_idcs_launch_client_metadata/);
   assert.match(terraform, /oci artifacts container repository create/);
   assert.match(terraform, /langgraph_hosted_agent\.json/);
@@ -815,11 +816,13 @@ test("DevOps deploys the portal as a no-auth hosted application with create-or-u
 
   assert.match(variables, /variable "portal_auth_password_secret_id"/);
   assert.match(variables, /variable "portal_runtime_config_bucket"/);
+  assert.match(variables, /variable "hosted_app_idcs_client_app_id"/);
   assert.match(main, /resource "oci_devops_build_pipeline_stage" "deploy_portal"/);
   assert.match(main, /display_name\s+=\s+"deploy-portal-hosted-application"/);
   assert.match(main, /build_spec_file\s+=\s+"infra\/devops-hosted-image-build\/build_spec_deploy_portal\.yaml"/);
   assert.match(main, /PORTAL_AUTH_PASSWORD_SECRET_ID/);
   assert.match(main, /OCI_GENAI_API_KEY_SECRET_ID/);
+  assert.match(main, /OCI_HOSTED_APP_IDCS_APP_ID/);
   assert.match(main, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID/);
   assert.match(main, /PORTAL_RUNTIME_CONFIG_BUCKET/);
   assert.doesNotMatch(main, /PORTAL_LOAD_BALANCER_ID/);
@@ -838,6 +841,15 @@ test("DevOps deploys the portal as a no-auth hosted application with create-or-u
   assert.match(script, /OCI_GENAI_API_KEY_SECRET_ID/);
   assert.match(script, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID/);
   assert.match(script, /invoke_url/);
+  assert.match(script, /portal_sso_callback_url/);
+  assert.match(script, /auth\/sso\/callback/);
+  assert.match(script, /patch_portal_idcs_redirect_uri/);
+  assert.match(script, /identity-domains app get/);
+  assert.match(script, /identity-domains app patch/);
+  assert.match(script, /authorization_code/);
+  assert.match(script, /redirectUris/);
+  assert.match(script, /OCI_PORTAL_SSO_REDIRECT_URI/);
+  assert.match(script, /OCI_PORTAL_SSO_ADMIN_EMAILS/);
   assert.match(script, /\/health/);
   assert.match(script, /\/api\/admin\/demo-runs/);
   assert.match(script, /\/api\/features\/responses-api\/state/);
@@ -962,6 +974,7 @@ test("server refresh discovers hosted runtime metadata when generated files are 
   assert.match(server, /discoverGeneratedHostedRuntimeState/);
   assert.match(portalRollout, /OCI_RESOURCE_SUFFIX/);
   assert.match(portalRollout, /hosted_app_idcs_client_id\s+=\s+module\.hosted_agentic_applications\.hosted_app_idcs_launch_client_id/);
+  assert.match(portalRollout, /hosted_app_idcs_client_app_id\s+=\s+module\.hosted_agentic_applications\.hosted_app_idcs_launch_client_app_id/);
   assert.match(portalRollout, /hosted_app_idcs_client_secret_id\s+=\s+var\.hosted_app_idcs_client_secret_id/);
   assert.match(portalRollout, /OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID/);
   assert.doesNotMatch(portalRollout, /hosted_app_idcs_client_secret\s+=\s+module\.hosted_agentic_applications\.hosted_app_idcs_launch_client_secret/);

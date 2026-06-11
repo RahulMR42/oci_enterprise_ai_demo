@@ -290,6 +290,11 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Identity domain OAuth client id used by portal hosted UI launch proxy."
     }
     items {
+      name          = "OCI_HOSTED_APP_IDCS_APP_ID"
+      default_value = var.hosted_app_idcs_client_app_id
+      description   = "Identity Domains app OCID for the portal SSO callback OAuth client."
+    }
+    items {
       name          = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID"
       default_value = var.hosted_app_idcs_client_secret_id
       description   = "OCI Vault secret OCID containing the hosted UI launch proxy OAuth client secret."
@@ -762,6 +767,10 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "OCI_HOSTED_APP_IDCS_CLIENT_ID"
       value = var.hosted_app_idcs_client_id
+    }
+    items {
+      name  = "OCI_HOSTED_APP_IDCS_APP_ID"
+      value = var.hosted_app_idcs_client_app_id
     }
     items {
       name  = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID"

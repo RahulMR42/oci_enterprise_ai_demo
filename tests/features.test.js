@@ -273,14 +273,14 @@ test("portal opens administration as a separate page", () => {
   const admin = readFileSync("src/admin.js", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
-  assert.match(main, /href="\/admin\.html"/);
+  assert.match(main, /href="\$\{portalRelativeUrl\("\/admin\.html"\)\}"/);
   assert.match(main, /target="_blank"/);
   assert.doesNotMatch(main, /id="administration"/);
-  assert.match(indexHtml, /href="\/src\/styles\.css\?v=0\.0\.26"/);
-  assert.match(indexHtml, /src="\/src\/main\.js\?v=0\.0\.26"/);
+  assert.match(indexHtml, /href="\.\/src\/styles\.css\?v=0\.0\.26"/);
+  assert.match(indexHtml, /src="\.\/src\/main\.js\?v=0\.0\.26"/);
   assert.match(adminHtml, /id="administration"/);
-  assert.match(adminHtml, /href="\/src\/styles\.css\?v=0\.0\.26"/);
-  assert.match(adminHtml, /src="\/src\/admin\.js\?v=0\.0\.26"/);
+  assert.match(adminHtml, /href="\.\/src\/styles\.css\?v=0\.0\.26"/);
+  assert.match(adminHtml, /src="\.\/src\/admin\.js\?v=0\.0\.26"/);
   assert.match(admin, /loadAdministrationDashboard/);
   assert.match(main, /Administration/);
   assert.match(admin, /admin-metric-grid/);

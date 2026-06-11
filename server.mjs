@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createPublicKey, createVerify, randomBytes } from "node:crypto";
 import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { basename, extname, join, normalize, relative } from "node:path";
@@ -17,9 +17,12 @@ const portalAuthPasswordFile = process.env.OCI_PORTAL_PASSWORD_FILE || join(root
 const portalAuthPasswordConfig = resolvePortalAuthPassword();
 const portalAuthPassword = portalAuthPasswordConfig.password;
 const portalSessionCookie = "oci_portal_session";
+const portalSsoStateCookie = "oci_portal_sso_state";
+const portalSsoStateMaxAgeMs = 10 * 60 * 1000;
 const portalSessionTokens = new Set();
 const portalSessionIdentities = new Map();
 const portalSessionAuditIds = new Map();
+const portalSsoStates = new Map();
 let idcsTokenCache = {
   value: "",
   expiresAt: 0
@@ -865,6 +868,334 @@ export function bootstrapPortalIdentity() {
   };
 }
 
+export function portalSsoCallbackUrlFromInvokeUrl(invokeUrl = "") {
+  const base = String(invokeUrl || "").trim().replace(/\/+$/, "");
+  return base ? `${base}/auth/sso/callback` : "";
+}
+
+function normalizePortalSsoAdminEmails(value = "") {
+  const raw = Array.isArray(value) ? value : String(value || "").split(",");
+  return raw
+    .map((entry) => String(entry || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function portalSsoEnabledValue(value) {
+  const normalized = String(value ?? "true").trim().toLowerCase();
+  return !["0", "false", "no", "off", "disabled"].includes(normalized);
+}
+
+export function resolvePortalSsoConfig(env = process.env) {
+  const domainUrl = String(
+    env.OCI_PORTAL_SSO_DOMAIN_URL ||
+      env.OCI_HOSTED_APP_IDCS_DOMAIN_URL ||
+      env.IDCS_DOMAIN_URL ||
+      ""
+  ).replace(/\/+$/, "");
+  const tokenUrl = String(
+    env.OCI_PORTAL_SSO_TOKEN_URL ||
+      env.OCI_HOSTED_APP_IDCS_TOKEN_URL ||
+      env.IDCS_TOKEN_URL ||
+      (domainUrl ? `${domainUrl}/oauth2/v1/token` : "")
+  );
+  const authorizeUrl = String(env.OCI_PORTAL_SSO_AUTHORIZE_URL || (domainUrl ? `${domainUrl}/oauth2/v1/authorize` : ""));
+  const clientId = String(
+    env.OCI_PORTAL_SSO_CLIENT_ID ||
+      env.OCI_HOSTED_APP_IDCS_CLIENT_ID ||
+      env.IDCS_CLIENT_ID ||
+      ""
+  );
+  const clientSecret = resolveSecretReferenceValue(
+    env.OCI_PORTAL_SSO_CLIENT_SECRET ||
+      env.OCI_PORTAL_SSO_CLIENT_SECRET_ID ||
+      env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET ||
+      env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET_SECRET_ID ||
+      env.IDCS_CLIENT_SECRET ||
+      env.IDCS_CLIENT_SECRET_ID ||
+      ""
+  );
+  return {
+    enabled: portalSsoEnabledValue(env.OCI_PORTAL_SSO_ENABLED),
+    domainUrl,
+    tokenUrl,
+    authorizeUrl,
+    clientId,
+    clientSecret,
+    redirectUri: String(env.OCI_PORTAL_SSO_REDIRECT_URI || "").trim(),
+    scope: String(env.OCI_PORTAL_SSO_SCOPE || "openid email profile").trim(),
+    adminEmails: normalizePortalSsoAdminEmails(env.OCI_PORTAL_SSO_ADMIN_EMAILS || "")
+  };
+}
+
+export function portalSsoIsConfigured(config = resolvePortalSsoConfig()) {
+  return Boolean(config.enabled && config.domainUrl && config.authorizeUrl && config.tokenUrl && config.clientId && config.clientSecret && config.redirectUri && config.scope);
+}
+
+export function createPortalSsoState({ states = portalSsoStates, now = Date.now } = {}) {
+  const state = randomBytes(18).toString("base64url");
+  const nonce = randomBytes(18).toString("base64url");
+  const createdAt = Number(now());
+  states.set(state, {
+    nonce,
+    createdAt,
+    expiresAt: createdAt + portalSsoStateMaxAgeMs
+  });
+  return {
+    state,
+    nonce,
+    cookie: `${portalSsoStateCookie}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(portalSsoStateMaxAgeMs / 1000)}`
+  };
+}
+
+export function consumePortalSsoState(state = "", cookieState = "", { states = portalSsoStates, now = Date.now } = {}) {
+  const expectedState = String(state || "");
+  if (!expectedState || expectedState !== String(cookieState || "")) {
+    throw new Error("SSO state mismatch.");
+  }
+  const record = states.get(expectedState);
+  states.delete(expectedState);
+  if (!record || Number(now()) > Number(record.expiresAt || 0)) {
+    throw new Error("SSO state expired or unknown.");
+  }
+  return record;
+}
+
+export function buildPortalSsoAuthorizeUrl(config, stateRecord) {
+  const url = new URL(config.authorizeUrl);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", config.clientId);
+  url.searchParams.set("redirect_uri", config.redirectUri);
+  url.searchParams.set("scope", config.scope || "openid email profile");
+  url.searchParams.set("state", stateRecord.state);
+  url.searchParams.set("nonce", stateRecord.nonce);
+  return url.toString();
+}
+
+export function portalSsoIdentityFromClaims(claims = {}, config = resolvePortalSsoConfig()) {
+  const subject = String(claims.sub || claims.user_id || claims.userId || "").trim();
+  if (!subject) {
+    throw new Error("SSO identity did not include a subject.");
+  }
+  const displayEmail = String(claims.email || claims.preferred_username || claims.username || subject).trim();
+  const userEmail = displayEmail.toLowerCase();
+  const adminEmails = Array.isArray(config.adminEmails) ? config.adminEmails : [];
+  return {
+    userId: `sso:${subject}`,
+    userEmail,
+    displayEmail,
+    authType: "sso",
+    role: adminEmails.includes(userEmail) ? "admin" : "user"
+  };
+}
+
+function clearPortalSsoStateCookie() {
+  return `${portalSsoStateCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
+}
+
+function decodePortalSsoJwtSegment(segment = "", label = "segment") {
+  try {
+    return JSON.parse(Buffer.from(segment, "base64url").toString("utf8"));
+  } catch {
+    throw new Error(`Invalid SSO ID token ${label}.`);
+  }
+}
+
+function parsePortalSsoJwt(token = "") {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3 || parts.some((part) => !part)) {
+    throw new Error("Invalid SSO ID token format.");
+  }
+  return {
+    encodedHeader: parts[0],
+    encodedPayload: parts[1],
+    encodedSignature: parts[2],
+    header: decodePortalSsoJwtSegment(parts[0], "header"),
+    claims: decodePortalSsoJwtSegment(parts[1], "claims")
+  };
+}
+
+function portalSsoAudienceIncludes(audience, clientId = "") {
+  const values = Array.isArray(audience) ? audience : [audience];
+  return values.map((value) => String(value || "")).includes(String(clientId || ""));
+}
+
+function selectPortalSsoJwk(jwks = {}, header = {}) {
+  const keys = Array.isArray(jwks.keys) ? jwks.keys : [];
+  const kid = String(header.kid || "");
+  const candidates = kid ? keys.filter((key) => String(key.kid || "") === kid) : keys;
+  const key = candidates.find((candidate) => String(candidate.kty || "").toUpperCase() === "RSA") || null;
+  if (!key) {
+    throw new Error("SSO signing key was not found.");
+  }
+  return key;
+}
+
+function verifyPortalSsoJwtSignature(jwt, jwk) {
+  const verifier = createVerify("RSA-SHA256");
+  verifier.update(`${jwt.encodedHeader}.${jwt.encodedPayload}`);
+  verifier.end();
+  let publicKey;
+  try {
+    publicKey = createPublicKey({ key: jwk, format: "jwk" });
+  } catch {
+    throw new Error("SSO signing key is invalid.");
+  }
+  const valid = verifier.verify(publicKey, Buffer.from(jwt.encodedSignature, "base64url"));
+  if (!valid) {
+    throw new Error("SSO ID token signature is invalid.");
+  }
+}
+
+export async function fetchPortalSsoJson(url, options = {}, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("SSO fetch implementation is unavailable.");
+  }
+  const response = await fetchImpl(url, options);
+  const text = await response.text();
+  let payload = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      const parseError = new Error("SSO response was not valid JSON.");
+      parseError.statusCode = response.status;
+      throw parseError;
+    }
+  }
+  if (!response.ok) {
+    const detail = redactSensitiveText(String(payload.error_description || payload.error || text || response.statusText || ""));
+    const error = new Error(`SSO request failed with HTTP ${response.status}${detail ? `: ${detail.slice(0, 240)}` : ""}`);
+    error.statusCode = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+export async function exchangePortalSsoCode(config, code = "", fetchImpl = globalThis.fetch) {
+  if (!portalSsoIsConfigured(config)) {
+    throw new Error("SSO is not configured.");
+  }
+  if (!String(code || "").trim()) {
+    throw new Error("SSO authorization code is missing.");
+  }
+  const buildRequest = (includeClientSecretInBody = false) => {
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      code: String(code),
+      redirect_uri: config.redirectUri
+    });
+    if (config.scope) {
+      body.set("scope", config.scope);
+    }
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded"
+    };
+    if (includeClientSecretInBody) {
+      body.set("client_id", config.clientId);
+      body.set("client_secret", config.clientSecret);
+    } else {
+      headers.Authorization = `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`;
+    }
+    return {
+      method: "POST",
+      headers,
+      body: body.toString()
+    };
+  };
+
+  try {
+    const payload = await fetchPortalSsoJson(config.tokenUrl, buildRequest(false), fetchImpl);
+    if (!payload.id_token) {
+      throw new Error("SSO token response did not include an ID token.");
+    }
+    return payload;
+  } catch (error) {
+    if (![400, 401].includes(Number(error.statusCode))) {
+      throw error;
+    }
+    const payload = await fetchPortalSsoJson(config.tokenUrl, buildRequest(true), fetchImpl);
+    if (!payload.id_token) {
+      throw new Error("SSO token response did not include an ID token.");
+    }
+    return payload;
+  }
+}
+
+async function fetchPortalSsoJwks(config, fetchImpl = globalThis.fetch) {
+  const discoveryUrl = `${config.domainUrl}/.well-known/openid-configuration`;
+  try {
+    const discovery = await fetchPortalSsoJson(discoveryUrl, { headers: { Accept: "application/json" } }, fetchImpl);
+    if (discovery.jwks_uri) {
+      return fetchPortalSsoJson(discovery.jwks_uri, { headers: { Accept: "application/json" } }, fetchImpl);
+    }
+  } catch (error) {
+    console.warn(`[portal-sso] discovery failed: ${redactSensitiveText(error.message)}`);
+  }
+
+  const jwksEndpoints = [
+    `${config.domainUrl}/oauth2/v1/keys`,
+    `${config.domainUrl}/admin/v1/SigningCert/jwk`
+  ];
+  let lastError = null;
+  for (const endpoint of jwksEndpoints) {
+    try {
+      return await fetchPortalSsoJson(endpoint, { headers: { Accept: "application/json" } }, fetchImpl);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("SSO JWKS endpoint is unavailable.");
+}
+
+function normalizePortalSsoIssuer(value = "") {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+export async function validatePortalSsoIdToken(
+  idToken = "",
+  config = resolvePortalSsoConfig(),
+  { nonce = "", now = Date.now, jwks = null, fetchImpl = globalThis.fetch } = {}
+) {
+  const jwt = parsePortalSsoJwt(idToken);
+  if (jwt.header.alg !== "RS256") {
+    throw new Error("SSO ID token must use RS256.");
+  }
+
+  const resolvedJwks = jwks || await fetchPortalSsoJwks(config, fetchImpl);
+  verifyPortalSsoJwtSignature(jwt, selectPortalSsoJwk(resolvedJwks, jwt.header));
+
+  const claims = jwt.claims;
+  const expectedIssuer = normalizePortalSsoIssuer(config.issuer || config.domainUrl);
+  const actualIssuer = normalizePortalSsoIssuer(claims.iss);
+  if (expectedIssuer && actualIssuer !== expectedIssuer) {
+    throw new Error("SSO ID token issuer is invalid.");
+  }
+  if (!portalSsoAudienceIncludes(claims.aud, config.clientId)) {
+    throw new Error("SSO ID token audience is invalid.");
+  }
+  if (!claims.sub) {
+    throw new Error("SSO ID token subject is missing.");
+  }
+  if (nonce && String(claims.nonce || "") !== String(nonce)) {
+    throw new Error("SSO nonce mismatch.");
+  }
+
+  const nowSeconds = Math.floor(Number(now()) / 1000);
+  const leewaySeconds = 60;
+  if (!claims.exp || nowSeconds > Number(claims.exp) + leewaySeconds) {
+    throw new Error("SSO ID token is expired.");
+  }
+  if (claims.nbf && nowSeconds + leewaySeconds < Number(claims.nbf)) {
+    throw new Error("SSO ID token is not valid yet.");
+  }
+  if (claims.iat && nowSeconds + 300 < Number(claims.iat)) {
+    throw new Error("SSO ID token issued-at time is invalid.");
+  }
+
+  return claims;
+}
+
 export function isAdminIdentity(identity = {}) {
   const candidate = identity || {};
   return candidate.role === "admin" || candidate.authType === "bootstrap";
@@ -1001,6 +1332,20 @@ function clearSessionCookie() {
 function renderLoginPage({ error = "", notice = "" } = {}) {
   const errorMarkup = error ? `<p class="error">${error}</p>` : "";
   const noticeMarkup = notice ? `<p class="notice">${notice}</p>` : "";
+  const oracleSsoIcon = `<span class="auth-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7.25 6.25h9.5a5.75 5.75 0 0 1 0 11.5h-9.5a5.75 5.75 0 0 1 0-11.5Zm0 2.25a3.5 3.5 0 0 0 0 7h9.5a3.5 3.5 0 0 0 0-7h-9.5Z"/></svg></span>`;
+  const localUserIcon = `<span class="auth-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 12.25a4.5 4.5 0 1 0-4.5-4.5 4.5 4.5 0 0 0 4.5 4.5Zm0-6.75a2.25 2.25 0 1 1-2.25 2.25A2.25 2.25 0 0 1 12 5.5Zm7.5 14.25v-1.1c0-3.15-3.25-5.65-7.5-5.65s-7.5 2.5-7.5 5.65v1.1h2.25v-1.1c0-1.78 2.25-3.4 5.25-3.4s5.25 1.62 5.25 3.4v1.1h2.25Z"/></svg></span>`;
+  let ssoMarkup = "";
+  try {
+    if (portalSsoIsConfigured()) {
+      ssoMarkup = `
+      <form class="sso-login" method="get" action="./auth/sso/start">
+        <button class="auth-button" type="submit">${oracleSsoIcon}<span>Continue with Oracle SSO</span></button>
+      </form>`;
+    }
+  } catch (error) {
+    console.warn(`[portal-sso] login availability check failed: ${redactSensitiveText(error.message)}`);
+  }
+  const localLoginClass = ssoMarkup ? "local-login with-sso" : "local-login";
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -1092,9 +1437,42 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         font-size: 0.9rem;
         font-weight: 900;
       }
+      .auth-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .auth-icon {
+        display: inline-grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        flex: 0 0 auto;
+      }
+      .auth-icon svg {
+        display: block;
+        width: 22px;
+        height: 22px;
+        fill: currentColor;
+      }
       button:hover,
       button:focus-visible {
         background: var(--oci-brand-red-dark);
+      }
+      .sso-login {
+        margin: 0 0 16px;
+      }
+      .sso-login button {
+        background: var(--oci-cloud-ink);
+      }
+      .sso-login button:hover,
+      .sso-login button:focus-visible {
+        background: var(--oci-graphite);
+      }
+      .local-login.with-sso {
+        padding-top: 16px;
+        border-top: 1px solid rgba(31, 31, 31, 0.12);
       }
       .error {
         margin: 0 0 14px;
@@ -1144,7 +1522,8 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
       <p class="subtext">Sign in to access the demo portal and Oracle Cloud Enterprise AI workflows.</p>
       ${noticeMarkup}
       ${errorMarkup}
-      <form method="post" action="./login">
+      ${ssoMarkup}
+      <form class="${localLoginClass}" method="post" action="./login">
         <label>
           Username
           <input name="username" value="oci" autocomplete="username" required />
@@ -1153,18 +1532,7 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
           Password
           <input name="password" type="password" autocomplete="current-password" required autofocus />
         </label>
-        <button type="submit">Sign in</button>
-      </form>
-      <form method="post" action="./signup" aria-label="Protected user sign-up">
-        <label>
-          Email
-          <input name="email" type="email" autocomplete="email" />
-        </label>
-        <label>
-          Password
-          <input name="password" type="password" autocomplete="new-password" minlength="12" />
-        </label>
-        <button type="submit">Sign up</button>
+        <button class="auth-button" type="submit">${localUserIcon}<span>Sign in as local user</span></button>
       </form>
       <form class="forgot-password" method="post" action="./forgot-password">
         <button type="submit">Forgot password</button>
@@ -1175,10 +1543,11 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
 </html>`;
 }
 
-function sendLoginPage(response, statusCode = 200, options = {}) {
+function sendLoginPage(response, statusCode = 200, options = {}, headers = {}) {
   response.writeHead(statusCode, {
     "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    ...headers
   });
   response.end(renderLoginPage(options));
 }
@@ -4325,25 +4694,60 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
-  if (request.method === "POST" && requestPath === "/signup") {
-    const body = await readRequestBody(request);
-    const form = new URLSearchParams(body);
-    const email = String(form.get("email") || "").trim();
-    const password = String(form.get("password") || "");
-    const signup = callPortalAuthStore("signup", { email, password });
-    if (signup.status === "success" && signup.identity) {
-      const token = createPortalSessionForIdentity(signup.identity);
-      openPortalAuthSession(token, signup.identity, request);
+  if (request.method === "GET" && requestPath === "/auth/sso/start") {
+    const config = resolvePortalSsoConfig();
+    if (!portalSsoIsConfigured(config)) {
+      sendLoginPage(response, 503, { error: "SSO sign-in is not configured. Use the local oci login." });
+      return;
+    }
+
+    const stateRecord = createPortalSsoState();
+    response.writeHead(302, {
+      Location: buildPortalSsoAuthorizeUrl(config, stateRecord),
+      "Set-Cookie": stateRecord.cookie,
+      "Cache-Control": "no-store"
+    });
+    response.end();
+    return;
+  }
+
+  if (request.method === "GET" && requestPath === "/auth/sso/callback") {
+    const config = resolvePortalSsoConfig();
+    try {
+      if (!portalSsoIsConfigured(config)) {
+        throw new Error("SSO is not configured.");
+      }
+      if (parsedUrl.searchParams.get("error")) {
+        throw new Error(`SSO provider rejected sign-in: ${parsedUrl.searchParams.get("error")}`);
+      }
+
+      const code = parsedUrl.searchParams.get("code") || "";
+      const state = parsedUrl.searchParams.get("state") || "";
+      const cookieState = parseCookies(request.headers.cookie || "")[portalSsoStateCookie] || "";
+      const stateRecord = consumePortalSsoState(state, cookieState);
+      const tokenPayload = await exchangePortalSsoCode(config, code);
+      const claims = await validatePortalSsoIdToken(tokenPayload.id_token, config, { nonce: stateRecord.nonce });
+      const identity = portalSsoIdentityFromClaims(claims, config);
+      const token = createPortalSessionForIdentity(identity);
+      openPortalAuthSession(token, identity, request);
+
       response.writeHead(302, {
         Location: "./",
-        "Set-Cookie": sessionCookie(token),
+        "Set-Cookie": [sessionCookie(token), clearPortalSsoStateCookie()],
         "Cache-Control": "no-store"
       });
       response.end();
       return;
+    } catch (error) {
+      console.warn(`[portal-sso] callback failed: ${redactSensitiveText(error.message)}`);
+      sendLoginPage(
+        response,
+        401,
+        { error: "SSO sign-in failed. Try again or use the local oci login." },
+        { "Set-Cookie": clearPortalSsoStateCookie() }
+      );
+      return;
     }
-    sendLoginPage(response, 400, { error: signup.error || "Protected user sign-up is unavailable." });
-    return;
   }
 
   if (request.method === "POST" && requestPath === "/login") {
@@ -4354,19 +4758,6 @@ export const server = createServer(async (request, response) => {
 
     if (username === portalAuthUser && password === portalAuthPassword) {
       const token = createPortalSessionForIdentity(bootstrapPortalIdentity());
-      response.writeHead(302, {
-        Location: "./",
-        "Set-Cookie": sessionCookie(token),
-        "Cache-Control": "no-store"
-      });
-      response.end();
-      return;
-    }
-
-    const protectedLogin = callPortalAuthStore("login", { email: username, password });
-    if (protectedLogin.status === "success" && protectedLogin.identity) {
-      const token = createPortalSessionForIdentity(protectedLogin.identity);
-      openPortalAuthSession(token, protectedLogin.identity, request);
       response.writeHead(302, {
         Location: "./",
         "Set-Cookie": sessionCookie(token),

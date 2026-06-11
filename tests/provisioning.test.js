@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createSign, generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,11 +7,15 @@ import test from "node:test";
 
 import {
   bootstrapPortalIdentity,
+  buildPortalSsoAuthorizeUrl,
   callPortalAuthStore,
+  consumePortalSsoState,
   createResourceSuffix,
   createPortalSession,
   createPortalSessionForIdentity,
+  createPortalSsoState,
   devopsHostedDeploymentComponents,
+  exchangePortalSsoCode,
   extractProvisionedValues,
   fileSearchRuntimeComponents,
   hasAllRequiredTerraformResources,
@@ -28,10 +33,15 @@ import {
   sharedResponsesDemoComponents,
   summarizeInfrastructureState,
   normalizeProvisionConfig,
+  portalSsoCallbackUrlFromInvokeUrl,
+  portalSsoIdentityFromClaims,
+  portalSsoIsConfigured,
   rewriteLangfuseLaunchJson,
   rewriteLangfuseLaunchHtml,
   proxyResponseHeaders,
   resolvePayloadHostedRuntime,
+  resolvePortalSsoConfig,
+  validatePortalSsoIdToken,
   hostedRuntimeUrl,
   hostedApplicationIdFromInvokeUrl,
   readAdminLogSummary,
@@ -44,6 +54,18 @@ import {
   summarizeDemoRunHistory
 } from "../server.mjs";
 import * as serverModule from "../server.mjs";
+
+function base64urlJson(value) {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function signRs256Jwt(privateKey, header, payload) {
+  const input = `${base64urlJson(header)}.${base64urlJson(payload)}`;
+  const signer = createSign("RSA-SHA256");
+  signer.update(input);
+  signer.end();
+  return `${input}.${signer.sign(privateKey).toString("base64url")}`;
+}
 
 test("normalizes provisioning config with OCI defaults", () => {
   const config = normalizeProvisionConfig({});
@@ -95,6 +117,281 @@ test("portal sessions resolve bootstrap and protected-user identities", () => {
   assert.equal(isAuthorizedRequest({ headers: { cookie: `oci_portal_session=${token}` } }, "test-password", sessions, identities), true);
   assert.equal(isAdminIdentity(resolved), false);
   assert.equal(isAdminIdentity(bootstrapPortalIdentity()), true);
+});
+
+test("portal SSO config reuses hosted IDCS env and builds invoke callback URL", () => {
+  const callback = portalSsoCallbackUrlFromInvokeUrl(
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/app123/actions/invoke/"
+  );
+  const config = resolvePortalSsoConfig({
+    OCI_PORTAL_SSO_ENABLED: "true",
+    OCI_HOSTED_APP_IDCS_DOMAIN_URL: "https://idcs.example.com:443/",
+    OCI_HOSTED_APP_IDCS_CLIENT_ID: "client-id",
+    OCI_HOSTED_APP_IDCS_CLIENT_SECRET: "client-secret",
+    OCI_PORTAL_SSO_REDIRECT_URI: callback,
+    OCI_PORTAL_SSO_ADMIN_EMAILS: "admin@example.com, Ops@Example.com"
+  });
+
+  assert.equal(
+    callback,
+    "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/app123/actions/invoke/auth/sso/callback"
+  );
+  assert.equal(config.domainUrl, "https://idcs.example.com:443");
+  assert.equal(config.tokenUrl, "https://idcs.example.com:443/oauth2/v1/token");
+  assert.equal(config.authorizeUrl, "https://idcs.example.com:443/oauth2/v1/authorize");
+  assert.equal(config.clientId, "client-id");
+  assert.equal(config.clientSecret, "client-secret");
+  assert.equal(config.redirectUri, callback);
+  assert.equal(config.scope, "openid email profile");
+  assert.deepEqual(config.adminEmails, ["admin@example.com", "ops@example.com"]);
+  assert.equal(portalSsoIsConfigured(config), true);
+});
+
+test("portal SSO state is single-use and authorize URL carries state and nonce", () => {
+  const states = new Map();
+  const created = createPortalSsoState({ states, now: () => 1700000000000 });
+  const config = resolvePortalSsoConfig({
+    OCI_PORTAL_SSO_DOMAIN_URL: "https://idcs.example.com",
+    OCI_PORTAL_SSO_CLIENT_ID: "client-id",
+    OCI_PORTAL_SSO_CLIENT_SECRET: "client-secret",
+    OCI_PORTAL_SSO_REDIRECT_URI: "https://portal.example.com/auth/sso/callback"
+  });
+  const authorize = new URL(buildPortalSsoAuthorizeUrl(config, created));
+
+  assert.equal(authorize.origin + authorize.pathname, "https://idcs.example.com/oauth2/v1/authorize");
+  assert.equal(authorize.searchParams.get("response_type"), "code");
+  assert.equal(authorize.searchParams.get("client_id"), "client-id");
+  assert.equal(authorize.searchParams.get("redirect_uri"), "https://portal.example.com/auth/sso/callback");
+  assert.equal(authorize.searchParams.get("scope"), "openid email profile");
+  assert.equal(authorize.searchParams.get("state"), created.state);
+  assert.equal(authorize.searchParams.get("nonce"), created.nonce);
+
+  assert.equal(
+    consumePortalSsoState(created.state, created.state, { states, now: () => 1700000000001 }).nonce,
+    created.nonce
+  );
+  assert.throws(
+    () => consumePortalSsoState(created.state, created.state, { states, now: () => 1700000000002 }),
+    /expired or unknown/i
+  );
+});
+
+test("portal SSO identity maps claims and admin allowlist", () => {
+  const identity = portalSsoIdentityFromClaims(
+    {
+      sub: "subject-123",
+      email: "Admin@Example.com",
+      preferred_username: "admin-user"
+    },
+    { adminEmails: ["admin@example.com"] }
+  );
+
+  assert.deepEqual(identity, {
+    userId: "sso:subject-123",
+    userEmail: "admin@example.com",
+    displayEmail: "Admin@Example.com",
+    authType: "sso",
+    role: "admin"
+  });
+  assert.equal(isAdminIdentity(identity), true);
+});
+
+test("portal SSO validates RS256 ID token claims", async () => {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const jwk = {
+    ...publicKey.export({ format: "jwk" }),
+    kid: "kid-1",
+    alg: "RS256",
+    use: "sig"
+  };
+  const config = resolvePortalSsoConfig({
+    OCI_PORTAL_SSO_DOMAIN_URL: "https://idcs.example.com",
+    OCI_PORTAL_SSO_CLIENT_ID: "client-id",
+    OCI_PORTAL_SSO_CLIENT_SECRET: "client-secret",
+    OCI_PORTAL_SSO_REDIRECT_URI: "https://portal.example.com/auth/sso/callback"
+  });
+  const nowSeconds = 1_700_000_000;
+  const token = signRs256Jwt(
+    privateKey,
+    { alg: "RS256", typ: "JWT", kid: "kid-1" },
+    {
+      iss: "https://idcs.example.com",
+      aud: "client-id",
+      sub: "subject-123",
+      email: "User@Example.com",
+      nonce: "nonce-123",
+      exp: nowSeconds + 300,
+      nbf: nowSeconds - 30,
+      iat: nowSeconds
+    }
+  );
+
+  const claims = await validatePortalSsoIdToken(token, config, {
+    nonce: "nonce-123",
+    jwks: { keys: [jwk] },
+    now: () => nowSeconds * 1000
+  });
+
+  assert.equal(claims.sub, "subject-123");
+  assert.equal(claims.email, "User@Example.com");
+  await assert.rejects(
+    () =>
+      validatePortalSsoIdToken(token, { ...config, clientId: "other-client" }, {
+        nonce: "nonce-123",
+        jwks: { keys: [jwk] },
+        now: () => nowSeconds * 1000
+      }),
+    /audience/i
+  );
+  await assert.rejects(
+    () =>
+      validatePortalSsoIdToken(token, config, {
+        nonce: "wrong-nonce",
+        jwks: { keys: [jwk] },
+        now: () => nowSeconds * 1000
+      }),
+    /nonce/i
+  );
+});
+
+test("portal SSO exchanges authorization code at the IDCS token endpoint", async () => {
+  const config = resolvePortalSsoConfig({
+    OCI_PORTAL_SSO_DOMAIN_URL: "https://idcs.example.com",
+    OCI_PORTAL_SSO_CLIENT_ID: "client-id",
+    OCI_PORTAL_SSO_CLIENT_SECRET: "client-secret",
+    OCI_PORTAL_SSO_REDIRECT_URI: "https://portal.example.com/auth/sso/callback"
+  });
+  const calls = [];
+  const tokenPayload = await exchangePortalSsoCode(config, "auth-code-123", async (url, options) => {
+    calls.push({ url, options });
+    const body = new URLSearchParams(String(options.body || ""));
+    assert.equal(String(url), "https://idcs.example.com/oauth2/v1/token");
+    assert.equal(options.method, "POST");
+    assert.equal(options.headers.Authorization, `Basic ${Buffer.from("client-id:client-secret").toString("base64")}`);
+    assert.equal(body.get("grant_type"), "authorization_code");
+    assert.equal(body.get("code"), "auth-code-123");
+    assert.equal(body.get("redirect_uri"), "https://portal.example.com/auth/sso/callback");
+    return new Response(JSON.stringify({ id_token: "signed.id.token", access_token: "access-token" }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    });
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(tokenPayload.id_token, "signed.id.token");
+});
+
+test("portal SSO callback creates a portal session from a validated IDCS token", { concurrency: false }, async () => {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const publicJwk = {
+    ...publicKey.export({ format: "jwk" }),
+    kid: "kid-route",
+    alg: "RS256",
+    use: "sig"
+  };
+  const originalFetch = globalThis.fetch;
+  const originalEnv = {
+    OCI_PORTAL_SSO_ENABLED: process.env.OCI_PORTAL_SSO_ENABLED,
+    OCI_PORTAL_SSO_DOMAIN_URL: process.env.OCI_PORTAL_SSO_DOMAIN_URL,
+    OCI_PORTAL_SSO_CLIENT_ID: process.env.OCI_PORTAL_SSO_CLIENT_ID,
+    OCI_PORTAL_SSO_CLIENT_SECRET: process.env.OCI_PORTAL_SSO_CLIENT_SECRET,
+    OCI_PORTAL_SSO_REDIRECT_URI: process.env.OCI_PORTAL_SSO_REDIRECT_URI,
+    OCI_PORTAL_SSO_ADMIN_EMAILS: process.env.OCI_PORTAL_SSO_ADMIN_EMAILS
+  };
+  const app = serverModule.server;
+  let routeNonce = "";
+
+  process.env.OCI_PORTAL_SSO_ENABLED = "true";
+  process.env.OCI_PORTAL_SSO_DOMAIN_URL = "https://idcs.example.com";
+  process.env.OCI_PORTAL_SSO_CLIENT_ID = "client-id";
+  process.env.OCI_PORTAL_SSO_CLIENT_SECRET = "client-secret";
+  process.env.OCI_PORTAL_SSO_REDIRECT_URI = "http://127.0.0.1/auth/sso/callback";
+  process.env.OCI_PORTAL_SSO_ADMIN_EMAILS = "admin@example.com";
+
+  globalThis.fetch = async (url, options) => {
+    const target = String(url);
+    if (target.startsWith("http://127.0.0.1:")) {
+      return originalFetch(url, options);
+    }
+    if (target === "https://idcs.example.com/oauth2/v1/token") {
+      const body = new URLSearchParams(String(options?.body || ""));
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const token = signRs256Jwt(
+        privateKey,
+        { alg: "RS256", typ: "JWT", kid: "kid-route" },
+        {
+          iss: "https://idcs.example.com",
+          aud: "client-id",
+          sub: "route-subject",
+          email: "admin@example.com",
+          nonce: body.get("code") === "auth-code-123" ? routeNonce : undefined,
+          exp: nowSeconds + 300,
+          iat: nowSeconds
+        }
+      );
+      return new Response(JSON.stringify({ id_token: token, access_token: "access-token" }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }
+    if (target === "https://idcs.example.com/.well-known/openid-configuration") {
+      return new Response(JSON.stringify({ jwks_uri: "https://idcs.example.com/oauth2/v1/keys" }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }
+    if (target === "https://idcs.example.com/oauth2/v1/keys") {
+      return new Response(JSON.stringify({ keys: [publicJwk] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }
+    throw new Error(`Unexpected fetch URL: ${target}`);
+  };
+
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  try {
+    const { port } = app.address();
+    process.env.OCI_PORTAL_SSO_REDIRECT_URI = `http://127.0.0.1:${port}/auth/sso/callback`;
+    const startResponse = await originalFetch(`http://127.0.0.1:${port}/auth/sso/start`, { redirect: "manual" });
+    const authorizeLocation = new URL(startResponse.headers.get("location"));
+    const stateCookie = startResponse.headers.get("set-cookie") || "";
+    const state = authorizeLocation.searchParams.get("state");
+    routeNonce = authorizeLocation.searchParams.get("nonce") || "";
+
+    assert.equal(startResponse.status, 302);
+    assert.equal(authorizeLocation.origin + authorizeLocation.pathname, "https://idcs.example.com/oauth2/v1/authorize");
+    assert.ok(state);
+    assert.match(stateCookie, /oci_portal_sso_state=/);
+
+    const callbackResponse = await originalFetch(
+      `http://127.0.0.1:${port}/auth/sso/callback?code=auth-code-123&state=${encodeURIComponent(state)}`,
+      {
+        redirect: "manual",
+        headers: { cookie: stateCookie.split(";")[0] }
+      }
+    );
+    const sessionCookieHeader = callbackResponse.headers.get("set-cookie") || "";
+    const sessionToken = sessionCookieHeader.match(/oci_portal_session=([^;]+)/)?.[1] || "";
+    const identity = resolvePortalIdentity({ headers: { cookie: `oci_portal_session=${sessionToken}` } });
+
+    assert.equal(callbackResponse.status, 302);
+    assert.equal(callbackResponse.headers.get("location"), "./");
+    assert.ok(sessionToken);
+    assert.equal(identity.userEmail, "admin@example.com");
+    assert.equal(identity.authType, "sso");
+    assert.equal(identity.role, "admin");
+  } finally {
+    await new Promise((resolve, reject) => app.close((error) => (error ? reject(error) : resolve())));
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 });
 
 test("unmapped portal session tokens do not authorize as admin", () => {
@@ -232,11 +529,55 @@ test("server exposes unauthenticated readiness responses for hosted runtimes", a
     const rootHtml = await rootResponse.text();
     assert.match(rootHtml, /OCI Enterprise AI Portal Login/);
     assert.match(rootHtml, /action="\.\/login"/);
+    assert.doesNotMatch(rootHtml, /action="\.\/signup"/);
     assert.doesNotMatch(rootHtml, /action="\//);
     assert.equal(healthResponse.status, 200);
     assert.deepEqual(await healthResponse.json(), { status: "ok" });
   } finally {
     await new Promise((resolve, reject) => app.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+test("login page offers configured SSO and local oci fallback only", { concurrency: false }, async () => {
+  const originalEnv = {
+    OCI_PORTAL_SSO_ENABLED: process.env.OCI_PORTAL_SSO_ENABLED,
+    OCI_PORTAL_SSO_DOMAIN_URL: process.env.OCI_PORTAL_SSO_DOMAIN_URL,
+    OCI_PORTAL_SSO_CLIENT_ID: process.env.OCI_PORTAL_SSO_CLIENT_ID,
+    OCI_PORTAL_SSO_CLIENT_SECRET: process.env.OCI_PORTAL_SSO_CLIENT_SECRET,
+    OCI_PORTAL_SSO_REDIRECT_URI: process.env.OCI_PORTAL_SSO_REDIRECT_URI
+  };
+  const app = serverModule.server;
+
+  process.env.OCI_PORTAL_SSO_ENABLED = "true";
+  process.env.OCI_PORTAL_SSO_DOMAIN_URL = "https://idcs.example.com";
+  process.env.OCI_PORTAL_SSO_CLIENT_ID = "client-id";
+  process.env.OCI_PORTAL_SSO_CLIENT_SECRET = "client-secret";
+  process.env.OCI_PORTAL_SSO_REDIRECT_URI = "https://portal.example.com/auth/sso/callback";
+
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  try {
+    const { port } = app.address();
+    const response = await fetch(`http://127.0.0.1:${port}/login`, { redirect: "manual" });
+    const html = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.match(html, /action="\.\/auth\/sso\/start"/);
+    assert.match(html, /Continue with Oracle SSO/);
+    assert.match(html, /class="auth-icon"/);
+    assert.match(html, /action="\.\/login"/);
+    assert.match(html, /name="username" value="oci"/);
+    assert.match(html, /Sign in as local user/);
+    assert.doesNotMatch(html, /action="\.\/signup"/);
+    assert.doesNotMatch(html, /Protected user sign-up|Sign up/);
+  } finally {
+    await new Promise((resolve, reject) => app.close((error) => (error ? reject(error) : resolve())));
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   }
 });
 
@@ -277,15 +618,20 @@ test("browser entrypoints use relative URLs for hosted invoke prefixes", () => {
   assert.doesNotMatch(admin, /fetchJson\(`\/api|fetchJson\("\/api|fetch\(`\/api|fetch\("\/api/);
 });
 
-test("server exposes signup route and protected auth store command", () => {
+test("server exposes only SSO and local oci login paths", () => {
   const server = readFileSync("server.mjs", "utf8");
 
-  assert.match(server, /requestPath === "\/signup"/);
   assert.match(server, /callPortalAuthStore/);
   assert.match(server, /backend\/portal_auth_store\.py/);
   assert.match(server, /createPortalSessionForIdentity/);
   assert.match(server, /resolvePortalIdentity/);
-  assert.match(server, /Protected user sign-up/);
+  assert.match(server, /requestPath === "\/auth\/sso\/start"/);
+  assert.match(server, /requestPath === "\/auth\/sso\/callback"/);
+  assert.match(server, /requestPath === "\/login"/);
+  assert.doesNotMatch(server, /requestPath === "\/signup"/);
+  assert.doesNotMatch(server, /callPortalAuthStore\("signup"/);
+  assert.doesNotMatch(server, /callPortalAuthStore\("login"/);
+  assert.doesNotMatch(server, /Protected user sign-up|Sign up/);
 });
 
 test("server exposes redacted administration demo run history", () => {
