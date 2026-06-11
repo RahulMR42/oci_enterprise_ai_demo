@@ -810,6 +810,7 @@ test("DevOps build pipeline provisions generated runtime resources before portal
 test("DevOps deploys the portal as a no-auth hosted application with create-or-update rollout", () => {
   const main = read("infra/devops-hosted-image-build/main.tf");
   const variables = read("infra/devops-hosted-image-build/variables.tf");
+  const resourceManagerMain = read("infra/resource-manager-demo/main.tf");
   const resourceManagerPortal = read("infra/resource-manager-demo/portal_container.tf");
   const buildSpec = read("infra/devops-hosted-image-build/build_spec_deploy_portal.yaml");
   const script = read("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh");
@@ -849,13 +850,10 @@ test("DevOps deploys the portal as a no-auth hosted application with create-or-u
   assert.match(script, /export OCI_PORTAL_SSO_REDIRECT_URI="\$\(portal_sso_callback_url "\$app_id"\)"/);
   assert.doesNotMatch(script, /identity-domains app get/);
   assert.doesNotMatch(script, /identity-domains app patch/);
-  assert.match(resourceManagerPortal, /resource "terraform_data" "portal_idcs_redirect_uri"/);
-  assert.match(resourceManagerPortal, /count = var\.portal_container_enabled && var\.devops_hosted_image_build_enabled \? 1 : 0/);
-  assert.match(resourceManagerPortal, /local\.portal_sso_callback_url/);
-  assert.match(resourceManagerPortal, /oci identity-domains app patch/);
-  assert.match(resourceManagerPortal, /authorization_code/);
-  assert.match(resourceManagerPortal, /redirectUris/);
-  assert.match(resourceManagerPortal, /depends_on\s+=\s+\[module\.devops_hosted_image_build\]/);
+  assert.match(resourceManagerPortal, /existing_portal_sso_callback_url/);
+  assert.match(resourceManagerMain, /hosted_app_idcs_redirect_uris\s+=\s+compact\(\[local\.existing_portal_sso_callback_url\]\)/);
+  assert.doesNotMatch(resourceManagerPortal, /resource "terraform_data" "portal_idcs_redirect_uri"/);
+  assert.doesNotMatch(resourceManagerPortal, /identity-domains app patch/);
   assert.match(script, /OCI_PORTAL_SSO_REDIRECT_URI/);
   assert.match(script, /OCI_PORTAL_SSO_ADMIN_EMAILS/);
   assert.match(script, /\/health/);

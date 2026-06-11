@@ -392,8 +392,10 @@ locals {
     local.retained_existing_hosted_deployment_exports,
     local.non_empty_current_hosted_deployment_exports
   )
-  portal_url              = var.portal_container_enabled ? trimspace(try(tostring(local.hosted_deployment_exports.PORTAL_URL), "")) : ""
-  portal_sso_callback_url = local.portal_url != "" ? "${trimsuffix(local.portal_url, "/")}/auth/sso/callback" : ""
+  portal_url                       = var.portal_container_enabled ? trimspace(try(tostring(local.hosted_deployment_exports.PORTAL_URL), "")) : ""
+  existing_portal_url              = var.portal_container_enabled ? trimspace(try(tostring(local.existing_hosted_deployment_exports.PORTAL_URL), "")) : ""
+  existing_portal_sso_callback_url = local.existing_portal_url != "" ? "${trimsuffix(local.existing_portal_url, "/")}/auth/sso/callback" : ""
+  portal_sso_callback_url          = local.portal_url != "" ? "${trimsuffix(local.portal_url, "/")}/auth/sso/callback" : ""
   portal_runtime_config = {
     resourceSuffix                       = var.resource_suffix
     region                               = var.region
@@ -423,108 +425,5 @@ locals {
     runtimeConfigObjectNamespace         = data.oci_objectstorage_namespace.portal.namespace
     runtimeConfigObjectBucket            = var.portal_container_enabled ? oci_objectstorage_bucket.portal_config[0].name : ""
     runtimeConfigObjectName              = "portal-runtime-config.json"
-  }
-}
-
-resource "terraform_data" "portal_idcs_redirect_uri" {
-  count = var.portal_container_enabled && var.devops_hosted_image_build_enabled ? 1 : 0
-
-  triggers_replace = [
-    var.resource_suffix,
-    var.devops_source_revision,
-    local.portal_sso_callback_url,
-    module.hosted_agentic_applications.hosted_app_idcs_launch_client_app_id
-  ]
-
-  input = {
-    idcs_app_id             = module.hosted_agentic_applications.hosted_app_idcs_launch_client_app_id
-    idcs_domain_url         = var.idcs_domain_url
-    portal_sso_callback_url = local.portal_sso_callback_url
-    profile                 = var.profile
-    region                  = var.region
-  }
-
-  depends_on = [module.devops_hosted_image_build]
-
-  provisioner "local-exec" {
-    environment = {
-      IDCS_APP_ID             = self.input.idcs_app_id
-      IDCS_DOMAIN_URL         = self.input.idcs_domain_url
-      OCI_CLI_PROFILE         = self.input.profile
-      OCI_REGION              = self.input.region
-      PORTAL_SSO_CALLBACK_URL = self.input.portal_sso_callback_url
-    }
-
-    command = <<-EOT
-      set -euo pipefail
-      unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY no_proxy NO_PROXY
-
-      if [ -z "$IDCS_APP_ID" ] || [ -z "$IDCS_DOMAIN_URL" ] || [ -z "$PORTAL_SSO_CALLBACK_URL" ]; then
-        echo "Skipping portal IDCS redirect URI registration; SSO app or portal URL is not available."
-        exit 0
-      fi
-
-      if ! oci identity-domains app patch -h >/dev/null 2>&1; then
-        python3 -m pip install --user --quiet --upgrade --proxy "" --index-url https://pypi.org/simple oci-cli
-      fi
-      export PATH="$HOME/.local/bin:$PATH"
-
-      oci_auth_args=(--auth resource_principal)
-      if [ -n "$OCI_CLI_PROFILE" ]; then
-        oci_auth_args=(--profile "$OCI_CLI_PROFILE")
-      fi
-
-      app_json="/tmp/portal-idcs-app.json"
-      operations_json="/tmp/portal-idcs-app-patch.json"
-
-      oci identity-domains app get \
-        --endpoint "$IDCS_DOMAIN_URL" \
-        --app-id "$IDCS_APP_ID" \
-        "$${oci_auth_args[@]}" \
-        --region "$OCI_REGION" \
-        --output json > "$app_json"
-
-      python3 - "$app_json" "$PORTAL_SSO_CALLBACK_URL" "$operations_json" <<'PY'
-import json
-import sys
-
-app_file, callback_uri, operations_file = sys.argv[1:4]
-payload = json.load(open(app_file, encoding="utf-8"))
-data = payload.get("data") or payload
-
-def read_list(*names):
-    for name in names:
-        value = data.get(name)
-        if isinstance(value, list):
-            return [str(item).strip() for item in value if str(item).strip()]
-    return []
-
-redirect_uris = read_list("redirectUris", "redirect-uris", "redirect_uris")
-allowed_grants = read_list("allowedGrants", "allowed-grants", "allowed_grants")
-if callback_uri and callback_uri not in redirect_uris:
-    redirect_uris.append(callback_uri)
-for grant in ["client_credentials", "authorization_code"]:
-    if grant not in allowed_grants:
-        allowed_grants.append(grant)
-
-operations = [
-    {"op": "replace", "path": "redirectUris", "value": redirect_uris},
-    {"op": "replace", "path": "allowedGrants", "value": allowed_grants},
-]
-with open(operations_file, "w", encoding="utf-8") as handle:
-    json.dump(operations, handle)
-PY
-
-      oci identity-domains app patch \
-        --endpoint "$IDCS_DOMAIN_URL" \
-        --app-id "$IDCS_APP_ID" \
-        --schemas '["urn:ietf:params:scim:api:messages:2.0:PatchOp"]' \
-        --operations "file://$operations_json" \
-        "$${oci_auth_args[@]}" \
-        --region "$OCI_REGION" \
-        --output json >/tmp/portal-idcs-app-patch-response.json
-
-      echo "Registered portal SSO callback on IDCS app: $PORTAL_SSO_CALLBACK_URL"
-    EOT
   }
 }

@@ -161,6 +161,7 @@ module "hosted_agentic_applications" {
   idcs_domain_url                 = var.idcs_domain_url
   idcs_audience                   = var.idcs_audience
   idcs_scope                      = var.idcs_scope
+  hosted_app_idcs_redirect_uris   = compact([local.existing_portal_sso_callback_url])
   langfuse_image_repository_uri   = var.langfuse_image_repository_uri
   openclaw_image_repository_uri   = var.openclaw_image_repository_uri
   llamaindex_image_repository_uri = var.llamaindex_image_repository_uri
