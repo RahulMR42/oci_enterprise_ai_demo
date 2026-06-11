@@ -427,7 +427,7 @@ locals {
 }
 
 resource "terraform_data" "portal_idcs_redirect_uri" {
-  count = var.portal_container_enabled && var.devops_hosted_image_build_enabled && var.devops_hosted_image_run_build ? 1 : 0
+  count = var.portal_container_enabled && var.devops_hosted_image_build_enabled ? 1 : 0
 
   triggers_replace = [
     var.resource_suffix,

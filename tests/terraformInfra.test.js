@@ -850,6 +850,7 @@ test("DevOps deploys the portal as a no-auth hosted application with create-or-u
   assert.doesNotMatch(script, /identity-domains app get/);
   assert.doesNotMatch(script, /identity-domains app patch/);
   assert.match(resourceManagerPortal, /resource "terraform_data" "portal_idcs_redirect_uri"/);
+  assert.match(resourceManagerPortal, /count = var\.portal_container_enabled && var\.devops_hosted_image_build_enabled \? 1 : 0/);
   assert.match(resourceManagerPortal, /local\.portal_sso_callback_url/);
   assert.match(resourceManagerPortal, /oci identity-domains app patch/);
   assert.match(resourceManagerPortal, /authorization_code/);
