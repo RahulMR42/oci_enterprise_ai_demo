@@ -254,6 +254,62 @@ test("portal SSO validates RS256 ID token claims", async () => {
   );
 });
 
+test("portal SSO accepts the issuer advertised by IDCS discovery", async () => {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const jwk = {
+    ...publicKey.export({ format: "jwk" }),
+    kid: "kid-idcs-discovery",
+    alg: "RS256",
+    use: "sig"
+  };
+  const config = resolvePortalSsoConfig({
+    OCI_PORTAL_SSO_DOMAIN_URL: "https://idcs.example.com:443",
+    OCI_PORTAL_SSO_CLIENT_ID: "client-id",
+    OCI_PORTAL_SSO_CLIENT_SECRET: "client-secret",
+    OCI_PORTAL_SSO_REDIRECT_URI: "https://portal.example.com/auth/sso/callback"
+  });
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const token = signRs256Jwt(
+    privateKey,
+    { alg: "RS256", typ: "JWT", kid: "kid-idcs-discovery" },
+    {
+      iss: "https://identity.oraclecloud.com/",
+      aud: "client-id",
+      sub: "subject-123",
+      email: "person@example.com",
+      nonce: "nonce-123",
+      exp: nowSeconds + 300,
+      iat: nowSeconds
+    }
+  );
+
+  const claims = await validatePortalSsoIdToken(token, config, {
+    nonce: "nonce-123",
+    now: () => nowSeconds * 1000,
+    fetchImpl: async (url) => {
+      const target = String(url);
+      if (target === "https://idcs.example.com:443/.well-known/openid-configuration") {
+        return new Response(JSON.stringify({
+          issuer: "https://identity.oraclecloud.com/",
+          jwks_uri: "https://idcs.example.com:443/admin/v1/SigningCert/jwk"
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (target === "https://idcs.example.com:443/admin/v1/SigningCert/jwk") {
+        return new Response(JSON.stringify({ keys: [jwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      throw new Error(`Unexpected SSO discovery fetch: ${target}`);
+    }
+  });
+
+  assert.equal(claims.iss, "https://identity.oraclecloud.com/");
+});
+
 test("portal SSO exchanges authorization code at the IDCS token endpoint", async () => {
   const config = resolvePortalSsoConfig({
     OCI_PORTAL_SSO_DOMAIN_URL: "https://idcs.example.com",

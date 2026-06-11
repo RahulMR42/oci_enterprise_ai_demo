@@ -1127,7 +1127,11 @@ async function fetchPortalSsoJwks(config, fetchImpl = globalThis.fetch) {
   try {
     const discovery = await fetchPortalSsoJson(discoveryUrl, { headers: { Accept: "application/json" } }, fetchImpl);
     if (discovery.jwks_uri) {
-      return fetchPortalSsoJson(discovery.jwks_uri, { headers: { Accept: "application/json" } }, fetchImpl);
+      const jwks = await fetchPortalSsoJson(discovery.jwks_uri, { headers: { Accept: "application/json" } }, fetchImpl);
+      return {
+        ...jwks,
+        issuer: String(discovery.issuer || "").trim()
+      };
     }
   } catch (error) {
     console.warn(`[portal-sso] discovery failed: ${redactSensitiveText(error.message)}`);
@@ -1166,7 +1170,7 @@ export async function validatePortalSsoIdToken(
   verifyPortalSsoJwtSignature(jwt, selectPortalSsoJwk(resolvedJwks, jwt.header));
 
   const claims = jwt.claims;
-  const expectedIssuer = normalizePortalSsoIssuer(config.issuer || config.domainUrl);
+  const expectedIssuer = normalizePortalSsoIssuer(config.issuer || resolvedJwks.issuer || config.domainUrl);
   const actualIssuer = normalizePortalSsoIssuer(claims.iss);
   if (expectedIssuer && actualIssuer !== expectedIssuer) {
     throw new Error("SSO ID token issuer is invalid.");
