@@ -4,6 +4,12 @@ timeoutInSeconds: 3600
 shell: bash
 failImmediatelyOnError: true
 
+env:
+  exportedVariables:
+    - PORTAL_URL
+    - PORTAL_HOSTED_APPLICATION_ID
+    - PORTAL_HOSTED_DEPLOYMENT_ID
+
 steps:
   - type: Command
     name: deploy-portal-hosted-application
@@ -13,3 +19,6 @@ steps:
 
       chmod +x infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh
       infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh
+      if [ -f hosted-deployments-PORTAL.env ]; then
+        . hosted-deployments-PORTAL.env
+      fi

@@ -830,6 +830,8 @@ test("DevOps deploys the portal as a no-auth hosted application with create-or-u
   assert.doesNotMatch(main, /PORTAL_BACKEND_SET_NAME/);
   assert.doesNotMatch(main, /name\s+=\s+"PORTAL_AUTH_PASSWORD"/);
   assert.match(buildSpec, /deploy_portal_hosted_application\.sh/);
+  assert.match(buildSpec, /exportedVariables:[\s\S]*- PORTAL_URL[\s\S]*- PORTAL_HOSTED_APPLICATION_ID[\s\S]*- PORTAL_HOSTED_DEPLOYMENT_ID/);
+  assert.match(buildSpec, /\. hosted-deployments-PORTAL\.env/);
   assert.match(script, /hosted-application-collection list-hosted-applications/);
   assert.match(script, /hosted-deployment-collection list-hosted-deployments/);
   assert.match(script, /create_or_update_portal_hosted_application/);
