@@ -6,6 +6,12 @@ A local portal for OCI Enterprise AI demos. It combines runnable UI cards, Pytho
 
 Use the button to create the full OCI Resource Manager stack from the latest GitHub release package. The stack working directory is `infra/resource-manager-demo`. See [docs/deployment/resource-manager-one-click.md](docs/deployment/resource-manager-one-click.md) for required variables, release packaging, and validation steps.
 
+## App Flow
+
+![Enterprise AI portal UI, demo backend, SSO, administration, and OCI service flow](docs/images/portal_flow.png)
+
+The flow shows how the hosted portal UI, login paths, demo execution API, Python demo runner, state fallbacks, OCI service calls, and administration endpoints fit together.
+
 ## Demo Coverage
 
 | Demo | Runtime | Infrastructure |

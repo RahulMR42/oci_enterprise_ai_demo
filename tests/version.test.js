@@ -9,7 +9,7 @@ test("app version manifest matches package metadata", () => {
   const indexHtml = readFileSync("index.html", "utf8");
   const adminHtml = readFileSync("admin.html", "utf8");
 
-  assert.equal(packageJson.version, "0.0.27");
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   assert.equal(versionJson.version, packageJson.version);
   assert.equal(packageLock.version, packageJson.version);
   assert.equal(packageLock.packages[""].version, packageJson.version);

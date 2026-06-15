@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createPublicKey, createVerify, randomBytes } from "node:crypto";
 import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { basename, extname, join, normalize, relative } from "node:path";
+import { basename, dirname, extname, join, normalize, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { appVersion } from "./src/version.js";
 
@@ -1734,6 +1734,35 @@ function readJsonFile(filePath) {
   }
 }
 
+export function writeGeneratedMetadataFile(filePath, content, { label = "generated metadata persistence" } = {}) {
+  const startedAt = new Date().toISOString();
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, content);
+    return {
+      label,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      command: `write ${filePath}`,
+      status: "success",
+      exitCode: 0,
+      stdout: `Persisted ${filePath}`,
+      stderr: ""
+    };
+  } catch (error) {
+    return {
+      label,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      command: `write ${filePath}`,
+      status: "skipped",
+      exitCode: null,
+      stdout: "",
+      stderr: `Skipped persisting ${filePath}: ${redactSensitiveText(error.message)}`
+    };
+  }
+}
+
 function readHostedTerraformInput(resourceName) {
   const state = readJsonFile(join(root, "infra/hosted-agentic-applications/terraform.tfstate"));
   const resource = (state.resources || []).find((candidate) => candidate.type === "terraform_data" && candidate.name === resourceName);
@@ -1949,12 +1978,29 @@ async function refreshHostedJsonFile({ label, id, targetFile, commandArgs, runti
     return result;
   }
 
-  writeFileSync(targetFile, result.stdout);
+  const persistenceResults = [
+    writeGeneratedMetadataFile(targetFile, result.stdout, {
+      label: `${label} metadata persistence`
+    })
+  ];
   if (runtimeFile && runtimeKey) {
     const payload = JSON.parse(result.stdout).data || {};
     const runtime = readJsonFile(runtimeFile);
     runtime[runtimeKey] = payload["lifecycle-state"] || payload.lifecycleState || payload.status || runtime[runtimeKey] || "";
-    writeFileSync(runtimeFile, JSON.stringify(runtime, null, 2));
+    persistenceResults.push(
+      writeGeneratedMetadataFile(runtimeFile, JSON.stringify(runtime, null, 2), {
+        label: `${label} runtime metadata persistence`
+      })
+    );
+  }
+  const skippedPersistence = persistenceResults.filter((item) => item.status !== "success");
+  if (skippedPersistence.length > 0) {
+    return {
+      ...result,
+      status: "skipped",
+      stdout: `Fetched ${targetFile}; metadata persistence skipped.`,
+      stderr: [result.stderr, ...skippedPersistence.map((item) => item.stderr)].filter(Boolean).join("\n")
+    };
   }
 
   return {
@@ -2164,7 +2210,6 @@ export function selectHostedRuntimeCandidate({
 
 async function discoverGeneratedHostedRuntimeState() {
   const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
-  mkdirSync(hostedDir, { recursive: true });
   const logs = [];
 
   for (const definition of hostedRuntimeDiscoveryDefinitions()) {
@@ -2231,7 +2276,7 @@ async function discoverGeneratedHostedRuntimeState() {
     });
 
     if (selected.hostedApplicationId || selected.hostedDeploymentId || selected.endpoint || seededCurrent.hostedApplicationId || seededCurrent.hostedDeploymentId || seededCurrent.url || seededCurrent.endpoint || definition.envUrl || definition.envDeploymentId) {
-      writeFileSync(
+      const persistence = writeGeneratedMetadataFile(
         targetFile,
         JSON.stringify(
           {
@@ -2249,8 +2294,12 @@ async function discoverGeneratedHostedRuntimeState() {
           },
           null,
           2
-        )
+        ),
+        { label: `${definition.label} runtime metadata persistence` }
       );
+      if (persistence.status !== "success") {
+        logs.push(persistence);
+      }
     }
   }
 

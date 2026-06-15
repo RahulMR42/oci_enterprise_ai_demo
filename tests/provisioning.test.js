@@ -48,7 +48,8 @@ import {
   safeEnvironmentSnapshot,
   selectHostedRuntimeCandidate,
   summarizeAdminInfrastructureState,
-  summarizeDemoRunHistory
+  summarizeDemoRunHistory,
+  writeGeneratedMetadataFile
 } from "../server.mjs";
 import * as serverModule from "../server.mjs";
 
@@ -1789,6 +1790,16 @@ test("summarizes externally provisioned RMS runtime as created infrastructure", 
   assert.equal(summary.status, "created");
   assert.equal(summary.values.projectId, "ocid1.generativeaiproject.oc1.us-chicago-1.example");
   assert.equal(summary.values.apiKeyAvailable, true);
+});
+
+test("generated metadata persistence reports read-only target paths without throwing", () => {
+  const result = writeGeneratedMetadataFile(join("/proc", "enterprise-ai-demo", "runtime.json"), "{}", {
+    label: "test generated metadata persistence"
+  });
+
+  assert.equal(result.status, "skipped");
+  assert.equal(result.label, "test generated metadata persistence");
+  assert.match(result.stderr, /Skipped persisting .*runtime\.json/);
 });
 
 test("run dialog uses provisioned vector store and code container ids", () => {
