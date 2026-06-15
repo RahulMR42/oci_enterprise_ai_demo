@@ -1,6 +1,6 @@
-# Hosted Agentic Applications Infrastructure
+# Hosted Agentic Applications
 
-This module provisions the hosted-application demos used by the portal.
+This module provisions the hosted-application demos launched from the portal.
 
 ## What It Creates
 
@@ -11,11 +11,11 @@ This module provisions the hosted-application demos used by the portal.
 | OpenClaw Hosted Gateway | `apps/hosted-openclaw` | OCIR repository, hosted application, hosted deployment |
 | LlamaIndex Control Tower | `apps/hosted-llamaindex-control-tower` | OCIR repository, hosted application, hosted deployment |
 
-The OpenClaw gateway image is a lightweight hosted demo wrapper. It exposes a runnable gateway UI, sample task buttons, demo output, `/healthz`, and next steps through the portal launch proxy.
+The OpenClaw gateway image is a lightweight hosted wrapper with a runnable gateway UI, sample task buttons, demo output, `/healthz`, and next steps through the portal launch proxy.
 
 ## Identity Domain Inputs
 
-Hosted applications use inbound IDCS auth. Export the existing identity domain values before apply:
+Hosted applications use inbound IDCS auth. Export existing identity domain values before apply:
 
 ```bash
 export OCI_HOSTED_APP_IDCS_DOMAIN_URL="https://idcs-...identity.oraclecloud.com:443"
@@ -23,15 +23,15 @@ export OCI_HOSTED_APP_IDCS_AUDIENCE="https://genaisolutions.com/"
 export OCI_HOSTED_APP_IDCS_SCOPE="read"
 ```
 
-Do not pass client secrets to Terraform. Secrets would be stored in state; use client credentials only at invocation time when requesting an access token.
+Do not pass client secrets to Terraform. Secrets would be stored in state; use client credentials only at invocation time.
 
 ## Hosted UI Notes
 
-Hosted UI demos launch through the portal using OCI hosted application invoke URLs. The module writes IDCS launch-client metadata so the portal can request hosted-application access tokens without storing client secrets in Terraform variables.
+Hosted UI demos launch through the portal using OCI hosted application invoke URLs. The module writes IDCS launch-client metadata so the portal can request access tokens without storing client secrets in Terraform variables.
 
 ## Image Publishing
 
-By default the module builds local wrapper images and pushes them to OCIR. Set these variables to reuse prebuilt images:
+By default, the module builds local wrapper images and pushes them to OCIR. Set these variables to reuse prebuilt images:
 
 ```hcl
 openclaw_image_repository_uri = "ord.ocir.io/<namespace>/enterprise-ai-demo/hosted-openclaw-<suffix>"
@@ -52,7 +52,7 @@ openclaw_hosted_gateway.json
 llamaindex_control_tower.json
 ```
 
-The portal reads these files to populate infrastructure status and launch URLs. Generated metadata, Terraform state, and local tfvars should remain out of git.
+The portal reads these files for infrastructure status and launch URLs. Generated metadata, Terraform state, and local tfvars should stay out of git.
 
 ## Apply
 

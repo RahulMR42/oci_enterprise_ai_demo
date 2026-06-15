@@ -1,5 +1,5 @@
-# Guardrails demo infrastructure
+# Guardrails Infrastructure
 
-This demo runs backend policy checks before invoking the shared OCI Responses API endpoint. It does not require separate OCI infrastructure beyond the shared OCI Generative AI project and API key created by `infra/responses-api`.
+This demo runs backend policy checks before invoking the shared OCI Responses API endpoint. It requires no separate OCI infrastructure beyond the shared OCI Generative AI project and API key from `infra/responses-api`.
 
-If this demo is promoted to use OCI logging, policy stores, Vault secrets, network controls, or a managed guardrail service, those resources must be added to this Terraform module before backend code depends on them.
+Add OCI logging, policy stores, Vault secrets, network controls, or a managed guardrail service to this module before backend code depends on them.
