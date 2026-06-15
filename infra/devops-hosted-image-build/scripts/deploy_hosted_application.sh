@@ -48,7 +48,6 @@ oci generative-ai hosted-deployment create-hosted-deployment-single-docker-artif
 registry="${OCIR_REGION_KEY}.ocir.io"
 hosted_agent_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-agent-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 langgraph_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-langgraph-agent-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
-langfuse_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-langfuse-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 openclaw_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-openclaw-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 llamaindex_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-llamaindex-control-tower-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 
@@ -349,7 +348,6 @@ write_exported_variables() {
 }
 
 openclaw_env="$(python3 -c 'import json, os; print(json.dumps([{"name":"OPENCLAW_GATEWAY_BIND","type":"PLAINTEXT","value":"lan"},{"name":"OPENCLAW_GATEWAY_PORT","type":"PLAINTEXT","value":"8080"},{"name":"OPENCLAW_GATEWAY_TOKEN","type":"PLAINTEXT","value":os.getenv("OPENCLAW_GATEWAY_TOKEN","")}]))')"
-langfuse_env="$(python3 -c 'import json, os; values={"NEXTAUTH_URL":"http://0.0.0.0:3000","NEXTAUTH_SECRET":os.getenv("LANGFUSE_NEXTAUTH_SECRET",""),"SALT":os.getenv("LANGFUSE_SALT",""),"ENCRYPTION_KEY":os.getenv("LANGFUSE_ENCRYPTION_KEY",""),"DATABASE_URL":os.getenv("LANGFUSE_DATABASE_URL",""),"CLICKHOUSE_URL":os.getenv("LANGFUSE_CLICKHOUSE_URL",""),"CLICKHOUSE_USER":os.getenv("LANGFUSE_CLICKHOUSE_USER",""),"CLICKHOUSE_PASSWORD":os.getenv("LANGFUSE_CLICKHOUSE_PASSWORD",""),"CLICKHOUSE_CLUSTER_ENABLED":"false","LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED":"true","REDIS_CONNECTION_STRING":os.getenv("LANGFUSE_REDIS_CONNECTION_STRING",""),"LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE":"true","LANGFUSE_OCI_AUTH_TYPE":"resource_principal","LANGFUSE_S3_EVENT_UPLOAD_BUCKET":os.getenv("LANGFUSE_S3_EVENT_UPLOAD_BUCKET",""),"LANGFUSE_S3_EVENT_UPLOAD_REGION":os.getenv("LANGFUSE_S3_UPLOAD_REGION","auto"),"LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT":os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT",""),"LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE":"true","LANGFUSE_S3_MEDIA_UPLOAD_BUCKET":os.getenv("LANGFUSE_S3_MEDIA_UPLOAD_BUCKET",""),"LANGFUSE_S3_MEDIA_UPLOAD_REGION":os.getenv("LANGFUSE_S3_UPLOAD_REGION","auto"),"LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT":os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT","")}; print(json.dumps([{"name": name, "type": "PLAINTEXT", "value": value} for name, value in values.items()]))')"
 
 case "$HOSTED_APP_KEY" in
   HOSTED_AGENT)
@@ -357,9 +355,6 @@ case "$HOSTED_APP_KEY" in
     ;;
   LANGGRAPH)
     create_hosted LANGGRAPH "enterprise-ai-demo-langgraph-agent-${RESOURCE_SUFFIX}" "enterprise-ai-demo-langgraph-agent-deployment-${RESOURCE_SUFFIX}" "$langgraph_image_uri" "langgraph-hosted-agent-mcp"
-    ;;
-  LANGFUSE)
-    create_hosted LANGFUSE "enterprise-ai-demo-langfuse-${RESOURCE_SUFFIX}" "enterprise-ai-demo-langfuse-deployment-${RESOURCE_SUFFIX}" "$langfuse_image_uri" "langfuse-hosted-observability" "$langfuse_env" "${LANGFUSE_NETWORKING_CONFIG_JSON:-}"
     ;;
   OPENCLAW)
     create_hosted OPENCLAW "enterprise-ai-demo-openclaw-${RESOURCE_SUFFIX}" "enterprise-ai-demo-openclaw-deployment-${RESOURCE_SUFFIX}" "$openclaw_image_uri" "openclaw-hosted-agent-gateway" "$openclaw_env"

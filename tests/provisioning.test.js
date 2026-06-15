@@ -36,9 +36,6 @@ import {
   portalSsoCallbackUrlFromInvokeUrl,
   portalSsoIdentityFromClaims,
   portalSsoIsConfigured,
-  rewriteLangfuseLaunchJson,
-  rewriteLangfuseLaunchHtml,
-  proxyResponseHeaders,
   resolvePayloadHostedRuntime,
   resolvePortalSsoConfig,
   validatePortalSsoIdToken,
@@ -998,7 +995,7 @@ test("server exposes redacted administration infrastructure and logs", () => {
 test("administration run history keeps failure details available for troubleshooting", () => {
   const history = summarizeDemoRunHistory([
     {
-      featureId: "langfuse-hosted-observability",
+      featureId: "openclaw-hosted-agent-gateway",
       action: "launch",
       status: "failed",
       durationMs: 42,
@@ -1006,7 +1003,7 @@ test("administration run history keeps failure details available for troubleshoo
       error: "IDCS token request failed",
       request: {
         method: "GET",
-        path: "/api/langfuse/launch/auth/sign-in",
+        path: "/api/openclaw/launch/",
         headers: { authorization: "Bearer secret-token" }
       },
       diagnostics: {
@@ -1014,7 +1011,7 @@ test("administration run history keeps failure details available for troubleshoo
         config: { clientSecretConfigured: true }
       },
       upstream: {
-        target: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/auth/sign-in"
+        target: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/"
       },
       stack: "Error: IDCS token request failed\n    at getIdcsAccessToken"
     }
@@ -1023,7 +1020,7 @@ test("administration run history keeps failure details available for troubleshoo
   const run = history.runs[0];
   assert.equal(run.error, "IDCS token request failed");
   assert.equal(run.diagnostics.stage, "idcs-token");
-  assert.equal(run.upstream.target.includes("/auth/sign-in"), true);
+  assert.equal(run.upstream.target.includes("/actions/invoke/"), true);
   assert.equal(JSON.stringify(run).includes("secret-token"), false);
 });
 
@@ -1069,71 +1066,12 @@ test("object storage run history helpers use the configured region with resource
   assert.match(server, /\[object-storage\] write failed/);
 });
 
-test("portal admin route is handled before Langfuse passthrough routes", () => {
+test("portal no longer exposes Langfuse passthrough routes", () => {
   const server = readFileSync("server.mjs", "utf8");
-  const adminRouteIndex = server.indexOf('requestPath === "/api/admin/demo-runs"');
-  const langfusePassthroughIndex = server.indexOf("isLangfusePassthroughPath(requestPath)");
 
-  assert.ok(adminRouteIndex > 0);
-  assert.ok(langfusePassthroughIndex > 0);
-  assert.ok(adminRouteIndex < langfusePassthroughIndex);
-});
-
-test("Langfuse root-relative redirects stay inside the launch proxy", () => {
-  const headers = new Headers({ Location: "/" });
-  const rewritten = proxyResponseHeaders(headers, "/api/langfuse/launch/api/auth/signin", {
-    launchUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/",
-    proxyBase: "/api/langfuse/launch/"
-  });
-
-  assert.equal(rewritten.location, "/api/langfuse/launch/");
-});
-
-test("Langfuse internal absolute redirects stay inside the launch proxy", () => {
-  const headers = new Headers({ Location: "http://0.0.0.0:3000/api/auth/error?error=Invalid%20credentials" });
-  const rewritten = proxyResponseHeaders(headers, "/api/langfuse/launch/api/auth/callback/credentials", {
-    launchUrl: "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/example/actions/invoke/",
-    proxyBase: "/api/langfuse/launch/"
-  });
-
-  assert.equal(rewritten.location, "/api/langfuse/launch/api/auth/error?error=Invalid%20credentials");
-});
-
-test("Langfuse NextAuth callback URLs stay inside the launch proxy", () => {
-  const rewritten = JSON.parse(
-    rewriteLangfuseLaunchJson(
-      JSON.stringify({ url: "http://0.0.0.0:3000/", callbackUrl: "http://0.0.0.0:3000/api/auth/callback/credentials" }),
-      "http://127.0.0.1:5175"
-    )
-  );
-
-  assert.equal(rewritten.url, "http://127.0.0.1:5175/api/langfuse/launch/");
-  assert.equal(rewritten.callbackUrl, "http://127.0.0.1:5175/api/langfuse/launch/api/auth/callback/credentials");
-});
-
-test("Langfuse HTML root-relative routes stay inside the launch proxy", () => {
-  const rewritten = rewriteLangfuseLaunchHtml(
-    `<a href="/">Home</a><form action="/api/auth/callback/credentials"></form><script src="/_next/static/app.js"></script><script>window.location.assign("/project/demo")</script>`,
-    "http://127.0.0.1:5175"
-  );
-
-  assert.match(rewritten, /href="\/api\/langfuse\/launch\/"/);
-  assert.match(rewritten, /action="\/api\/langfuse\/launch\/api\/auth\/callback\/credentials"/);
-  assert.match(rewritten, /src="\/api\/langfuse\/launch\/_next\/static\/app\.js"/);
-  assert.match(rewritten, /window\.location\.assign\("\/api\/langfuse\/launch\/project\/demo"\)/);
-});
-
-test("Langfuse JSON root-relative routes stay inside the launch proxy", () => {
-  const rewritten = JSON.parse(
-    rewriteLangfuseLaunchJson(
-      JSON.stringify({ redirect: "/", nested: { project: "/project/demo" }, keep: "https://example.com/" }),
-      "http://127.0.0.1:5175"
-    )
-  );
-
-  assert.equal(rewritten.redirect, "/api/langfuse/launch/");
-  assert.equal(rewritten.nested.project, "/api/langfuse/launch/project/demo");
-  assert.equal(rewritten.keep, "https://example.com/");
+  assert.doesNotMatch(server, /isLangfusePassthroughPath/);
+  assert.doesNotMatch(server, /\/api\/langfuse\/launch/);
+  assert.doesNotMatch(server, /rewriteLangfuseLaunch/);
 });
 
 test("hosted runtime discovery ignores deleted exported applications", () => {
@@ -1311,7 +1249,8 @@ test("server-side hosted runtimes preserve OCI invoke URLs", () => {
 test("server runtime readers use Resource Manager hosted invoke URLs", () => {
   const server = readFileSync("server.mjs", "utf8");
 
-  assert.match(server, /function readLangfuseLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl\(\s*process\.env\.OCI_HOSTED_LANGFUSE_URL,\s*portalRuntimeHostedValue\("LANGFUSE_URL"\),\s*observability\.url/);
+  assert.doesNotMatch(server, /readLangfuseLaunchUrl/);
+  assert.doesNotMatch(server, /OCI_HOSTED_LANGFUSE_URL/);
   assert.match(server, /function readOpenClawLaunchUrl\(\)[\s\S]*return hostedRuntimeUrl\(\s*process\.env\.OCI_HOSTED_OPENCLAW_URL,\s*portalRuntimeHostedValue\("OPENCLAW_URL"\),\s*gateway\.url/);
   assert.match(server, /function readLlamaIndexControlTowerLaunchUrl\(\)[\s\S]*process\.env\.OCI_HOSTED_LLAMAINDEX_URL \|\|\s*portalRuntimeHostedValue\("LLAMAINDEX_URL"\) \|\|/);
   assert.match(server, /finalConversationId = process\.env\.OCI_GENAI_CONVERSATION_ID \|\| portalRuntimeConfig\.conversationId \|\| conversation\.id/);
@@ -1531,13 +1470,13 @@ test("parses demo terraform resources into infrastructure component labels", () 
             }
           },
           {
-            address: "terraform_data.langfuse_hosted_observability",
+            address: "terraform_data.openclaw_hosted_agent_gateway",
             type: "terraform_data",
-            name: "langfuse_hosted_observability",
+            name: "openclaw_hosted_agent_gateway",
             values: {
               input: {
-                hosted_application_display_name: "enterprise-ai-demo-langfuse-ab12cd",
-                langfuse_nextauth_secret: "do-not-expose"
+                hosted_application_display_name: "enterprise-ai-demo-openclaw-ab12cd",
+                openclaw_gateway_token: "do-not-expose"
               }
             }
           },
@@ -1625,7 +1564,7 @@ test("parses demo terraform resources into infrastructure component labels", () 
       ["File Search Seed Documents", "created"],
       ["Code Interpreter Container", "created"],
       ["Hosted Agentic Application Module", "created"],
-      ["Langfuse Hosted Observability Module", "created"],
+      ["OpenClaw Hosted Agent Gateway Module", "created"],
       ["SQL Search Vault", "created"],
       ["SQL Search Vault Key", "created"],
       ["SQL Search DB Password Secret", "created"],
@@ -1843,7 +1782,7 @@ test("run dialog does not expose editable hosted app references", () => {
   assert.doesNotMatch(main, /hostedReferenceVisible/);
   assert.doesNotMatch(main, /hostedRuntimeReferences/);
   assert.doesNotMatch(styles, /\.demo-dialog\.is-launch-demo \.hosted-reference-field/);
-  assert.match(main, /langfuse-hosted-observability/);
+  assert.doesNotMatch(main, /langfuse-hosted-observability/);
   assert.match(main, /agentic-control-tower/);
   assert.match(server, /resolvePayloadHostedRuntime/);
   assert.match(server, /OCI_HOSTED_AGENT_URL: hostedRuntime\.hostedUrl/);
@@ -1860,7 +1799,7 @@ test("hosted UI demos expose launch button inside the run window", () => {
   assert.match(main, /responses-run-button"\)\.hidden = isLaunchOnly/);
   assert.match(main, /responses-launch-button"\)\.hidden = !launchConfig/);
   assert.match(main, /responses-launch-button"\)\.addEventListener\("click"/);
-  assert.match(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
+  assert.doesNotMatch(main, /\/api\/langfuse\/launch\/auth\/sign-in/);
   assert.match(main, /\/api\/openclaw\/launch\//);
   assert.doesNotMatch(main, /\/api\/hosted\/launch\/hosted-agentic-applications\//);
   assert.doesNotMatch(main, /\/api\/hosted\/launch\/langgraph-hosted-agent-mcp\//);
@@ -1876,7 +1815,7 @@ test("hosted UI demos launch directly without synthetic run launch flow", () => 
   assert.match(main, /const launchOnlyDemoIds = new Set/);
   assert.match(main, /return launchOnlyDemoIds\.has\(featureId\) \? "Launch" : "Run"/);
   assert.match(main, /launchOnlyDemoIds\.has\(activeDemoId\)/);
-  assert.match(main, /"langfuse-hosted-observability"[\s\S]*button: "Launch"/);
+  assert.doesNotMatch(main, /"langfuse-hosted-observability"[\s\S]*button: "Launch"/);
   assert.match(main, /"openclaw-hosted-agent-gateway"[\s\S]*button: "Launch"/);
   assert.match(main, /launchExternalDemo\(activeDemoId\)/);
   assert.match(main, /window\.open\(launchTarget/);
@@ -1895,7 +1834,7 @@ test("only hosted UI demos expose launch controls and card faces stay compact", 
     "a2a-agent-collaboration",
     "agentic-control-tower"
   ];
-  const uiHostedDemoIds = ["langfuse-hosted-observability", "openclaw-hosted-agent-gateway"];
+  const uiHostedDemoIds = ["openclaw-hosted-agent-gateway"];
 
   for (const featureId of uiHostedDemoIds) {
     assert.match(launchConfigSource, new RegExp(`"${featureId}"[\\s\\S]*launchUrl:`));
@@ -1985,9 +1924,9 @@ test("runtime state values ignore non-created hosted placeholder component text"
   assert.equal(typeof serverModule.componentValueIfCreated, "function");
   assert.equal(
     serverModule.componentValueIfCreated({
-      name: "Langfuse Hosted URL",
+      name: "OpenClaw Hosted URL",
       status: "not-created",
-      value: "Run provisioning to create Langfuse hosted URL"
+      value: "Run provisioning to create OpenClaw hosted URL"
     }),
     ""
   );
@@ -2013,7 +1952,7 @@ test("frontend hosted state hydration does not fall back to placeholder componen
   const main = readFileSync("src/main.js", "utf8");
 
   assert.match(main, /function provisionedComponentValue/);
-  assert.match(main, /provisionedComponentValue\(langfuseUrlComponent\)/);
+  assert.doesNotMatch(main, /langfuseUrlComponent/);
   assert.doesNotMatch(main, /values\.langfuseHostedUrl \|\| langfuseUrlComponent\?\.value/);
   assert.doesNotMatch(main, /values\.openclawHostedUrl \|\| openclawUrlComponent\?\.value/);
   assert.doesNotMatch(main, /values\.llamaIndexHostedUrl \|\| llamaIndexUrlComponent\?\.value/);

@@ -335,8 +335,6 @@ locals {
   default_hosted_deployment_exports = {
     HOSTED_AGENT_DEPLOYMENT_ID   = ""
     HOSTED_AGENT_URL             = ""
-    LANGFUSE_DEPLOYMENT_ID       = ""
-    LANGFUSE_URL                 = ""
     LANGGRAPH_DEPLOYMENT_ID      = ""
     LANGGRAPH_URL                = ""
     LLAMAINDEX_DEPLOYMENT_ID     = ""
@@ -368,7 +366,6 @@ locals {
     ] : local.deploy_all_hosted_applications ? keys(local.default_hosted_deployment_exports) : concat(
     var.oci_ha_hosted_agent_deploy ? ["HOSTED_AGENT_DEPLOYMENT_ID", "HOSTED_AGENT_URL"] : [],
     var.oci_ha_langgraph_deploy ? ["LANGGRAPH_DEPLOYMENT_ID", "LANGGRAPH_URL"] : [],
-    var.oci_ha_langfuse_deploy ? ["LANGFUSE_DEPLOYMENT_ID", "LANGFUSE_URL"] : [],
     var.oci_ha_openclaw_deploy ? ["OPENCLAW_DEPLOYMENT_ID", "OPENCLAW_URL"] : [],
     var.oci_ha_llamaindex_deploy ? ["LLAMAINDEX_DEPLOYMENT_ID", "LLAMAINDEX_URL"] : [],
     ["PORTAL_HOSTED_APPLICATION_ID", "PORTAL_HOSTED_DEPLOYMENT_ID", "PORTAL_URL"]

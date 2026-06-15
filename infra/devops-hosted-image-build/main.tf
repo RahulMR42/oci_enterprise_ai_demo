@@ -4,24 +4,6 @@ data "oci_objectstorage_namespace" "this" {
 
 locals {
   build_openclaw_gateway_token = var.openclaw_gateway_token != "" ? var.openclaw_gateway_token : sha256("${var.resource_suffix}-openclaw-gateway-token")
-  build_langfuse_database_url  = var.langfuse_database_url != "" ? var.langfuse_database_url : "postgresql://unused:unused@127.0.0.1:5432/unused"
-  build_langfuse_clickhouse_url = (
-    var.langfuse_clickhouse_url != "" ? var.langfuse_clickhouse_url : "http://127.0.0.1:8123"
-  )
-  build_langfuse_clickhouse_migration_url = (
-    var.langfuse_clickhouse_migration_url != "" ? var.langfuse_clickhouse_migration_url : "clickhouse://127.0.0.1:9000"
-  )
-  build_langfuse_clickhouse_user         = var.langfuse_clickhouse_user != "" ? var.langfuse_clickhouse_user : "clickhouse"
-  build_langfuse_clickhouse_password     = var.langfuse_clickhouse_password != "" ? var.langfuse_clickhouse_password : sha256("${var.resource_suffix}-langfuse-clickhouse")
-  build_langfuse_redis_connection_string = var.langfuse_redis_connection_string != "" ? var.langfuse_redis_connection_string : "redis://127.0.0.1:6379"
-  build_langfuse_s3_event_upload_bucket  = var.langfuse_s3_event_upload_bucket != "" ? var.langfuse_s3_event_upload_bucket : "unused-${var.resource_suffix}"
-  build_langfuse_s3_media_upload_bucket  = var.langfuse_s3_media_upload_bucket != "" ? var.langfuse_s3_media_upload_bucket : "unused-${var.resource_suffix}"
-  build_langfuse_s3_upload_region        = var.langfuse_s3_upload_region != "" ? var.langfuse_s3_upload_region : var.region
-  build_langfuse_s3_upload_endpoint      = var.langfuse_s3_upload_endpoint != "" ? var.langfuse_s3_upload_endpoint : "https://objectstorage.${var.region}.oraclecloud.com"
-  build_langfuse_nextauth_secret         = var.langfuse_nextauth_secret != "" ? var.langfuse_nextauth_secret : sha256("${var.resource_suffix}-langfuse-nextauth")
-  build_langfuse_salt                    = var.langfuse_salt != "" ? var.langfuse_salt : sha256("${var.resource_suffix}-langfuse-salt")
-  build_langfuse_encryption_key          = var.langfuse_encryption_key != "" ? var.langfuse_encryption_key : sha256("${var.resource_suffix}-langfuse-encryption")
-  build_langfuse_networking_config_json  = var.langfuse_networking_config_json != "" ? var.langfuse_networking_config_json : "{}"
 }
 
 resource "oci_devops_project" "this" {
@@ -205,11 +187,6 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "When true, non-portal hosted app deployment stages are skipped and only the portal hosted application is updated."
     }
     items {
-      name          = "OCI_HA_LANGFUSE_DEPLOY"
-      default_value = var.deploy_langfuse_hosted_application ? "true" : "false"
-      description   = "When true, deploy the Langfuse hosted application stage."
-    }
-    items {
       name          = "APP_DEPLOY"
       default_value = local.app_deploy_pipeline_value
       description   = "Hosted application deployment selector. Set to all to deploy every hosted application."
@@ -303,11 +280,6 @@ resource "oci_devops_build_pipeline" "this" {
       name          = "OCI_GENAI_API_KEY_SECRET_ID"
       default_value = var.oci_genai_api_key_secret_id
       description   = "OCI Vault secret OCID containing the OCI Generative AI API key."
-    }
-    items {
-      name          = "LANGFUSE_CLICKHOUSE_USER"
-      default_value = var.langfuse_clickhouse_user
-      description   = "ClickHouse user used by hosted Langfuse."
     }
   }
 }
@@ -653,10 +625,6 @@ resource "oci_devops_build_run" "this" {
       value = local.deploy_only_app_pipeline_value
     }
     items {
-      name  = "OCI_HA_LANGFUSE_DEPLOY"
-      value = var.deploy_langfuse_hosted_application ? "true" : "false"
-    }
-    items {
       name  = "APP_DEPLOY"
       value = local.app_deploy_pipeline_value
     }
@@ -787,62 +755,6 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "OPENCLAW_GATEWAY_TOKEN"
       value = local.build_openclaw_gateway_token
-    }
-    items {
-      name  = "LANGFUSE_DATABASE_URL"
-      value = local.build_langfuse_database_url
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_URL"
-      value = local.build_langfuse_clickhouse_url
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_MIGRATION_URL"
-      value = local.build_langfuse_clickhouse_migration_url
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_USER"
-      value = local.build_langfuse_clickhouse_user
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_PASSWORD"
-      value = local.build_langfuse_clickhouse_password
-    }
-    items {
-      name  = "LANGFUSE_REDIS_CONNECTION_STRING"
-      value = local.build_langfuse_redis_connection_string
-    }
-    items {
-      name  = "LANGFUSE_S3_EVENT_UPLOAD_BUCKET"
-      value = local.build_langfuse_s3_event_upload_bucket
-    }
-    items {
-      name  = "LANGFUSE_S3_MEDIA_UPLOAD_BUCKET"
-      value = local.build_langfuse_s3_media_upload_bucket
-    }
-    items {
-      name  = "LANGFUSE_S3_UPLOAD_REGION"
-      value = local.build_langfuse_s3_upload_region
-    }
-    items {
-      name  = "LANGFUSE_S3_UPLOAD_ENDPOINT"
-      value = local.build_langfuse_s3_upload_endpoint
-    }
-    items {
-      name  = "LANGFUSE_NEXTAUTH_SECRET"
-      value = local.build_langfuse_nextauth_secret
-    }
-    items {
-      name  = "LANGFUSE_SALT"
-      value = local.build_langfuse_salt
-    }
-    items {
-      name  = "LANGFUSE_ENCRYPTION_KEY"
-      value = local.build_langfuse_encryption_key
-    }
-    items {
-      name  = "LANGFUSE_NETWORKING_CONFIG_JSON"
-      value = local.build_langfuse_networking_config_json
     }
   }
 

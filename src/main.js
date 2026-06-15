@@ -41,9 +41,6 @@ const infraState = {
   langGraphHostedUrl: "",
   langGraphHostedDeploymentId: "",
   langGraphHostedDeploymentStatus: "",
-  langfuseHostedUrl: "",
-  langfuseHostedDeploymentId: "",
-  langfuseHostedDeploymentStatus: "",
   openclawHostedUrl: "",
   openclawHostedDeploymentId: "",
   openclawHostedDeploymentStatus: "",
@@ -60,15 +57,6 @@ const maxInitialRunCount = 35;
 const defaultDemoRating = 2;
 const maxDemoRating = 3;
 const hostedApplicationLaunchConfigs = {
-  "langfuse-hosted-observability": {
-    label: "Langfuse Hosted Observability",
-    shortLabel: "Langfuse",
-    launchUrl: portalRelativeUrl("/api/langfuse/launch/auth/sign-in"),
-    hostedUrlKey: "langfuseHostedUrl",
-    hostedDeploymentIdKey: "langfuseHostedDeploymentId",
-    hostedDeploymentStatusKey: "langfuseHostedDeploymentStatus",
-    uiKind: "observability"
-  },
   "openclaw-hosted-agent-gateway": {
     label: "OpenClaw Hosted Agent Gateway",
     shortLabel: "OpenClaw",
@@ -80,7 +68,7 @@ const hostedApplicationLaunchConfigs = {
   }
 };
 
-const launchOnlyDemoIds = new Set(["langfuse-hosted-observability", "openclaw-hosted-agent-gateway"]);
+const launchOnlyDemoIds = new Set(["openclaw-hosted-agent-gateway"]);
 
 function escapeHtml(value = "") {
   return String(value)
@@ -378,17 +366,6 @@ const demoDefaults = {
     prompt: "Coordinate incident-response and LangGraph MCP agents to investigate checkout confirmation delays and prepare next actions.",
     button: "Run A2A Demo",
     output: "Run A2A-style discovery, task handoff, and coordination across the existing hosted agents.",
-    sessionVisible: false,
-    sessionId: "",
-    toolResourceVisible: false,
-    toolResourceId: ""
-  },
-  "langfuse-hosted-observability": {
-    title: "Langfuse Hosted Observability",
-    prompt: "",
-    button: "Launch",
-    output: "Open the hosted Langfuse observability UI through the IDCS-authenticated portal proxy.",
-    promptVisible: false,
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -746,20 +723,6 @@ const demoBriefs = {
       "Useful for cross-agent triage, workflow lookup, and coordinated customer response."
     ]
   },
-  "langfuse-hosted-observability": {
-    services: [
-      "OCI Generative AI Hosted Application for a real Langfuse web container.",
-      "OCI Hosted Deployment backed by a private OCIR Langfuse image."
-    ],
-    security: [
-      "Hosted application inbound auth uses the configured IDCS domain, audience, and scope.",
-      "Database, ClickHouse, Redis, and object-storage secrets are injected as runtime environment variables."
-    ],
-    result: [
-      "Opens a live Langfuse observability UI from the portal.",
-      "Useful for demonstrating trace and prompt observability next to hosted agent deployments."
-    ]
-  },
   "openclaw-hosted-agent-gateway": {
     services: [
       "OCI Generative AI Hosted Application for an OpenClaw gateway container.",
@@ -998,12 +961,6 @@ const flowDiagrams = {
     mermaid:
       "flowchart LR\n  A[Agent card discovery] --> B[A2A task]\n  B --> C[Incident agent]\n  C --> D[LangGraph agent]\n  D --> E[Coordinated answer]"
   },
-  "langfuse-hosted-observability": {
-    title: "Langfuse Hosted Observability Flow",
-    nodes: ["Langfuse image", "External stores", "OCI hosted app", "Hosted deployment URL", "Langfuse UI"],
-    mermaid:
-      "flowchart LR\n  A[Langfuse image] --> B[OCI hosted app]\n  C[External stores] --> B\n  B --> D[Hosted deployment URL]\n  D --> E[Langfuse UI]"
-  },
   "openclaw-hosted-agent-gateway": {
     title: "OpenClaw Hosted Gateway Flow",
     nodes: ["OpenClaw image", "OCI hosted app", "Hosted deployment URL", "OpenClaw Control UI"],
@@ -1132,8 +1089,6 @@ state = {"messages": prompt, "mcp_tools": discovered_tools}`,
 task = send_a2a_task(agent_card, prompt)`,
     `response = collect_agent_result(task)`
   ],
-  "langfuse-hosted-observability": `deployment = read_langfuse_hosted_observability_metadata()
-window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "openclaw-hosted-agent-gateway": `deployment = read_openclaw_hosted_gateway_metadata()
 window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "agentic-control-tower": [
@@ -1231,11 +1186,6 @@ const ociFeatureSourceFiles = {
     { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langgraph.yaml" }
   ],
   "a2a-agent-collaboration": [{ label: "Backend demo", path: "backend/demos/a2a_agent_collaboration.py" }],
-  "langfuse-hosted-observability": [
-    { label: "Hosted image", path: "apps/hosted-langfuse/Dockerfile" },
-    { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml" },
-    { label: "Hosted Terraform", path: "infra/hosted-agentic-applications/langfuse_hosted_application.tf" }
-  ],
   "openclaw-hosted-agent-gateway": [
     { label: "Hosted image", path: "apps/hosted-openclaw/Dockerfile" },
     { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_openclaw.yaml" },
@@ -2270,26 +2220,6 @@ const demoTechnicalFlows = {
     },
     defaultTechnicalFlow[4]
   ],
-  "langfuse-hosted-observability": [
-    defaultTechnicalFlow[0],
-    {
-      ...defaultTechnicalFlow[1],
-      title: "Hosted App Auth",
-      subtitle: "IDCS inbound auth",
-      feature: "OCI Hosted Application protects the Langfuse deployment with the configured IDCS boundary.",
-      auth: "Langfuse dependency credentials are injected as hosted application environment variables.",
-      interaction: "Terraform surfaces only the hosted URL and deployment metadata."
-    },
-    {
-      ...defaultTechnicalFlow[2],
-      title: "Langfuse Runtime",
-      subtitle: "Observability UI",
-      feature: "OCI Hosted Deployment runs the real Langfuse web container from private OCIR.",
-      auth: "Postgres, ClickHouse, Redis, and object storage remain external to keep this deployment minimal.",
-      interaction: "The portal opens the hosted Langfuse URL in a new tab for trace inspection."
-    },
-    defaultTechnicalFlow[4]
-  ],
   "agentic-rag-planner": [
     defaultTechnicalFlow[0],
     {
@@ -2615,8 +2545,6 @@ function applyProvisionedValues(result) {
   const hostedAgentDeploymentComponent = componentByName("OCI Hosted Deployment");
   const langGraphUrlComponent = componentByName("LangGraph Hosted Agent URL");
   const langGraphDeploymentComponent = componentByName("LangGraph OCI Hosted Deployment");
-  const langfuseUrlComponent = componentByName("Langfuse Hosted URL");
-  const langfuseDeploymentComponent = componentByName("Langfuse OCI Hosted Deployment");
   const openclawUrlComponent = componentByName("OpenClaw Hosted URL");
   const openclawDeploymentComponent = componentByName("OpenClaw OCI Hosted Deployment");
   const llamaIndexUrlComponent = componentByName("LlamaIndex Control Tower Hosted URL");
@@ -2642,10 +2570,6 @@ function applyProvisionedValues(result) {
     values.langGraphHostedDeploymentId || provisionedComponentValue(langGraphDeploymentComponent);
   infraState.langGraphHostedDeploymentStatus =
     values.langGraphHostedDeploymentStatus || langGraphDeploymentComponent?.status || "";
-  infraState.langfuseHostedUrl = values.langfuseHostedUrl || provisionedComponentValue(langfuseUrlComponent);
-  infraState.langfuseHostedDeploymentId = values.langfuseHostedDeploymentId || provisionedComponentValue(langfuseDeploymentComponent);
-  infraState.langfuseHostedDeploymentStatus =
-    values.langfuseHostedDeploymentStatus || langfuseDeploymentComponent?.status || "";
   infraState.openclawHostedUrl = values.openclawHostedUrl || provisionedComponentValue(openclawUrlComponent);
   infraState.openclawHostedDeploymentId = values.openclawHostedDeploymentId || provisionedComponentValue(openclawDeploymentComponent);
   infraState.openclawHostedDeploymentStatus =

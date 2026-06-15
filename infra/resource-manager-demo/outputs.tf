@@ -18,11 +18,6 @@ output "langgraph_container_repository_name" {
   value       = module.hosted_agentic_applications.langgraph_container_repository_name
 }
 
-output "langfuse_container_repository_name" {
-  description = "OCIR repository name for the Langfuse hosted observability image."
-  value       = module.hosted_agentic_applications.langfuse_container_repository_name
-}
-
 output "openclaw_container_repository_name" {
   description = "OCIR repository name for the OpenClaw hosted gateway image."
   value       = module.hosted_agentic_applications.openclaw_container_repository_name
@@ -147,31 +142,6 @@ output "portal_conversation_id" {
 output "portal_code_interpreter_container_id" {
   description = "Code Interpreter container ID injected into the demo portal."
   value       = var.portal_container_enabled ? local.portal_code_interpreter_container_id : ""
-}
-
-output "langfuse_postgres_private_endpoint" {
-  description = "Private PostgreSQL endpoint used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications.langfuse_postgres_private_endpoint, "")
-}
-
-output "langfuse_clickhouse_url" {
-  description = "Private ClickHouse HTTP endpoint used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications.langfuse_clickhouse_url, "")
-}
-
-output "langfuse_redis_endpoint" {
-  description = "Private Redis endpoint used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications.langfuse_redis_endpoint, "")
-}
-
-output "langfuse_object_storage_bucket" {
-  description = "OCI Object Storage bucket used by the Langfuse hosted deployment."
-  value       = try(module.hosted_agentic_applications.langfuse_object_storage_bucket, "")
-}
-
-output "langfuse_networking_config_json" {
-  description = "Hosted application private networking configuration used by Langfuse."
-  value       = try(module.hosted_agentic_applications.langfuse_networking_config_json, "")
 }
 
 output "portal_runtime_note" {

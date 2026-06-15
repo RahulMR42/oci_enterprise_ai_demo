@@ -48,7 +48,6 @@ Keep these defaults for Resource Manager:
 | `devops_hosted_image_build_enabled` | `true` |
 | `devops_hosted_image_run_build` | `true` |
 | `APP_DEPLOY` | empty |
-| `OCI_HA_LANGFUSE_DEPLOY` | `false` |
 | `OCI_HA_HOSTED_AGENT_DEPLOY` | `false` |
 | `OCI_HA_LANGGRAPH_DEPLOY` | `false` |
 | `OCI_HA_OPENCLAW_DEPLOY` | `false` |
@@ -81,7 +80,7 @@ For iterative deployments, update both of these values before applying the same 
 
 Keeping the branch and revision current makes Resource Manager seed the exact source into the OCI DevOps repository and starts a new build run without creating a second Resource Manager stack.
 
-Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. Langfuse is disabled by default; set `OCI_HA_LANGFUSE_DEPLOY=true` only when that hosted demo should be built and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal hosted application stage runs after each DevOps build run and updates the existing portal app when the display name is already present.
+Use the hosted app deployment switches to limit replacement scope during iterative runs. Leave `APP_DEPLOY` empty and enable only the required `OCI_HA_*_DEPLOY` switches, or set `APP_DEPLOY=all` when you intentionally want every DevOps-built hosted app built, delivered, and replaced. For first-time deployments, set each hosted app switch true when that app should be created. The portal hosted application stage runs after each DevOps build run and updates the existing portal app when the display name is already present.
 
 Keep `conversation_store_local_exec_enabled=false`, `file_search_local_exec_enabled=false`, and `code_interpreter_local_exec_enabled=false` for Resource Manager deployments. The OCI DevOps build pipeline includes a `provision-generated-runtime` stage that uses resource principal auth to create or reuse the Conversation Store conversation, File Search Vector Store and bundled PDFs, and Code Interpreter container before the portal hosted application stage starts.
 
@@ -101,7 +100,6 @@ Open `portal_url`, log in, and run both normal demos and hosted deployment demos
 
 - `deploy-hosted-agent`
 - `deploy-langgraph-agent`
-- `deploy-langfuse`
 - `deploy-openclaw`
 - `deploy-llamaindex-control-tower`
 - `deploy-portal-hosted-application`

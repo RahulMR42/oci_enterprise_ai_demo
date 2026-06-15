@@ -27,7 +27,6 @@ variableGroups:
       - app_deploy
       - oci_ha_hosted_agent_deploy
       - oci_ha_langgraph_deploy
-      - oci_ha_langfuse_deploy
       - oci_ha_openclaw_deploy
       - oci_ha_llamaindex_deploy
       - existing_hosted_deployment_exports_json
@@ -62,7 +61,6 @@ variableGroups:
       - hosted_app_container_cli
       - hosted_app_ocir_region_key
       - portal_container_image_uri
-      - langfuse_image_repository_uri
       - openclaw_image_repository_uri
       - llamaindex_image_repository_uri
       - profile
@@ -159,11 +157,6 @@ variables:
   oci_ha_langgraph_deploy:
     title: OCI_HA_LANGGRAPH_DEPLOY
     description: When true, build, deliver, and deploy the LangGraph hosted application through OCI DevOps. Set true on the first deployment if the LangGraph app should be created; leave false on later selective runs unless replacing it.
-    type: boolean
-    default: false
-  oci_ha_langfuse_deploy:
-    title: OCI_HA_LANGFUSE_DEPLOY
-    description: When true, build, deliver, and deploy the Langfuse hosted application through OCI DevOps. Set true on the first deployment if the Langfuse app should be created; leave false on later selective runs unless replacing it.
     type: boolean
     default: false
   oci_ha_openclaw_deploy:
@@ -290,10 +283,6 @@ variables:
     default: ord
   portal_container_image_uri:
     title: Optional Full Portal Image URI
-    type: string
-    required: false
-  langfuse_image_repository_uri:
-    title: Optional Langfuse Image Repository URI
     type: string
     required: false
   openclaw_image_repository_uri:

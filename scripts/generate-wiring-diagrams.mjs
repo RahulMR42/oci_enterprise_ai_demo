@@ -1,10 +1,9 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { aiFeatures } from "../src/data/aiFeatures.js";
 
 const outputDir = join(process.cwd(), "docs/wiring");
-const langfuseSource = join(process.cwd(), "docs/langfuse-demo-wiring.svg");
 
 const serviceProfiles = {
   "OCI Generative AI": {
@@ -353,11 +352,7 @@ for (const fileName of readdirSync(outputDir)) {
 
 for (const feature of aiFeatures) {
   const target = join(outputDir, `${feature.id}.svg`);
-  if (feature.id === "langfuse-hosted-observability" && existsSync(langfuseSource)) {
-    writeFileSync(target, readFileSync(langfuseSource, "utf8"));
-  } else {
-    writeFileSync(target, renderDiagram(feature));
-  }
+  writeFileSync(target, renderDiagram(feature));
 }
 
 console.log(`Generated ${aiFeatures.length} wiring diagrams in ${outputDir}`);

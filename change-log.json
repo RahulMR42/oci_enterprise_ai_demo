@@ -92,7 +92,7 @@
       "localTime": "2026-06-08T13:05:00+0530",
       "summary": "Fix hosted card layout and restrict Launch-only behavior to real hosted UI demos.",
       "changes": [
-        "Only Langfuse and OpenClaw are treated as hosted UI launch-only demos.",
+        "Hosted UI launch-only behavior is limited to the demos that expose a portal launch proxy.",
         "Hosted Agentic Applications, LangGraph, A2A, and Control Tower stay as Run demos with request and response payload output.",
         "Long hosted endpoint references are removed from card faces so Run and Flow actions remain visible.",
         "Portal and administration assets now use version 0.0.19 to bypass stale 0.0.18 browser assets."

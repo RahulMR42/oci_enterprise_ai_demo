@@ -22,7 +22,6 @@ Use the button to create the full OCI Resource Manager stack from the latest Git
 | Multi-Model Routing | OCI route candidates, scoring, and selected answer | Shared GenAI project |
 | Hosted Agentic Applications | OCI hosted application and deployment backed by OCIR | OCIR repository, hosted app, hosted deployment |
 | LangGraph Hosted Agent | Hosted LangGraph wrapper image | OCIR repository, hosted app, hosted deployment |
-| Langfuse Hosted Observability | Hosted Langfuse UI with OCI-managed dependencies | VCN, private subnet, PostgreSQL, ClickHouse, Redis, Object Storage, hosted app |
 | OpenClaw Hosted Gateway | Hosted gateway demo UI with run controls and next steps | OCIR repository, hosted app, hosted deployment |
 | Governance Center | Local policy controls, audit event, and OCI reviewer summary | Shared GenAI project and shared IAM visibility |
 | Document Understanding + GenAI | Bundled PDF metadata/signals plus OCI document summary | Bundled Oracle PDFs |
@@ -81,7 +80,7 @@ When running behind a corporate proxy, keep proxy variables out of the portal pr
 
 ### Resource Manager deployment
 
-Use `infra/resource-manager-demo` for the Resource Manager working directory when deploying the full demo from OCI. That stack covers the Terraform demo modules, shared IAM policy, OCIR repositories, OCI DevOps build pipeline, hosted deployments, Langfuse dependencies, and the Enterprise AI portal OCI Container Instance.
+Use `infra/resource-manager-demo` for the Resource Manager working directory when deploying the full demo from OCI. That stack covers the Terraform demo modules, shared IAM policy, OCIR repositories, OCI DevOps build pipeline, hosted deployments, generated runtime metadata, and the Enterprise AI portal hosted application.
 
 The Resource Manager flow uses OCI DevOps to clone the selected GitHub branch, seed the OCI DevOps repository, build the portal image plus selected hosted images, deliver selected image artifacts to OCIR, and run selected hosted application deployment stages with resource principal auth. It does not require local OCI CLI credentials inside Resource Manager. Use `APP_DEPLOY=all` to replace every DevOps-built hosted app, or leave it empty and enable only the needed `OCI_HA_*_DEPLOY` switches. The portal image is always built and delivered so the portal container redeploys after each DevOps build run and receives the latest hosted app exports.
 

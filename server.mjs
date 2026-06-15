@@ -1641,9 +1641,8 @@ export function buildTerraformStateCommandForModule(modulePath) {
 function buildHostedTerraformRefreshCommand() {
   const hostedInput = readHostedTerraformInput("hosted_agentic_application");
   const langGraphInput = readHostedTerraformInput("langgraph_hosted_agentic_application");
-  const langfuseInput = readHostedTerraformInput("langfuse_hosted_observability");
   const openclawInput = readHostedTerraformInput("openclaw_hosted_agent_gateway");
-  const input = { ...hostedInput, ...langGraphInput, ...langfuseInput, ...openclawInput };
+  const input = { ...hostedInput, ...langGraphInput, ...openclawInput };
   return {
     label: "infra/hosted-agentic-applications refresh",
     cmd: "terraform",
@@ -1660,24 +1659,6 @@ function buildHostedTerraformRefreshCommand() {
       `-var=idcs_domain_url=${input.idcs_domain_url || "unused"}`,
       `-var=idcs_audience=${input.idcs_audience || "unused"}`,
       `-var=idcs_scope=${input.idcs_scope || "unused"}`,
-      `-var=langfuse_image_repository_uri=${input.langfuse_image_repository_uri || ""}`,
-      `-var=langfuse_database_url=${process.env.LANGFUSE_DATABASE_URL || ""}`,
-      `-var=langfuse_clickhouse_url=${process.env.LANGFUSE_CLICKHOUSE_URL || ""}`,
-      `-var=langfuse_clickhouse_migration_url=${process.env.LANGFUSE_CLICKHOUSE_MIGRATION_URL || ""}`,
-      `-var=langfuse_clickhouse_user=${process.env.LANGFUSE_CLICKHOUSE_USER || ""}`,
-      `-var=langfuse_clickhouse_password=${process.env.LANGFUSE_CLICKHOUSE_PASSWORD || ""}`,
-      `-var=langfuse_redis_connection_string=${process.env.LANGFUSE_REDIS_CONNECTION_STRING || ""}`,
-      `-var=langfuse_s3_event_upload_bucket=${process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || ""}`,
-      `-var=langfuse_s3_media_upload_bucket=${process.env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET || ""}`,
-      `-var=langfuse_s3_upload_region=${process.env.LANGFUSE_S3_UPLOAD_REGION || "auto"}`,
-      `-var=langfuse_s3_upload_endpoint=${process.env.LANGFUSE_S3_UPLOAD_ENDPOINT || ""}`,
-      `-var=langfuse_s3_upload_access_key_id=${process.env.LANGFUSE_S3_UPLOAD_ACCESS_KEY_ID || ""}`,
-      `-var=langfuse_s3_upload_secret_access_key=${process.env.LANGFUSE_S3_UPLOAD_SECRET_ACCESS_KEY || ""}`,
-      `-var=langfuse_nextauth_secret=${process.env.LANGFUSE_NEXTAUTH_SECRET || ""}`,
-      `-var=langfuse_salt=${process.env.LANGFUSE_SALT || ""}`,
-      `-var=langfuse_encryption_key=${process.env.LANGFUSE_ENCRYPTION_KEY || ""}`,
-      `-var=langfuse_init_user_email=${process.env.LANGFUSE_INIT_USER_EMAIL || ""}`,
-      `-var=langfuse_init_user_password=${process.env.LANGFUSE_INIT_USER_PASSWORD || ""}`,
       `-var=openclaw_image_repository_uri=${input.openclaw_image_repository_uri || ""}`,
       `-var=openclaw_gateway_token=${process.env.OPENCLAW_GATEWAY_TOKEN || ""}`
     ]
@@ -1764,18 +1745,7 @@ export function parseTerraformStateResources(stateJson = {}) {
       "terraform_data.file_search_seed_documents": "File Search Seed Documents",
       "terraform_data.code_interpreter_container": "Code Interpreter Container",
       "terraform_data.hosted_agentic_application": "Hosted Agentic Application Module",
-      "terraform_data.langfuse_hosted_observability": "Langfuse Hosted Observability Module",
       "terraform_data.openclaw_hosted_agent_gateway": "OpenClaw Hosted Agent Gateway Module",
-      "oci_core_vcn.langfuse": "Langfuse VCN",
-      "oci_core_subnet.langfuse_private": "Langfuse Private Subnet",
-      "oci_core_nat_gateway.langfuse": "Langfuse NAT Gateway",
-      "oci_core_service_gateway.langfuse": "Langfuse Service Gateway",
-      "oci_core_network_security_group.langfuse_hosted_app": "Langfuse Hosted App NSG",
-      "oci_core_network_security_group.langfuse_dependencies": "Langfuse Dependencies NSG",
-      "oci_psql_db_system.langfuse": "Langfuse PostgreSQL",
-      "oci_container_instances_container_instance.langfuse_clickhouse": "Langfuse ClickHouse Container",
-      "oci_container_instances_container_instance.langfuse_redis": "Langfuse Redis Container",
-      "oci_objectstorage_bucket.langfuse": "Langfuse Object Storage Bucket",
       "oci_kms_vault.sql_search": "SQL Search Vault",
       "oci_kms_key.sql_search": "SQL Search Vault Key",
       "oci_vault_secret.sql_search_admin_password": "SQL Search DB Password Secret",
@@ -1983,18 +1953,6 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       envUrl: process.env.OCI_HOSTED_LANGGRAPH_URL || portalRuntimeHostedValue("LANGGRAPH_URL"),
       envDeploymentId: process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-langgraph-agent-${resourceSuffix}`
-    },
-    {
-      label: "Langfuse",
-      runtime: "langfuse",
-      applicationDisplayName: `enterprise-ai-demo-langfuse-${resourceSuffix}`,
-      deploymentDisplayName: `enterprise-ai-demo-langfuse-deployment-${resourceSuffix}`,
-      runtimeFile: "langfuse_hosted_observability.json",
-      applicationFile: "langfuse_hosted_application.json",
-      deploymentFile: "langfuse_hosted_deployment.json",
-      envUrl: process.env.OCI_HOSTED_LANGFUSE_URL || portalRuntimeHostedValue("LANGFUSE_URL"),
-      envDeploymentId: process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID"),
-      repositoryName: `enterprise-ai-demo/hosted-langfuse-${resourceSuffix}`
     },
     {
       label: "OpenClaw",
@@ -2257,11 +2215,9 @@ async function refreshGeneratedRuntimeState() {
   const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
   const hostedRuntimeFile = join(hostedDir, "hosted_agent.json");
   const langGraphRuntimeFile = join(hostedDir, "langgraph_hosted_agent.json");
-  const langfuseRuntimeFile = join(hostedDir, "langfuse_hosted_observability.json");
   const openclawRuntimeFile = join(hostedDir, "openclaw_hosted_gateway.json");
   const hostedAgent = readJsonFile(hostedRuntimeFile);
   const langGraphAgent = readJsonFile(langGraphRuntimeFile);
-  const langfuseObservability = readJsonFile(langfuseRuntimeFile);
   const openclawGateway = readJsonFile(openclawRuntimeFile);
   const llamaIndexControlTower = readLlamaIndexControlTowerMetadata();
 
@@ -2296,22 +2252,6 @@ async function refreshGeneratedRuntimeState() {
       targetFile: join(hostedDir, "langgraph_hosted_deployment.json"),
       commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
       runtimeFile: langGraphRuntimeFile,
-      runtimeKey: "hostedDeploymentLifecycleState"
-    }),
-    refreshHostedJsonFile({
-      label: "OCI Langfuse hosted application refresh",
-      id: langfuseObservability.hostedApplicationId,
-      targetFile: join(hostedDir, "langfuse_hosted_application.json"),
-      commandArgs: (id) => ["generative-ai", "hosted-application", "get", "--hosted-application-id", id],
-      runtimeFile: langfuseRuntimeFile,
-      runtimeKey: "hostedApplicationLifecycleState"
-    }),
-    refreshHostedJsonFile({
-      label: "OCI Langfuse hosted deployment refresh",
-      id: langfuseObservability.hostedDeploymentId,
-      targetFile: join(hostedDir, "langfuse_hosted_deployment.json"),
-      commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
-      runtimeFile: langfuseRuntimeFile,
       runtimeKey: "hostedDeploymentLifecycleState"
     }),
     refreshHostedJsonFile({
@@ -2489,16 +2429,6 @@ function hostedRuntimeEnvOverrides(hostedRuntime = {}) {
     };
   }
   return {};
-}
-
-function readLangfuseLaunchUrl() {
-  const observability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
-  return hostedRuntimeUrl(
-    process.env.OCI_HOSTED_LANGFUSE_URL,
-    portalRuntimeHostedValue("LANGFUSE_URL"),
-    observability.url,
-    observability.endpoint
-  );
 }
 
 function readOpenClawLaunchUrl() {
@@ -2759,22 +2689,6 @@ export async function getIdcsAccessToken() {
   return idcsTokenCache.value;
 }
 
-function langfuseProxyTargetUrl(requestPath, search = "") {
-  const launchUrl = readLangfuseLaunchUrl();
-  if (!launchUrl) {
-    throw new Error("Langfuse hosted URL is not available. Provision hosted application infrastructure and refresh Resources first.");
-  }
-
-  const base = new URL(launchUrl);
-  const suffix = requestPath.startsWith("/api/langfuse/launch")
-    ? requestPath.replace(/^\/api\/langfuse\/launch\/?/, "")
-    : requestPath.replace(/^\/+/, "");
-  const basePath = base.pathname.replace(/\/?$/, "/");
-  base.pathname = suffix ? `${basePath}${suffix}` : basePath;
-  base.search = search || base.search;
-  return base;
-}
-
 function openclawProxyTargetUrl(requestPath, search = "") {
   const launchUrl = readOpenClawLaunchUrl();
   if (!launchUrl) {
@@ -2820,27 +2734,6 @@ export function hostedLaunchProxyTargetUrl(featureId = "", requestPath = "", sea
   return base;
 }
 
-function isLangfusePassthroughPath(requestPath = "") {
-  return [
-    "/_next/",
-    "/account/",
-    "/api/admin/",
-    "/api/auth/",
-    "/api/dashboard/",
-    "/api/feedback",
-    "/api/public/",
-    "/api/trpc/",
-    "/assets/",
-    "/auth/",
-    "/favicon.ico",
-    "/icon.svg",
-    "/onboarding",
-    "/organization/",
-    "/project/",
-    "/setup"
-  ].some((prefix) => requestPath === prefix.replace(/\/$/, "") || requestPath.startsWith(prefix));
-}
-
 export function forwardedCookieHeader(cookieHeader = "") {
   return String(cookieHeader)
     .split(";")
@@ -2878,31 +2771,17 @@ export function proxyResponseHeaders(headers, requestPath, { launchUrl = "", pro
       continue;
     }
     if (name.toLowerCase() === "location") {
-      if (proxyBase === "/api/langfuse/launch/" && value.startsWith("http://0.0.0.0:3000")) {
-        result[name] = value.replace("http://0.0.0.0:3000", proxyBase.replace(/\/$/, ""));
-      } else if (launchUrl && value.startsWith(launchUrl)) {
+      if (launchUrl && value.startsWith(launchUrl)) {
         result[name] = value.replace(launchUrl, proxyBase);
-      } else if (proxyBase === "/api/langfuse/launch/" && value.startsWith("/")) {
-        result[name] = `${proxyBase.replace(/\/$/, "")}${value}`;
       } else {
         result[name] = value;
       }
-      continue;
-    }
-    if (proxyBase === "/api/langfuse/launch/" && name.toLowerCase() === "set-cookie") {
-      result[name] = String(value).replaceAll(/Path=\//gi, `Path=${proxyBase.replace(/\/$/, "")}/`);
       continue;
     }
     result[name] = value;
   }
   result["Cache-Control"] = proxyBase && requestPath === proxyBase ? "no-store" : result["Cache-Control"] || "no-store";
   return result;
-}
-
-function langfuseProxyOrigin(request) {
-  const host = request?.headers?.host || "127.0.0.1:5175";
-  const protocol = request?.headers?.["x-forwarded-proto"] || "http";
-  return `${protocol}://${host}`;
 }
 
 function recordHostedLaunchAuditEvent({
@@ -3204,193 +3083,6 @@ export async function proxyLlamaIndexControlTowerLaunch(
   }
 }
 
-function langfuseProxyBaseUrl(proxyOrigin = "") {
-  return proxyOrigin ? `${String(proxyOrigin).replace(/\/+$/, "")}/api/langfuse/launch` : "";
-}
-
-function langfuseRootProxyPath() {
-  return "/api/langfuse/launch/";
-}
-
-function rewriteLangfuseAbsoluteUrl(value = "", proxyOrigin = "") {
-  const proxyBase = proxyOrigin ? langfuseProxyBaseUrl(proxyOrigin) : langfuseRootProxyPath().replace(/\/$/, "");
-  return String(value)
-    .replaceAll("http://0.0.0.0:3000", proxyBase)
-    .replaceAll("http://127.0.0.1:3000", proxyBase)
-    .replaceAll("http://localhost:3000", proxyBase);
-}
-
-function rewriteLangfuseRootRelativeUrl(value = "") {
-  if (!value || value.startsWith("//") || value.startsWith("/api/langfuse/launch")) {
-    return value;
-  }
-  return value.startsWith("/") ? `${langfuseRootProxyPath().replace(/\/$/, "")}${value}` : value;
-}
-
-export function rewriteLangfuseLaunchHtml(html, proxyOrigin = "") {
-  return rewriteLangfuseAbsoluteUrl(String(html), proxyOrigin)
-    .replace(/\b(href|src|action)=["']\/(?!\/)([^"']*)["']/g, (_match, attribute, path) => `${attribute}="${langfuseRootProxyPath()}${path}"`)
-    .replace(/\b(url|callbackUrl|redirectTo):\s*["']\/(?!\/)([^"']*)["']/g, (_match, key, path) => `${key}:"${langfuseRootProxyPath()}${path}"`)
-    .replace(/window\.location\.(?:href|assign|replace)\(["']\/(?!\/)([^"']*)["']\)/g, (_match, path) => `window.location.assign("${langfuseRootProxyPath()}${path}")`);
-}
-
-function rewriteLangfuseJsonValue(value, proxyOrigin = "") {
-  if (typeof value === "string") {
-    return rewriteLangfuseRootRelativeUrl(rewriteLangfuseAbsoluteUrl(value, proxyOrigin));
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => rewriteLangfuseJsonValue(item, proxyOrigin));
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewriteLangfuseJsonValue(item, proxyOrigin)]));
-  }
-  return value;
-}
-
-export function rewriteLangfuseLaunchJson(jsonText, proxyOrigin = "") {
-  try {
-    return JSON.stringify(rewriteLangfuseJsonValue(JSON.parse(jsonText), proxyOrigin));
-  } catch {
-    return rewriteLangfuseAbsoluteUrl(String(jsonText), proxyOrigin);
-  }
-}
-
-export async function proxyLangfuseLaunch(
-  request,
-  response,
-  parsedUrl,
-  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
-) {
-  const startedAt = Date.now();
-  const featureId = "langfuse-hosted-observability";
-  const identityFields = identityLogFields(identity, sessionId);
-  let stage = "resolve-target";
-  let targetUrl = null;
-  let proxyOrigin = "";
-  try {
-    targetUrl = langfuseProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
-    proxyOrigin = langfuseProxyOrigin(request);
-    stage = "idcs-token";
-    const token = await getIdcsAccessToken();
-    stage = "read-request";
-    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
-    stage = "upstream-fetch";
-    const upstream = await fetch(targetUrl, {
-      method: request.method,
-      headers: forwardedHeaders(request.headers, token),
-      body,
-      redirect: "manual"
-    });
-    stage = "upstream-response";
-    const contentType = upstream.headers.get("content-type") || "";
-    const arrayBuffer = request.method === "HEAD" ? new ArrayBuffer(0) : await upstream.arrayBuffer();
-    const upstreamBody = Buffer.from(arrayBuffer);
-    const responseBody = contentType.includes("text/html")
-      ? Buffer.from(rewriteLangfuseLaunchHtml(upstreamBody.toString("utf8"), proxyOrigin))
-      : contentType.includes("application/json")
-        ? Buffer.from(rewriteLangfuseLaunchJson(upstreamBody.toString("utf8"), proxyOrigin))
-        : upstreamBody;
-    const responseHeaders = proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
-      launchUrl: readLangfuseLaunchUrl(),
-      proxyBase: "/api/langfuse/launch/"
-    });
-    const durationMs = Date.now() - startedAt;
-    const status = upstream.ok ? "success" : "failed";
-    const logFile = writeDemoLog(featureId, {
-      ...identityFields,
-      action: "launch",
-      status,
-      durationMs,
-      request: {
-        method: request.method,
-        path: parsedUrl.pathname,
-        search: parsedUrl.search || "",
-        host: request.headers.host || "",
-        userAgent: request.headers["user-agent"] || ""
-      },
-      upstream: {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        contentType,
-        opcRequestId: upstream.headers.get("opc-request-id") || "",
-        location: upstream.headers.get("location") || "",
-        rewrittenLocation: responseHeaders.location || responseHeaders.Location || "",
-        setCookieCount: upstream.headers.has("set-cookie") ? 1 : 0,
-        target: `${targetUrl.origin}${targetUrl.pathname}`,
-        proxyOrigin,
-        rewroteBody: !upstreamBody.equals(responseBody),
-        bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
-      },
-      diagnostics: {
-        stage,
-        idcs: idcsDemoCredentialPosture(),
-        launchUrlConfigured: Boolean(readLangfuseLaunchUrl()),
-        hostedDeploymentId: portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID") || "",
-        hostedApplicationId: readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json")).hostedApplicationId || ""
-      }
-    });
-    recordHostedLaunchAuditEvent({
-      featureId,
-      request,
-      parsedUrl,
-      identity,
-      sessionId,
-      status,
-      durationMs,
-      upstreamStatus: upstream.status
-    });
-    response.writeHead(upstream.status, {
-      ...responseHeaders,
-      "X-Demo-Log-File": logFile
-    });
-    response.end(responseBody);
-  } catch (error) {
-    const durationMs = Date.now() - startedAt;
-    const logFile = writeDemoLog(featureId, {
-      ...identityFields,
-      action: "launch",
-      status: "failed",
-      durationMs,
-      request: {
-        method: request.method,
-        path: parsedUrl.pathname,
-        search: parsedUrl.search || "",
-        host: request.headers.host || "",
-        userAgent: request.headers["user-agent"] || ""
-      },
-      upstream: {
-        target: targetUrl ? `${targetUrl.origin}${targetUrl.pathname}` : "",
-        proxyOrigin
-      },
-      diagnostics: {
-        stage,
-        idcs: idcsDemoCredentialPosture(),
-        launchUrlConfigured: Boolean(readLangfuseLaunchUrl()),
-        hostedDeploymentId: portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID") || "",
-        hostedApplicationId: readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json")).hostedApplicationId || ""
-      },
-      error: error.message || String(error),
-      stack: error?.stack || "",
-      errorDetails: errorLogDetails(error)
-    });
-    recordHostedLaunchAuditEvent({
-      featureId,
-      request,
-      parsedUrl,
-      identity,
-      sessionId,
-      status: "failed",
-      durationMs
-    });
-    response.writeHead(502, {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Demo-Log-File": logFile
-    });
-    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>Langfuse launch failed</title></head><body><h1>Langfuse launch failed</h1><p>${String(error.message || error).replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p><p>Log file: ${logFile.replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p></body></html>`);
-  }
-}
-
 export function fileSearchRuntimeComponents({
   vectorStore = {},
   vectorStoreFiles = {},
@@ -3494,48 +3186,38 @@ function demoRuntimeComponents() {
   const codeContainer = readJsonFile(join(demoGeneratedDirs["code-interpreter"], "container.json"));
   const hostedAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_agent.json"));
   const langGraphAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_agent.json"));
-  const langfuseObservability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
   const openclawGateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
   const llamaIndexControlTower = readLlamaIndexControlTowerMetadata();
   const ocirRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "ocir_repository.json")).data || {};
   const langGraphRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_ocir_repository.json")).data || {};
-  const langfuseRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_ocir_repository.json")).data || {};
   const openclawRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_ocir_repository.json")).data || {};
   const llamaIndexRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_ocir_repository.json")).data || {};
-  const langfuseRepositoryId = langfuseObservability.repositoryId || langfuseRepository.id || "";
   const hostedApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_application.json")).data || {};
   const langGraphApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_application.json")).data || {};
-  const langfuseApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_application.json")).data || {};
   const openclawApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_application.json")).data || {};
   const hostedDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_deployment.json")).data || {};
   const langGraphDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_deployment.json")).data || {};
-  const langfuseDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_deployment.json")).data || {};
   const openclawDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_deployment.json")).data || {};
   const llamaIndexDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_hosted_deployment.json")).data || {};
   const lifecycleValue = (value) => value["lifecycle-state"] || value.lifecycle_state || value.status || "";
   const artifactContainerUri = (artifact) => artifact["container-uri"] || artifact.container_uri || "";
   const hostedArtifact = hostedDeployment["active-artifact"] || hostedDeployment.active_artifact || {};
   const langGraphArtifact = langGraphDeployment["active-artifact"] || langGraphDeployment.active_artifact || {};
-  const langfuseArtifact = langfuseDeployment["active-artifact"] || langfuseDeployment.active_artifact || {};
   const openclawArtifact = openclawDeployment["active-artifact"] || openclawDeployment.active_artifact || {};
   const llamaIndexArtifact = llamaIndexDeployment["active-artifact"] || llamaIndexDeployment.active_artifact || {};
   const llamaIndexLaunchable = hostedRuntimeIsLaunchable(llamaIndexControlTower);
-  const langfuseHostedUrl = hostedRuntimeUrl(langfuseObservability.url, langfuseObservability.endpoint);
   const openclawHostedUrl = hostedRuntimeUrl(openclawGateway.url, openclawGateway.endpoint);
   const llamaIndexHostedUrl = llamaIndexLaunchable ? llamaIndexControlTower.url || llamaIndexControlTower.endpoint || "" : "";
   const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID");
   const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL");
   const langGraphDeploymentIdEnv = process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID");
   const langGraphHostedUrlEnv = process.env.OCI_HOSTED_LANGGRAPH_URL || portalRuntimeHostedValue("LANGGRAPH_URL");
-  const langfuseHostedUrlEnv = process.env.OCI_HOSTED_LANGFUSE_URL || portalRuntimeHostedValue("LANGFUSE_URL");
   const openclawHostedUrlEnv = process.env.OCI_HOSTED_OPENCLAW_URL || portalRuntimeHostedValue("OPENCLAW_URL");
   const llamaIndexHostedUrlEnv = process.env.OCI_HOSTED_LLAMAINDEX_URL || portalRuntimeHostedValue("LLAMAINDEX_URL");
-  const langfuseDeploymentIdEnv = process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID");
   const openclawDeploymentIdEnv = process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || portalRuntimeHostedValue("OPENCLAW_DEPLOYMENT_ID");
   const llamaIndexDeploymentIdEnv = process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || portalRuntimeHostedValue("LLAMAINDEX_DEPLOYMENT_ID");
   const hostedAgentApplicationIdEnv = hostedApplicationIdFromInvokeUrl(hostedAgentUrlEnv);
   const langGraphApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langGraphHostedUrlEnv);
-  const langfuseApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langfuseHostedUrlEnv);
   const openclawApplicationIdEnv = hostedApplicationIdFromInvokeUrl(openclawHostedUrlEnv);
   const runtimeManagedStatus = (finalId, runtimeId, lifecycle) => {
     if (!finalId) {
@@ -3551,10 +3233,8 @@ function demoRuntimeComponents() {
   const finalLangGraphDeploymentId = langGraphDeploymentIdEnv || langGraphAgent.hostedDeploymentId;
   const finalLangGraphApplicationId = langGraphApplicationIdEnv || langGraphAgent.hostedApplicationId;
   const finalLangGraphHostedUrl = hostedRuntimeUrl(langGraphHostedUrlEnv, langGraphAgent.endpoint, langGraphAgent.url);
-  const finalLangfuseDeploymentId = langfuseDeploymentIdEnv || langfuseObservability.hostedDeploymentId;
   const finalOpenclawDeploymentId = openclawDeploymentIdEnv || openclawGateway.hostedDeploymentId;
   const finalLlamaIndexDeploymentId = llamaIndexDeploymentIdEnv || llamaIndexControlTower.hostedDeploymentId;
-  const finalLangfuseApplicationId = langfuseApplicationIdEnv || langfuseObservability.hostedApplicationId;
   const finalOpenclawApplicationId = openclawApplicationIdEnv || openclawGateway.hostedApplicationId;
   const runtimeVectorStore = portalRuntimeConfig.fileSearchVectorStore || {};
   const runtimeVectorStoreFiles = portalRuntimeConfig.fileSearchSeedDocuments || {};
@@ -3567,7 +3247,6 @@ function demoRuntimeComponents() {
     process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeConfig.codeInterpreterContainerId || codeContainer.id;
   const finalCodeInterpreterContainerStatus =
     codeContainer.status || portalRuntimeConfig.codeInterpreterContainerStatus || (finalCodeInterpreterContainerId ? "created" : "");
-  const finalLangfuseHostedUrl = hostedRuntimeUrl(langfuseHostedUrlEnv, langfuseHostedUrl);
   const finalOpenclawHostedUrl = hostedRuntimeUrl(openclawHostedUrlEnv, openclawHostedUrl);
   const finalLlamaIndexHostedUrl =
     llamaIndexHostedUrlEnv ||
@@ -3577,7 +3256,6 @@ function demoRuntimeComponents() {
       : "");
   const hostedAgentRuntimeManaged = Boolean(hostedAgentUrlEnv || hostedAgentDeploymentIdEnv);
   const langGraphRuntimeManaged = Boolean(langGraphHostedUrlEnv || langGraphDeploymentIdEnv);
-  const langfuseRuntimeManaged = Boolean(langfuseHostedUrlEnv || langfuseDeploymentIdEnv);
   const openclawRuntimeManaged = Boolean(openclawHostedUrlEnv || openclawDeploymentIdEnv);
   const llamaIndexRuntimeManaged = Boolean(llamaIndexHostedUrlEnv || llamaIndexDeploymentIdEnv);
   const devopsHostedBuildRunId =
@@ -3766,55 +3444,6 @@ function demoRuntimeComponents() {
           : "Run provisioning to attach LangGraph hosted deployment artifact"
     ),
     component(
-      "generated.langfuse_hosted_observability_ocir_repository",
-      "Langfuse OCIR Repository",
-      langfuseRepositoryId || langfuseRuntimeManaged ? "created" : "not-created",
-      runtimeManagedValue(langfuseObservability.repositoryName, langfuseRuntimeManaged, "Managed by Resource Manager DevOps")
-        || "Run provisioning to create Langfuse OCIR repository"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_ocir_repository_id",
-      "Langfuse OCIR Repository ID",
-      langfuseRepositoryId || langfuseRuntimeManaged ? statusFromLifecycle(langfuseRepository["lifecycle-state"], "created") : "not-created",
-      runtimeManagedValue(langfuseRepositoryId, langfuseRuntimeManaged, "Managed by Resource Manager DevOps")
-        || "Run provisioning to create Langfuse OCIR repository"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_image",
-      "Langfuse Image URI",
-      langfuseObservability.imageUri || langfuseRuntimeManaged ? "created" : "not-created",
-      runtimeManagedValue(langfuseObservability.imageUri, langfuseRuntimeManaged, "Managed by Resource Manager DevOps")
-        || "Run provisioning to push Langfuse image"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_application",
-      "Langfuse OCI Hosted Application",
-      runtimeManagedStatus(finalLangfuseApplicationId, langfuseApplicationIdEnv, langfuseApplication.status),
-      finalLangfuseApplicationId || "Run provisioning to create Langfuse hosted application"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_deployment",
-      "Langfuse OCI Hosted Deployment",
-      runtimeManagedStatus(finalLangfuseDeploymentId, langfuseDeploymentIdEnv, lifecycleValue(langfuseDeployment)),
-      finalLangfuseDeploymentId || "Run provisioning to create Langfuse hosted deployment"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_deployment_artifact",
-      "Langfuse OCI Hosted Deployment Artifact",
-      langfuseArtifact.id || langfuseRuntimeManaged ? statusFromLifecycle(langfuseArtifact.status, "created") : "not-created",
-      artifactContainerUri(langfuseArtifact)
-        ? `${artifactContainerUri(langfuseArtifact)}:${langfuseArtifact.tag || ""}`
-        : langfuseRuntimeManaged
-          ? "Managed by Resource Manager DevOps"
-          : "Run provisioning to attach Langfuse hosted deployment artifact"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_url",
-      "Langfuse Hosted URL",
-      finalLangfuseHostedUrl ? "created" : "not-created",
-      finalLangfuseHostedUrl || "Run provisioning to create Langfuse hosted URL"
-    ),
-    component(
       "generated.openclaw_hosted_gateway_ocir_repository",
       "OpenClaw OCIR Repository",
       openclawGateway.repositoryId || openclawRuntimeManaged ? "created" : "not-created",
@@ -3876,11 +3505,6 @@ function demoRuntimeComponents() {
           label: "LangGraph",
           url: finalLangGraphHostedUrl,
           deploymentId: finalLangGraphDeploymentId
-        },
-        langfuse: {
-          label: "Langfuse",
-          url: finalLangfuseHostedUrl,
-          deploymentId: finalLangfuseDeploymentId
         },
         openclaw: {
           label: "OpenClaw",
@@ -3985,9 +3609,6 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
       langGraphHostedUrl: runtimeValue("LangGraph Hosted Agent URL"),
       langGraphHostedDeploymentId: runtimeValue("LangGraph OCI Hosted Deployment"),
       langGraphHostedDeploymentStatus: runtimeStatus("LangGraph OCI Hosted Deployment"),
-      langfuseHostedUrl: runtimeValue("Langfuse Hosted URL"),
-      langfuseHostedDeploymentId: runtimeValue("Langfuse OCI Hosted Deployment"),
-      langfuseHostedDeploymentStatus: runtimeStatus("Langfuse OCI Hosted Deployment"),
       openclawHostedUrl: runtimeValue("OpenClaw Hosted URL"),
       openclawHostedDeploymentId: runtimeValue("OpenClaw OCI Hosted Deployment"),
       openclawHostedDeploymentStatus: runtimeStatus("OpenClaw OCI Hosted Deployment"),
@@ -4818,11 +4439,6 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
-  if (requestPath === "/api/langfuse/launch" || requestPath.startsWith("/api/langfuse/launch/")) {
-    await proxyLangfuseLaunch(request, response, parsedUrl, { identity, sessionId });
-    return;
-  }
-
   if (requestPath === "/api/openclaw/launch" || requestPath.startsWith("/api/openclaw/launch/")) {
     await proxyOpenClawLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
@@ -4966,11 +4582,6 @@ export const server = createServer(async (request, response) => {
         error: error.message
       });
     }
-    return;
-  }
-
-  if (isLangfusePassthroughPath(requestPath)) {
-    await proxyLangfuseLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
   }
 

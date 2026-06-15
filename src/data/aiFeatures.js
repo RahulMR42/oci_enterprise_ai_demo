@@ -285,25 +285,6 @@ export const aiFeatures = [
     capabilities: ["Agent cards", "Task handoff", "Hosted agent reuse"]
   },
   {
-    id: "langfuse-hosted-observability",
-    title: "Langfuse Hosted Observability",
-    serviceArea: "OCI Generative AI Agents",
-    summary: "Deploy Langfuse observability with managed OCI dependencies and a hosted UI.",
-    details:
-      "Launches a separate Langfuse web container through OCI Generative AI Hosted Applications with managed OCI PostgreSQL, ClickHouse, Redis, and Object Storage wired through private networking.",
-    provisioningDetails:
-      "Reuses the hosted-agentic-applications Terraform module to create private networking, managed dependencies, a separate OCIR image, hosted application, hosted deployment, and generated runtime URL metadata for Langfuse.",
-    status: "Live Hosted UI",
-    accent: "blue",
-    terraformPath: "infra/hosted-agentic-applications",
-    sdkModule: "apps/hosted-langfuse/Dockerfile",
-    sampleUseCase: "Open a hosted Langfuse console to inspect LLM traces, prompts, scores, and evaluation telemetry.",
-    demoHref: "#demo-langfuse-hosted-observability",
-    docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/overview.htm",
-    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["Real Langfuse UI", "Managed OCI dependencies", "Separate hosted deployment"]
-  },
-  {
     id: "openclaw-hosted-agent-gateway",
     title: "OpenClaw Hosted Agent Gateway",
     serviceArea: "OCI Generative AI Agents",

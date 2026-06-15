@@ -110,12 +110,6 @@ variable "deploy_only_app" {
   default     = false
 }
 
-variable "oci_ha_langfuse_deploy" {
-  description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted app deployment stages stay disabled."
-  type        = bool
-  default     = false
-}
-
 variable "app_deploy" {
   description = "Hosted application deployment selector. Use all to deploy every hosted application, portal to deploy only the Enterprise AI portal hosted application, or leave empty to use the per-application switches."
   type        = string
@@ -414,12 +408,6 @@ variable "hosted_app_idcs_client_secret_id" {
     condition     = var.hosted_app_idcs_client_secret_id == "" || can(regex("^ocid1\\.vaultsecret\\.oc1\\.", var.hosted_app_idcs_client_secret_id))
     error_message = "hosted_app_idcs_client_secret_id must be empty or a valid OCI Vault secret OCID."
   }
-}
-
-variable "langfuse_image_repository_uri" {
-  description = "Optional prebuilt Langfuse image repository URI."
-  type        = string
-  default     = ""
 }
 
 variable "openclaw_image_repository_uri" {

@@ -10,14 +10,6 @@ resource "oci_artifacts_container_repository" "langgraph" {
   is_public      = false
 }
 
-resource "oci_artifacts_container_repository" "langfuse" {
-  count = var.langfuse_image_repository_uri == "" ? 1 : 0
-
-  compartment_id = var.compartment_id
-  display_name   = local.langfuse_repository_name
-  is_public      = false
-}
-
 resource "oci_artifacts_container_repository" "openclaw" {
   count = var.openclaw_image_repository_uri == "" ? 1 : 0
 

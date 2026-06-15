@@ -9,7 +9,7 @@ function escapeXml(value) {
 }
 
 test("demo features provide card and flip-side content", () => {
-  assert.equal(aiFeatures.length, 27);
+  assert.equal(aiFeatures.length, 26);
 
   const featureIds = aiFeatures.map((feature) => feature.id);
   assert.deepEqual(featureIds, [
@@ -28,7 +28,6 @@ test("demo features provide card and flip-side content", () => {
     "hosted-agentic-applications",
     "langgraph-hosted-agent-mcp",
     "a2a-agent-collaboration",
-    "langfuse-hosted-observability",
     "openclaw-hosted-agent-gateway",
     "agentic-control-tower",
     "agentic-rag-planner",
@@ -65,6 +64,14 @@ test("demo features provide card and flip-side content", () => {
     assert.ok(feature.capabilities.length >= 3);
     assert.deepEqual(feature.actions, ["Provision Infra", "Run Demo", "Delete Infra"]);
   }
+});
+
+test("demo catalog does not expose Langfuse demos or documentation", () => {
+  const catalogText = JSON.stringify(aiFeatures);
+
+  assert.equal(aiFeatures.some((feature) => /langfuse/i.test(feature.id)), false);
+  assert.equal(aiFeatures.some((feature) => /langfuse/i.test(feature.title)), false);
+  assert.doesNotMatch(catalogText, /langfuse/i);
 });
 
 test("demo catalog does not expose n8n demos or documentation", () => {
@@ -199,15 +206,6 @@ test("portal exposes mermaid-style flow diagrams for feature cards", () => {
   assert.match(main, /openFlowDiagram/);
 });
 
-test("Langfuse demo describes managed OCI dependencies", () => {
-  const feature = aiFeatures.find((item) => item.id === "langfuse-hosted-observability");
-
-  assert.ok(feature);
-  assert.match(feature.details, /managed OCI PostgreSQL, ClickHouse, Redis, and Object Storage/);
-  assert.match(feature.provisioningDetails, /private networking, managed dependencies/);
-  assert.deepEqual(feature.capabilities, ["Real Langfuse UI", "Managed OCI dependencies", "Separate hosted deployment"]);
-});
-
 test("OpenClaw demo describes hosted gateway constraints", () => {
   const feature = aiFeatures.find((item) => item.id === "openclaw-hosted-agent-gateway");
 
@@ -227,7 +225,7 @@ test("every demo card has a generated OCI wiring picture", () => {
   assert.match(main, /function defaultWiringHref\(featureId\)/);
   assert.match(main, /docs\/wiring\/\$\{featureId\}\.svg/);
   assert.match(generator, /Generated \$\{aiFeatures\.length\} wiring diagrams/);
-  assert.match(generator, /langfuse-hosted-observability/);
+  assert.doesNotMatch(generator, /langfuse-hosted-observability/);
 
   for (const feature of aiFeatures) {
     const diagramPath = `docs/wiring/${feature.id}.svg`;
