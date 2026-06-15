@@ -3,36 +3,31 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from common_oci import (
     DOCS_URL,
     OCI_RESPONSES_MODEL,
     config_from_env,
     create_client,
+    demo_data_path,
     read_payload,
+    read_json_store,
     response_output_text,
     response_to_json,
     validate_config,
+    write_json_store,
 )
 
 
-STORE_PATH = Path(__file__).resolve().parents[1] / "data" / "conversation_store.json"
+STORE_PATH = demo_data_path("conversation_store.json")
 
 
 def _read_store():
-    if not STORE_PATH.exists():
-        return {"sessions": {}}
-
-    try:
-        return json.loads(STORE_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"sessions": {}}
+    return read_json_store(STORE_PATH, {"sessions": {}})
 
 
 def _write_store(store):
-    STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STORE_PATH.write_text(json.dumps(store, indent=2), encoding="utf-8")
+    return write_json_store(STORE_PATH, store)
 
 
 def _session(store, session_id):

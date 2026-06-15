@@ -1,6 +1,6 @@
 resource "terraform_data" "conversation_store" {
   triggers_replace = [
-    "resource-manager-generated-runtime-files-20260604",
+    "resource-manager-generated-runtime-files-20260608",
     var.resource_suffix,
     var.oci_genai_project_id
   ]
@@ -49,15 +49,41 @@ client = OpenAI(
     api_key=api_key,
     project=project_id,
 )
-conversation = client.conversations.create(
-    metadata={
+
+def dump(value):
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if hasattr(value, "model_dump_json"):
+        return json.loads(value.model_dump_json())
+    return dict(value)
+
+def existing_conversation():
+    try:
+        listed = client.conversations.list(limit=100)
+    except Exception:
+        return None
+    items = getattr(listed, "data", None) or (listed.get("data", []) if isinstance(listed, dict) else [])
+    for item in items:
+        payload = dump(item)
+        metadata = payload.get("metadata") or {}
+        status = str(payload.get("status") or payload.get("state") or "").lower()
+        if status in {"deleted", "deleting", "expired", "failed"}:
+            continue
+        if metadata.get("demo") == "conversation-store" and metadata.get("resource_suffix") == "${self.input.resource_suffix}":
+            return payload
+    return None
+
+payload = existing_conversation()
+if not payload:
+    conversation = client.conversations.create(
+        metadata={
         "topic": "${self.input.topic}",
         "managed_by": "terraform",
         "demo": "conversation-store",
         "resource_suffix": "${self.input.resource_suffix}",
-    }
-)
-payload = conversation.model_dump(mode="json") if hasattr(conversation, "model_dump") else json.loads(conversation.model_dump_json())
+        }
+    )
+    payload = dump(conversation)
 payload["createdAt"] = datetime.now(timezone.utc).isoformat()
 payload["environmentVariable"] = "OCI_GENAI_CONVERSATION_ID"
 Path("${self.input.generated_file}").write_text(json.dumps(payload, indent=2))

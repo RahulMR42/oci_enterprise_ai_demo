@@ -17,7 +17,7 @@ test("filters cards by title, category, and capability text", () => {
 
   assert.deepEqual(
     filterFeatures(aiFeatures, "streaming").map((feature) => feature.id),
-    ["responses-api", "locus-sdk-agentic-workflows"]
+    ["responses-api", "responses-streaming-structured-output", "locus-sdk-agentic-workflows"]
   );
 
   assert.equal(filterFeatures(aiFeatures, "   ").length, aiFeatures.length);

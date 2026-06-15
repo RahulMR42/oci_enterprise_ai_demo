@@ -1,6 +1,6 @@
 resource "terraform_data" "file_search_vector_store" {
   triggers_replace = [
-    "resource-manager-generated-runtime-files-20260604",
+    "resource-manager-generated-runtime-files-20260608",
     var.resource_suffix,
     var.oci_genai_project_id
   ]
@@ -31,58 +31,66 @@ resource "terraform_data" "file_search_vector_store" {
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet oci_openai
+        "$python_bin" -m pip install --user --quiet openai
       fi
       vector_store_json="$("$python_bin" - <<PY
 import json
 import os
-from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciSessionAuth, OciUserPrincipalAuth
+from pathlib import Path
+from openai import OpenAI
 
-def oci_auth():
-    config_file = os.getenv("OCI_CONFIG_FILE", "~/.oci/config")
-    profile_name = "${self.input.profile}" or "DEFAULT"
-    errors = []
-    for auth_factory in (
-        lambda: OciResourcePrincipalAuth(),
-        lambda: OciSessionAuth(config_file=config_file, profile_name=profile_name),
-        lambda: OciUserPrincipalAuth(config_file=config_file, profile_name=profile_name),
-    ):
-        try:
-            return auth_factory()
-        except Exception as exc:
-            errors.append(f"{type(exc).__name__}: {exc}")
-    return None, errors
+api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+if not api_key:
+    raise SystemExit("Missing shared OCI Generative AI API key. Apply infra/responses-api first.")
+if not project_id:
+    raise SystemExit("Missing shared OCI Generative AI project ID. Apply infra/responses-api first.")
 
-auth = oci_auth()
-if isinstance(auth, tuple):
-    _, auth_errors = auth
-    print(json.dumps({
-        "id": "",
-        "object": "vector_store",
-        "status": "skipped",
-        "reason": "Missing OCI signer for Vector Store control-plane create: " + " | ".join(auth_errors),
-    }))
-    raise SystemExit(0)
-
-client = OciOpenAI(
-    service_endpoint="${self.input.control_plane_base_url}",
-    auth=auth,
-    compartment_id="${self.input.compartment_id}",
+client = OpenAI(
+    base_url="${self.input.openai_base_url}",
+    api_key=api_key,
+    project=project_id,
 )
-vector_store = client.vector_stores.create(
-    name="${self.input.display_name}",
-    description="Enterprise AI demo File Search vector store",
-    expires_after={"anchor": "last_active_at", "days": 30},
-    metadata={
-        "compartment_id": "${self.input.compartment_id}",
-        "managed_by": "terraform",
-        "demo": "enterprise-ai-demo-file-search",
-    },
-)
-if hasattr(vector_store, "model_dump"):
-    print(json.dumps(vector_store.model_dump(mode="json")))
+
+def dump(value):
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if hasattr(value, "model_dump_json"):
+        return json.loads(value.model_dump_json())
+    return dict(value)
+
+def existing_vector_store():
+    try:
+        listed = client.vector_stores.list(limit=100)
+    except Exception:
+        return None
+    items = getattr(listed, "data", None) or (listed.get("data", []) if isinstance(listed, dict) else [])
+    for item in items:
+        payload = dump(item)
+        status = str(payload.get("status") or "").lower()
+        if status in {"deleted", "deleting", "expired", "failed"}:
+            continue
+        if payload.get("name") == "${self.input.display_name}":
+            return payload
+    return None
+
+payload = existing_vector_store()
+if not payload:
+    vector_store = client.vector_stores.create(
+        name="${self.input.display_name}",
+        description="Enterprise AI demo File Search vector store",
+        expires_after={"anchor": "last_active_at", "days": 30},
+        metadata={
+            "compartment_id": "${self.input.compartment_id}",
+            "managed_by": "terraform",
+            "demo": "enterprise-ai-demo-file-search",
+        },
+    )
+    payload = dump(vector_store)
+if hasattr(payload, "model_dump"):
+    print(json.dumps(payload.model_dump(mode="json")))
 else:
-    print(vector_store.model_dump_json())
+    print(json.dumps(payload))
 PY
       )"
       printf '%s\n' "$vector_store_json" > '${path.module}/.terraform/generated/vector_store.json'
@@ -110,32 +118,24 @@ PY
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet oci_openai
+        "$python_bin" -m pip install --user --quiet openai
       fi
       "$python_bin" - <<PY
+import json
 import os
-from oci_openai import OciOpenAI, OciResourcePrincipalAuth, OciSessionAuth, OciUserPrincipalAuth
+from pathlib import Path
+from openai import OpenAI
 
-def oci_auth():
-    config_file = os.getenv("OCI_CONFIG_FILE", "~/.oci/config")
-    profile_name = "${self.input.profile}" or "DEFAULT"
-    errors = []
-    for auth_factory in (
-        lambda: OciResourcePrincipalAuth(),
-        lambda: OciSessionAuth(config_file=config_file, profile_name=profile_name),
-        lambda: OciUserPrincipalAuth(config_file=config_file, profile_name=profile_name),
-    ):
-        try:
-            return auth_factory()
-        except Exception as exc:
-            errors.append(f"{type(exc).__name__}: {exc}")
-    print("Missing OCI signer for Vector Store control-plane delete; skipping remote delete: " + " | ".join(errors))
+api_key = os.getenv("OCI_GENAI_API_KEY") or json.loads(Path("${self.input.shared_api_key_file}").read_text()).get("data", {}).get("keys", [{}])[0].get("key", "")
+project_id = os.getenv("OCI_GENAI_PROJECT_ID") or json.loads(Path("${self.input.shared_project_file}").read_text()).get("data", {}).get("id", "")
+if not api_key or not project_id:
+    print("Missing shared OCI Generative AI project/API key; skipping vector store remote delete.")
     raise SystemExit(0)
 
-client = OciOpenAI(
-    service_endpoint="${self.input.control_plane_base_url}",
-    auth=oci_auth(),
-    compartment_id="${self.input.compartment_id}",
+client = OpenAI(
+    base_url="${self.input.openai_base_url}",
+    api_key=api_key,
+    project=project_id,
 )
 client.vector_stores.delete("$vector_store_id")
 print("Deleted File Search vector store $vector_store_id")
@@ -177,7 +177,7 @@ resource "terraform_data" "file_search_seed_documents" {
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet openai oci_openai
+        "$python_bin" -m pip install --user --quiet openai
       fi
       "$python_bin" - <<PY
 import json
@@ -218,16 +218,51 @@ client = OpenAI(
     project=project_id,
 )
 
+def dump(value):
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if hasattr(value, "model_dump_json"):
+        return json.loads(value.model_dump_json())
+    return dict(value)
+
+def existing_seed_document(document):
+    try:
+        listed = client.vector_stores.files.list(vector_store_id=vector_store_id, limit=100)
+    except Exception:
+        return None
+    items = getattr(listed, "data", None) or (listed.get("data", []) if isinstance(listed, dict) else [])
+    for item in items:
+        payload = dump(item)
+        attributes = payload.get("attributes") or {}
+        status = str(payload.get("status") or "").lower()
+        if status != "completed":
+            continue
+        if attributes.get("sha256") == document["sha256"] or attributes.get("file_name") == document["name"]:
+            file_id = payload.get("id") or payload.get("file_id") or payload.get("file-id") or ""
+            return {
+                "name": document["name"],
+                "sha256": document["sha256"],
+                "file": {"id": file_id, "status": "uploaded"},
+                "vector_store_file": payload,
+            }
+    return None
+
 records = []
 for document in seed_manifest:
     pdf_path = Path(document["path"])
     if not pdf_path.exists():
         raise SystemExit(f"Missing bundled PDF: {pdf_path}")
 
+    existing = existing_seed_document(document)
+    if existing:
+        print(f"Reusing bundled File Search seed PDF: {document['name']}")
+        records.append(existing)
+        continue
+
     print(f"Uploading bundled File Search seed PDF: {document['name']}")
     with pdf_path.open("rb") as handle:
         uploaded_file = client.files.create(file=handle, purpose="assistants")
-    file_payload = uploaded_file.model_dump(mode="json") if hasattr(uploaded_file, "model_dump") else json.loads(uploaded_file.model_dump_json())
+    file_payload = dump(uploaded_file)
     file_id = file_payload["id"]
 
     print(f"Attaching {file_id} to vector store {vector_store_id}")
@@ -240,11 +275,7 @@ for document in seed_manifest:
             "sha256": document["sha256"],
         },
     )
-    vector_store_file_payload = (
-        vector_store_file.model_dump(mode="json")
-        if hasattr(vector_store_file, "model_dump")
-        else json.loads(vector_store_file.model_dump_json())
-    )
+    vector_store_file_payload = dump(vector_store_file)
 
     terminal = vector_store_file_payload.get("status")
     for _ in range(90):
@@ -252,11 +283,7 @@ for document in seed_manifest:
             break
         time.sleep(5)
         current = client.vector_stores.files.retrieve(file_id, vector_store_id=vector_store_id)
-        vector_store_file_payload = (
-            current.model_dump(mode="json")
-            if hasattr(current, "model_dump")
-            else json.loads(current.model_dump_json())
-        )
+        vector_store_file_payload = dump(current)
         terminal = vector_store_file_payload.get("status")
 
     if terminal != "completed":
@@ -293,7 +320,7 @@ PY
         python_bin="python3"
       fi
       if [ "$python_bin" = "python3" ]; then
-        "$python_bin" -m pip install --user --quiet openai oci_openai
+        "$python_bin" -m pip install --user --quiet openai
       fi
       "$python_bin" - <<PY
 import json

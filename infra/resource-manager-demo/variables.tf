@@ -58,21 +58,21 @@ variable "responses_api_local_exec_enabled" {
 }
 
 variable "file_search_local_exec_enabled" {
-  description = "Enable File Search local-exec vector store provisioning so the portal receives OCI_GENAI_VECTOR_STORE_ID."
+  description = "Legacy/local fallback for File Search local-exec vector store provisioning. Keep false in Resource Manager; OCI DevOps provisions generated runtime resources with resource principal auth."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "conversation_store_local_exec_enabled" {
-  description = "Enable Conversation Store local-exec provisioning so the portal receives OCI_GENAI_CONVERSATION_ID."
+  description = "Legacy/local fallback for Conversation Store local-exec provisioning. Keep false in Resource Manager; OCI DevOps provisions generated runtime resources with resource principal auth."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "code_interpreter_local_exec_enabled" {
-  description = "Enable Code Interpreter local-exec container provisioning so the portal receives OCI_GENAI_CODE_INTERPRETER_CONTAINER."
+  description = "Legacy/local fallback for Code Interpreter local-exec container provisioning. Keep false in Resource Manager; OCI DevOps provisions generated runtime resources with resource principal auth."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "project_display_name" {
@@ -105,25 +105,19 @@ variable "devops_hosted_image_run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, hosted application deployment commands exit as skipped so only the portal app container is redeployed."
-  type        = bool
-  default     = false
-}
-
-variable "oci_ha_langfuse_deploy" {
-  description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted app deployment stages stay disabled."
+  description = "When true, hosted application deployment commands exit as skipped so only the portal hosted application is updated."
   type        = bool
   default     = false
 }
 
 variable "app_deploy" {
-  description = "Hosted application deployment selector. Use all to deploy every hosted application, or leave empty to use the per-application switches."
+  description = "Hosted application deployment selector. Use all to deploy every hosted application, portal to deploy only the Enterprise AI portal hosted application, or leave empty to use the per-application switches."
   type        = string
-  default     = ""
+  default     = "all"
 
   validation {
-    condition     = contains(["", "all"], lower(var.app_deploy))
-    error_message = "app_deploy must be empty or all."
+    condition     = contains(["", "all", "portal"], lower(trimspace(var.app_deploy)))
+    error_message = "app_deploy must be empty, all, or portal."
   }
 }
 
@@ -159,6 +153,17 @@ variable "existing_hosted_deployment_exports_json" {
   validation {
     condition     = can(jsondecode(var.existing_hosted_deployment_exports_json))
     error_message = "existing_hosted_deployment_exports_json must be valid JSON."
+  }
+}
+
+variable "existing_portal_runtime_config_json" {
+  description = "Non-sensitive JSON copy of the existing portal runtime config used to retain generated runtime IDs across portal-only redeployments."
+  type        = string
+  default     = "{}"
+
+  validation {
+    condition     = can(jsondecode(var.existing_portal_runtime_config_json))
+    error_message = "existing_portal_runtime_config_json must be valid JSON."
   }
 }
 
@@ -298,13 +303,13 @@ variable "hosted_app_ocir_region_key" {
 }
 
 variable "portal_container_enabled" {
-  description = "When true, create a public OCI Container Instance for the demo portal from the RM-owned OCIR image."
+  description = "When true, build and deploy the demo portal as an OCI Generative AI hosted application from the RM-owned OCIR image."
   type        = bool
   default     = true
 }
 
 variable "portal_container_image_uri" {
-  description = "Optional full OCIR image URI for the demo portal container. Leave empty to use the stack namespace, hosted_app_ocir_region_key, portal_container_repository_name, and portal_container_image_tag."
+  description = "Optional full OCIR image URI for the demo portal. Leave empty to use the stack namespace, hosted_app_ocir_region_key, portal_container_repository_name, and portal_container_image_tag."
   type        = string
   default     = ""
 }
@@ -327,88 +332,20 @@ variable "portal_container_repository_id" {
 }
 
 variable "portal_container_image_tag" {
-  description = "Image tag for the demo portal container."
+  description = "Image tag for the demo portal hosted application image."
   type        = string
   default     = "latest"
 }
 
-variable "portal_container_port" {
-  description = "Public TCP port exposed by the demo portal container."
-  type        = number
-  default     = 5173
-
-  validation {
-    condition     = var.portal_container_port >= 1024 && var.portal_container_port <= 65535
-    error_message = "portal_container_port must be between 1024 and 65535."
-  }
-}
-
-variable "portal_container_shape" {
-  description = "OCI Container Instance shape for the demo portal."
-  type        = string
-  default     = "CI.Standard.E4.Flex"
-}
-
-variable "portal_container_ocpus" {
-  description = "OCPUs assigned to the demo portal container instance."
-  type        = number
-  default     = 1
-
-  validation {
-    condition     = var.portal_container_ocpus >= 1 && var.portal_container_ocpus <= 4
-    error_message = "portal_container_ocpus must be between 1 and 4."
-  }
-}
-
-variable "portal_container_memory_gbs" {
-  description = "Memory assigned to the demo portal container."
-  type        = number
-  default     = 4
-
-  validation {
-    condition     = var.portal_container_memory_gbs >= 1 && var.portal_container_memory_gbs <= 64
-    error_message = "portal_container_memory_gbs must be between 1 and 64."
-  }
-}
-
-variable "portal_vcn_cidr" {
-  description = "CIDR block for the demo portal VCN."
-  type        = string
-  default     = "10.42.0.0/16"
-
-  validation {
-    condition     = can(cidrhost(var.portal_vcn_cidr, 1))
-    error_message = "portal_vcn_cidr must be a valid IPv4 CIDR block."
-  }
-}
-
-variable "portal_subnet_cidr" {
-  description = "Public subnet CIDR block for the demo portal load balancer."
-  type        = string
-  default     = "10.42.1.0/24"
-
-  validation {
-    condition     = can(cidrhost(var.portal_subnet_cidr, 1))
-    error_message = "portal_subnet_cidr must be a valid IPv4 CIDR block."
-  }
-}
-
-variable "portal_private_subnet_cidr" {
-  description = "Private subnet CIDR block for the demo portal container instance."
-  type        = string
-  default     = "10.42.2.0/24"
-
-  validation {
-    condition     = can(cidrhost(var.portal_private_subnet_cidr, 1))
-    error_message = "portal_private_subnet_cidr must be a valid IPv4 CIDR block."
-  }
-}
-
-variable "portal_auth_password" {
-  description = "Optional fixed portal login password. Leave empty to let Terraform generate one and expose it as a sensitive output."
+variable "portal_auth_password_secret_id" {
+  description = "OCI Vault secret OCID containing the portal login password. The hosted application receives this as a VAULT environment variable."
   type        = string
   sensitive   = true
-  default     = ""
+
+  validation {
+    condition     = can(regex("^ocid1\\.vaultsecret\\.oc1\\.", var.portal_auth_password_secret_id))
+    error_message = "portal_auth_password_secret_id must be a valid OCI Vault secret OCID."
+  }
 }
 
 variable "oci_genai_project_id" {
@@ -427,6 +364,18 @@ variable "oci_genai_api_key" {
   type        = string
   sensitive   = true
   default     = ""
+}
+
+variable "oci_genai_api_key_secret_id" {
+  description = "OCI Vault secret OCID containing the OCI Generative AI Responses API key for the portal hosted application."
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    condition     = var.oci_genai_api_key_secret_id == "" || can(regex("^ocid1\\.vaultsecret\\.oc1\\.", var.oci_genai_api_key_secret_id))
+    error_message = "oci_genai_api_key_secret_id must be empty or a valid OCI Vault secret OCID."
+  }
 }
 
 variable "idcs_domain_url" {
@@ -449,8 +398,20 @@ variable "idcs_scope" {
   type        = string
 }
 
-variable "langfuse_image_repository_uri" {
-  description = "Optional prebuilt Langfuse image repository URI."
+variable "hosted_app_idcs_client_secret_id" {
+  description = "OCI Vault secret OCID containing the IDCS OAuth client secret used by the portal hosted UI launch proxy."
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    condition     = var.hosted_app_idcs_client_secret_id == "" || can(regex("^ocid1\\.vaultsecret\\.oc1\\.", var.hosted_app_idcs_client_secret_id))
+    error_message = "hosted_app_idcs_client_secret_id must be empty or a valid OCI Vault secret OCID."
+  }
+}
+
+variable "portal_sso_admin_emails" {
+  description = "Comma-separated email allowlist for users who should receive portal administrator access after SSO sign-in."
   type        = string
   default     = ""
 }

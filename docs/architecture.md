@@ -23,7 +23,6 @@ flowchart LR
   Terraform --> IAM[Shared dynamic group and policy]
   Terraform --> OCIR[OCIR repositories]
   Terraform --> Hosted[OCI Hosted Applications and Deployments]
-  Terraform --> LangfuseDeps[Langfuse PostgreSQL, ClickHouse, Redis, Object Storage, networking]
   HostedProxy --> Hosted
   Python --> Docs[Bundled Oracle PDFs]
   Python --> Audit[Governance audit log]
@@ -59,7 +58,6 @@ Hosted application cards use local launch proxies:
 
 | Path | Target |
 | --- | --- |
-| `/api/langfuse/launch/` | Hosted Langfuse UI |
 | `/api/openclaw/launch/` | Hosted OpenClaw gateway demo UI |
 
 The proxies keep the portal session local, rewrite root-relative UI assets where needed, and surface hosted application launch failures as structured portal errors.
@@ -85,7 +83,6 @@ Generated runtime metadata is exported before the Node server starts:
 | Hosted agent metadata | `infra/hosted-agentic-applications/.terraform/generated/hosted_agent.json` |
 | LangGraph hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/langgraph_hosted_agent.json` |
 | Hosted UI launch client metadata | `infra/hosted-agentic-applications/.terraform/generated/hosted_app_idcs_client.json` |
-| Langfuse hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/langfuse_hosted_observability.json` |
 | OpenClaw hosted metadata | `infra/hosted-agentic-applications/.terraform/generated/openclaw_hosted_gateway.json` |
 
 The infrastructure pane reads Terraform state and generated runtime resources, then merges them into one status view for project, API key, vector store, seeded files, code container, ADB, Database Tools, shared IAM, OCIR repositories, hosted applications, hosted deployments, and hosted deployment artifacts.

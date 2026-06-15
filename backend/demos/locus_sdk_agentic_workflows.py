@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import importlib.metadata
+import inspect
 import json
 from datetime import datetime, timezone
 
@@ -14,6 +16,10 @@ from common_oci import (
 
 
 DOCS_URL = "https://locusagents.oracle.com/"
+
+
+def _tool_name(tool_obj):
+    return getattr(tool_obj, "name", getattr(tool_obj, "__name__", type(tool_obj).__name__))
 
 
 def _workflow_map(prompt, session_id):
@@ -62,6 +68,61 @@ def _workflow_map(prompt, session_id):
     }
 
 
+def _build_locus_sdk_contract(prompt, session_id):
+    try:
+        from locus.agent import Agent
+        from locus.tools import tool
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Missing Python dependency 'locus-sdk'. Install root requirements before running the "
+            "Locus SDK Agentic Workflows live demo."
+        ) from exc
+
+    @tool
+    def lookup_order_status(order_id: str) -> dict:
+        """Return support-visible order status for incident triage."""
+
+        return {
+            "orderId": order_id,
+            "status": "delayed",
+            "delayReason": "payment callback queue latency",
+            "customerTier": "premium",
+        }
+
+    @tool
+    def create_support_ticket(summary: str, risk: str) -> dict:
+        """Create a guarded support ticket proposal."""
+
+        return {
+            "ticketId": "TICKET-PENDING-APPROVAL",
+            "summary": summary,
+            "risk": risk,
+            "requiresApproval": risk.lower() in {"high", "customer-impacting"},
+        }
+
+    tools = [lookup_order_status, create_support_ticket]
+    try:
+        sdk_version = importlib.metadata.version("locus-sdk")
+    except importlib.metadata.PackageNotFoundError:
+        sdk_version = "installed"
+
+    return {
+        "sdk": "locus-sdk",
+        "sdkVersion": sdk_version,
+        "agentClass": Agent.__name__,
+        "agentSignature": str(inspect.signature(Agent))[:180],
+        "toolDecorator": "locus.tools.tool",
+        "toolNames": [_tool_name(item) for item in tools],
+        "sessionId": session_id,
+        "promptPreview": prompt[:160],
+        "agentContract": {
+            "modelProvider": "OCI Generative AI Responses API",
+            "systemPrompt": "Use approved tools, preserve checkpoint state, stream progress, and gate risky writes.",
+            "maxIterations": 4,
+        },
+    }
+
+
 def run_demo(payload):
     if "error" in payload:
         raise RuntimeError(payload["error"])
@@ -99,11 +160,14 @@ def run_demo(payload):
     }
 
     validate_config(config)
+    sdk_contract = _build_locus_sdk_contract(prompt, session_id)
+    workflow["sdkRuntime"] = sdk_contract
     response = call_oci_responses_api(
         (
             "You are explaining how to implement a production agent with Oracle's Locus SDK. "
-            "Use the provided workflow map and return a concise implementation plan covering "
-            "agent loop, tools, memory, checkpoints, streaming, and governance.\n\n"
+            "Use the provided workflow map and SDK contract generated from locus.agent.Agent and "
+            "locus.tools.tool. Return a concise implementation plan covering agent loop, tools, "
+            "memory, checkpoints, streaming, and governance.\n\n"
             f"Workflow map: {json.dumps(workflow, sort_keys=True)}"
         ),
         temperature,
@@ -114,6 +178,7 @@ def run_demo(payload):
     result["rawResponse"] = response_to_json(response)
     result["trace"] = [
         *trace,
+        "Loaded Locus SDK Agent and tool contract",
         "Called OCI Responses API for Locus SDK implementation guidance",
         "Returned production agent workflow design",
     ]

@@ -48,7 +48,6 @@ oci generative-ai hosted-deployment create-hosted-deployment-single-docker-artif
 registry="${OCIR_REGION_KEY}.ocir.io"
 hosted_agent_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-agent-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 langgraph_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-langgraph-agent-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
-langfuse_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-langfuse-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 openclaw_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-openclaw-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 llamaindex_image_uri="${registry}/${OCIR_NAMESPACE}/enterprise-ai-demo/hosted-llamaindex-control-tower-${RESOURCE_SUFFIX}:${IMAGE_TAG}"
 
@@ -96,6 +95,68 @@ for item in (payload.get("data") or {}).get("items", []):
     identifier = item.get("id") or item.get("identifier") or ""
     if identifier and state not in {"DELETED", "DELETING"}:
         print(identifier)'
+}
+
+active_hosted_app_ids_by_display_name() {
+  local display_name="$1"
+  oci generative-ai hosted-application-collection list-hosted-applications \
+    --compartment-id "$COMPARTMENT_ID" \
+    --display-name "$display_name" \
+    --all \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json |
+    python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state in {"ACTIVE", "SUCCEEDED", "AVAILABLE", "CREATED"}:
+        print(identifier)'
+}
+
+active_hosted_deployment_id_by_app_id() {
+  local app_id="$1"
+  local deployment_display="$2"
+  oci generative-ai hosted-deployment-collection list-hosted-deployments \
+    --compartment-id "$COMPARTMENT_ID" \
+    --application-id "$app_id" \
+    --all \
+    --auth resource_principal \
+    --region "$OCI_REGION" \
+    --output json |
+    python3 -c 'import json, sys
+deployment_display = sys.argv[1]
+payload = json.load(sys.stdin)
+for item in (payload.get("data") or {}).get("items", []):
+    state = (item.get("lifecycleState") or item.get("lifecycle-state") or "").upper()
+    display = item.get("displayName") or item.get("display-name") or ""
+    identifier = item.get("id") or item.get("identifier") or ""
+    if identifier and state == "ACTIVE" and (not deployment_display or display == deployment_display):
+        print(identifier)
+        raise SystemExit(0)' "$deployment_display"
+}
+
+reuse_existing_hosted_resource() {
+  local key="$1"
+  local display="$2"
+  local deployment_display="$3"
+  local app_id dep_id
+  local existing_app_ids=()
+
+  mapfile -t existing_app_ids < <(active_hosted_app_ids_by_display_name "$display" || true)
+  for app_id in "${existing_app_ids[@]}"; do
+    [ -z "$app_id" ] && continue
+    dep_id="$(active_hosted_deployment_id_by_app_id "$app_id" "$deployment_display" || true)"
+    if [ -n "$dep_id" ]; then
+      export "${key}_URL=$(invoke_url "$app_id")"
+      export "${key}_DEPLOYMENT_ID=$dep_id"
+      echo "Reusing active ${HOSTED_APP_KEY} hosted application ${app_id} and deployment ${dep_id}."
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 wait_for_hosted_deployment_deleted() {
@@ -211,6 +272,10 @@ create_hosted() {
   local app_file="/tmp/${key}_hosted_application.json"
   local dep_file="/tmp/${key}_hosted_deployment.json"
 
+  if reuse_existing_hosted_resource "$key" "$display" "$deployment_display"; then
+    return 0
+  fi
+
   env_args=()
   if [ -n "$env_json" ] && [ "$env_json" != "[]" ]; then
     env_args=(--environment-variables "$env_json")
@@ -283,7 +348,6 @@ write_exported_variables() {
 }
 
 openclaw_env="$(python3 -c 'import json, os; print(json.dumps([{"name":"OPENCLAW_GATEWAY_BIND","type":"PLAINTEXT","value":"lan"},{"name":"OPENCLAW_GATEWAY_PORT","type":"PLAINTEXT","value":"8080"},{"name":"OPENCLAW_GATEWAY_TOKEN","type":"PLAINTEXT","value":os.getenv("OPENCLAW_GATEWAY_TOKEN","")}]))')"
-langfuse_env="$(python3 -c 'import json, os; values={"NEXTAUTH_URL":"http://0.0.0.0:3000","NEXTAUTH_SECRET":os.getenv("LANGFUSE_NEXTAUTH_SECRET",""),"SALT":os.getenv("LANGFUSE_SALT",""),"ENCRYPTION_KEY":os.getenv("LANGFUSE_ENCRYPTION_KEY",""),"DATABASE_URL":os.getenv("LANGFUSE_DATABASE_URL",""),"CLICKHOUSE_URL":os.getenv("LANGFUSE_CLICKHOUSE_URL",""),"CLICKHOUSE_USER":os.getenv("LANGFUSE_CLICKHOUSE_USER",""),"CLICKHOUSE_PASSWORD":os.getenv("LANGFUSE_CLICKHOUSE_PASSWORD",""),"CLICKHOUSE_CLUSTER_ENABLED":"false","LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED":"true","REDIS_CONNECTION_STRING":os.getenv("LANGFUSE_REDIS_CONNECTION_STRING",""),"LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE":"true","LANGFUSE_OCI_AUTH_TYPE":"resource_principal","LANGFUSE_S3_EVENT_UPLOAD_BUCKET":os.getenv("LANGFUSE_S3_EVENT_UPLOAD_BUCKET",""),"LANGFUSE_S3_EVENT_UPLOAD_REGION":os.getenv("LANGFUSE_S3_UPLOAD_REGION","auto"),"LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT":os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT",""),"LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE":"true","LANGFUSE_S3_MEDIA_UPLOAD_BUCKET":os.getenv("LANGFUSE_S3_MEDIA_UPLOAD_BUCKET",""),"LANGFUSE_S3_MEDIA_UPLOAD_REGION":os.getenv("LANGFUSE_S3_UPLOAD_REGION","auto"),"LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT":os.getenv("LANGFUSE_S3_UPLOAD_ENDPOINT","")}; print(json.dumps([{"name": name, "type": "PLAINTEXT", "value": value} for name, value in values.items()]))')"
 
 case "$HOSTED_APP_KEY" in
   HOSTED_AGENT)
@@ -291,9 +355,6 @@ case "$HOSTED_APP_KEY" in
     ;;
   LANGGRAPH)
     create_hosted LANGGRAPH "enterprise-ai-demo-langgraph-agent-${RESOURCE_SUFFIX}" "enterprise-ai-demo-langgraph-agent-deployment-${RESOURCE_SUFFIX}" "$langgraph_image_uri" "langgraph-hosted-agent-mcp"
-    ;;
-  LANGFUSE)
-    create_hosted LANGFUSE "enterprise-ai-demo-langfuse-${RESOURCE_SUFFIX}" "enterprise-ai-demo-langfuse-deployment-${RESOURCE_SUFFIX}" "$langfuse_image_uri" "langfuse-hosted-observability" "$langfuse_env" "${LANGFUSE_NETWORKING_CONFIG_JSON:-}"
     ;;
   OPENCLAW)
     create_hosted OPENCLAW "enterprise-ai-demo-openclaw-${RESOURCE_SUFFIX}" "enterprise-ai-demo-openclaw-deployment-${RESOURCE_SUFFIX}" "$openclaw_image_uri" "openclaw-hosted-agent-gateway" "$openclaw_env"

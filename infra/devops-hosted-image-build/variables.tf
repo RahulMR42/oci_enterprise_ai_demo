@@ -110,62 +110,32 @@ variable "portal_container_repository_id" {
   default     = ""
 }
 
-variable "portal_private_subnet_id" {
-  description = "Private subnet OCID where the DevOps portal rollout creates replacement container instances."
+variable "portal_auth_password_secret_id" {
+  description = "OCI Vault secret OCID containing the portal login password for the hosted application."
+  type        = string
+  sensitive   = true
+}
+
+variable "portal_auth_db_dsn" {
+  description = "NL2SQL Autonomous Database connection string used by portal protected-user auth."
   type        = string
   default     = ""
 }
 
-variable "portal_network_security_group_id" {
-  description = "Network security group OCID assigned to DevOps-created portal container instances."
+variable "portal_auth_db_id" {
+  description = "NL2SQL Autonomous Database OCID used to generate the portal protected-user auth wallet."
   type        = string
   default     = ""
 }
 
-variable "portal_load_balancer_id" {
-  description = "Load balancer OCID whose backend set receives DevOps-created portal container instances."
+variable "portal_auth_db_user" {
+  description = "NL2SQL Autonomous Database user for portal protected-user auth."
   type        = string
-  default     = ""
+  default     = "ADMIN"
 }
 
-variable "portal_backend_set_name" {
-  description = "Load balancer backend set name used for rolling portal container cutovers."
-  type        = string
-  default     = ""
-}
-
-variable "portal_public_url" {
-  description = "Public portal URL used by the DevOps rollout smoke tests after backend cutover."
-  type        = string
-  default     = ""
-}
-
-variable "portal_container_port" {
-  description = "TCP port exposed by the portal container."
-  type        = number
-  default     = 5173
-}
-
-variable "portal_container_shape" {
-  description = "OCI Container Instance shape used by the DevOps portal rollout."
-  type        = string
-  default     = "CI.Standard.E4.Flex"
-}
-
-variable "portal_container_ocpus" {
-  description = "OCPUs assigned to DevOps-created portal container instances."
-  type        = number
-  default     = 1
-}
-
-variable "portal_container_memory_gbs" {
-  description = "Memory assigned to DevOps-created portal container instances."
-  type        = number
-  default     = 4
-}
-
-variable "portal_auth_password" {
-  description = "Portal basic-auth password injected into DevOps-created portal container instances and smoke tests."
+variable "portal_auth_db_password_secret_id" {
+  description = "OCI Vault secret OCID containing the NL2SQL Autonomous Database password."
   type        = string
   sensitive   = true
   default     = ""
@@ -207,14 +177,38 @@ variable "portal_run_history_object" {
   default     = "portal-demo-run-summary.json"
 }
 
+variable "portal_change_log_namespace" {
+  description = "Object Storage namespace for the portal administration change log object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_change_log_bucket" {
+  description = "Object Storage bucket for the portal administration change log object."
+  type        = string
+  default     = ""
+}
+
+variable "portal_change_log_object" {
+  description = "Object Storage object name used by the portal administration page to load release changes."
+  type        = string
+  default     = "portal-change-log.json"
+}
+
 variable "portal_vector_store_id" {
-  description = "File Search vector store ID injected into DevOps-created portal container instances."
+  description = "File Search vector store ID injected into the portal hosted application."
+  type        = string
+  default     = ""
+}
+
+variable "portal_conversation_id" {
+  description = "OCI Conversations API conversation ID injected into the portal hosted application."
   type        = string
   default     = ""
 }
 
 variable "portal_code_interpreter_container_id" {
-  description = "Code Interpreter container ID injected into DevOps-created portal container instances."
+  description = "Code Interpreter container ID injected into the portal hosted application."
   type        = string
   default     = ""
 }
@@ -249,21 +243,33 @@ variable "hosted_app_idcs_client_id" {
   default     = ""
 }
 
-variable "hosted_app_idcs_client_secret" {
-  description = "IDCS OAuth client secret used by the portal hosted UI launch proxy."
+variable "hosted_app_idcs_client_app_id" {
+  description = "Identity Domains app OCID for the Terraform-managed hosted UI launch OAuth client."
+  type        = string
+  default     = ""
+}
+
+variable "hosted_app_idcs_client_secret_id" {
+  description = "OCI Vault secret OCID containing the IDCS OAuth client secret used by the portal hosted UI launch proxy."
   type        = string
   sensitive   = true
   default     = ""
 }
 
-variable "oci_genai_project_id" {
-  description = "OCI Generative AI project OCID injected into the portal container."
+variable "portal_sso_admin_emails" {
+  description = "Comma-separated email allowlist for users who should receive portal administrator access after SSO sign-in."
   type        = string
   default     = ""
 }
 
-variable "oci_genai_api_key" {
-  description = "OCI Generative AI API key injected into the portal container."
+variable "oci_genai_project_id" {
+  description = "OCI Generative AI project OCID injected into the portal hosted application."
+  type        = string
+  default     = ""
+}
+
+variable "oci_genai_api_key_secret_id" {
+  description = "OCI Vault secret OCID containing the OCI Generative AI API key injected into the portal hosted application."
   type        = string
   sensitive   = true
   default     = ""
@@ -276,97 +282,6 @@ variable "openclaw_gateway_token" {
   default     = ""
 }
 
-variable "langfuse_database_url" {
-  description = "DATABASE_URL used by the hosted Langfuse deployment."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "langfuse_clickhouse_url" {
-  description = "ClickHouse HTTP URL used by the hosted Langfuse deployment."
-  type        = string
-  default     = ""
-}
-
-variable "langfuse_clickhouse_migration_url" {
-  description = "ClickHouse migration URL used by the hosted Langfuse deployment."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "langfuse_clickhouse_user" {
-  description = "ClickHouse user used by the hosted Langfuse deployment."
-  type        = string
-  default     = ""
-}
-
-variable "langfuse_clickhouse_password" {
-  description = "ClickHouse password used by the hosted Langfuse deployment."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "langfuse_redis_connection_string" {
-  description = "Redis connection string used by the hosted Langfuse deployment."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "langfuse_s3_event_upload_bucket" {
-  description = "Event upload bucket used by the hosted Langfuse deployment."
-  type        = string
-  default     = ""
-}
-
-variable "langfuse_s3_media_upload_bucket" {
-  description = "Media upload bucket used by the hosted Langfuse deployment."
-  type        = string
-  default     = ""
-}
-
-variable "langfuse_s3_upload_region" {
-  description = "Object Storage upload region used by the hosted Langfuse deployment."
-  type        = string
-  default     = ""
-}
-
-variable "langfuse_s3_upload_endpoint" {
-  description = "Object Storage upload endpoint used by the hosted Langfuse deployment."
-  type        = string
-  default     = ""
-}
-
-variable "langfuse_nextauth_secret" {
-  description = "NEXTAUTH_SECRET used by the hosted Langfuse deployment."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "langfuse_salt" {
-  description = "SALT used by the hosted Langfuse deployment."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "langfuse_encryption_key" {
-  description = "ENCRYPTION_KEY used by the hosted Langfuse deployment."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "langfuse_networking_config_json" {
-  description = "Hosted application private networking configuration used by Langfuse."
-  type        = string
-  default     = ""
-}
-
 variable "run_build" {
   description = "When true, Resource Manager starts a DevOps build run during apply."
   type        = bool
@@ -374,25 +289,19 @@ variable "run_build" {
 }
 
 variable "deploy_only_app" {
-  description = "When true, hosted application deployment commands exit as skipped so only the portal app container is redeployed."
-  type        = bool
-  default     = false
-}
-
-variable "deploy_langfuse_hosted_application" {
-  description = "When true, the OCI DevOps pipeline deploys the Langfuse hosted application stage. Other hosted application stages remain disabled."
+  description = "When true, hosted application deployment commands exit as skipped so only the portal hosted application is updated."
   type        = bool
   default     = false
 }
 
 variable "app_deploy" {
-  description = "Hosted application deployment selector. Use all to deploy every hosted application, or leave empty to use the per-application switches."
+  description = "Hosted application deployment selector. Use all to deploy every hosted application, portal to deploy only the Enterprise AI portal hosted application, or leave empty to use the per-application switches."
   type        = string
-  default     = ""
+  default     = "all"
 
   validation {
-    condition     = contains(["", "all"], lower(var.app_deploy))
-    error_message = "app_deploy must be empty or all."
+    condition     = contains(["", "all", "portal"], lower(trimspace(var.app_deploy)))
+    error_message = "app_deploy must be empty, all, or portal."
   }
 }
 

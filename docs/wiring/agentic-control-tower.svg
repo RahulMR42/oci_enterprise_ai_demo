@@ -34,7 +34,7 @@
   </defs>
   <rect class="page" width="1400" height="900"/>
   <text class="title" x="700" y="44" text-anchor="middle">Agentic Control Tower - OCI Wiring Diagram</text>
-  <text class="subtitle" x="700" y="69" text-anchor="middle">OCI Generative AI Agents | Live Hosted OSS Agent</text>
+  <text class="subtitle" x="700" y="69" text-anchor="middle">OCI Generative AI Agents | Live Hosted Flow</text>
 
   <rect class="lane lane-portal" x="50" y="105" width="280" height="610"/>
   <rect class="lane lane-runtime" x="370" y="105" width="330" height="610"/>
@@ -87,7 +87,8 @@
   <text class="box-title" x="1230" y="380" text-anchor="middle">Capabilities</text>
 <text class="box-text" x="1230" y="406" text-anchor="middle">Hosted LlamaIndex</text>
 <text class="box-text" x="1230" y="425" text-anchor="middle">runtime, Tool critique</text>
-<text class="box-text" x="1230" y="444" text-anchor="middle">loop, IDCS proxy launch</text>
+<text class="box-text" x="1230" y="444" text-anchor="middle">loop, IDCS proxy</text>
+<text class="box-text" x="1230" y="463" text-anchor="middle">execution</text>
 
   <rect class="box-outline box-gray" x="110" y="760" width="1180" height="82"/>
   <text class="box-title" x="135" y="790">Response path</text>

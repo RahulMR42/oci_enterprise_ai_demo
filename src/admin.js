@@ -19,11 +19,16 @@ function formatElapsedTime(milliseconds) {
 }
 
 const adminState = {
+  changeLog: {},
   history: {},
   infra: {},
   logs: {},
   runtimeEnv: {}
 };
+
+function portalRelativeUrl(path = "") {
+  return `./${String(path || "").replace(/^\/+/, "")}`;
+}
 
 function renderMetrics(summary = {}) {
   const metrics = summary.metrics || {};
@@ -112,6 +117,33 @@ function renderRuntimeEnv(snapshot = {}) {
     : `<div class="admin-run-log-empty">No non-confidential runtime variables are available.</div>`;
 }
 
+function renderChangeLog(changeLog = {}) {
+  const entries = Array.isArray(changeLog.entries) ? changeLog.entries : [];
+  const object = changeLog.object || {};
+  const objectLabel = object.bucket && object.name ? `${object.bucket}/${object.name}` : "local file";
+  const updatedAt = changeLog.generatedAt ? `Updated: ${changeLog.generatedAt}` : "Updated: unavailable";
+  document.getElementById("admin-change-log-note").textContent = `${updatedAt}. Source: ${changeLog.source || "unknown"} (${objectLabel}).`;
+  document.getElementById("admin-change-log").innerHTML = entries.length
+    ? entries
+        .map(
+          (entry) => `
+            <article class="admin-change-entry">
+              <div>
+                <strong>Version ${escapeHtml(entry.version || "unknown")}</strong>
+                <time>${escapeHtml(entry.releasedAt || entry.localTime || "")}</time>
+              </div>
+              <p>${escapeHtml(entry.summary || "")}</p>
+              <ul>
+                ${(Array.isArray(entry.changes) ? entry.changes : [])
+                  .map((change) => `<li>${escapeHtml(change)}</li>`)
+                  .join("")}
+              </ul>
+            </article>`
+        )
+        .join("")
+    : `<div class="admin-run-log-empty">No change log entries are available.</div>`;
+}
+
 function renderInfrastructure(infra = {}) {
   const summary = infra.summary || {};
   document.getElementById("admin-infra-metric-grid").innerHTML = [
@@ -170,25 +202,43 @@ async function fetchJson(url) {
   return payload;
 }
 
+function adminActivityQuery() {
+  const params = new URLSearchParams();
+  const userEmail = document.getElementById("admin-user-filter")?.value.trim() || "";
+  const from = document.getElementById("admin-from-filter")?.value || "";
+  const to = document.getElementById("admin-to-filter")?.value || "";
+  const eventType = document.getElementById("admin-event-type-filter")?.value || "all";
+  if (userEmail) params.set("userEmail", userEmail);
+  if (from) params.set("from", new Date(from).toISOString());
+  if (to) params.set("to", new Date(to).toISOString());
+  if (eventType !== "all") params.set("eventType", eventType);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
 export async function loadAdministrationDashboard() {
   const refreshButton = document.getElementById("admin-refresh-button");
   refreshButton.disabled = true;
   try {
-    const [history, runtimeEnv, infra, logs] = await Promise.all([
-      fetchJson("/api/admin/demo-runs"),
-      fetchJson("/api/admin/runtime-env"),
-      fetchJson("/api/admin/infra"),
-      fetchJson("/api/admin/logs")
+    const activityQuery = adminActivityQuery();
+    const [history, runtimeEnv, infra, logs, changeLog] = await Promise.all([
+      fetchJson(portalRelativeUrl(`/api/admin/demo-runs${activityQuery}`)),
+      fetchJson(portalRelativeUrl("/api/admin/runtime-env")),
+      fetchJson(portalRelativeUrl("/api/admin/infra")),
+      fetchJson(portalRelativeUrl(`/api/admin/logs${activityQuery}`)),
+      fetchJson(portalRelativeUrl("/api/admin/change-log"))
     ]);
     adminState.history = history;
     adminState.runtimeEnv = runtimeEnv;
     adminState.infra = infra;
     adminState.logs = logs;
+    adminState.changeLog = changeLog;
     renderMetrics(history);
     renderUsage(history);
     renderRuntimeEnv(runtimeEnv);
     renderInfrastructure(infra);
     renderRunLogs(logs);
+    renderChangeLog(changeLog);
   } catch (error) {
     document.getElementById("admin-last-updated").textContent = `Administration load failed: ${error.message}`;
   } finally {
@@ -216,4 +266,7 @@ document.getElementById("admin-refresh-button").addEventListener("click", loadAd
 document.getElementById("admin-run-status-filter").addEventListener("change", () => renderRunLogs(adminState.logs));
 document.getElementById("admin-log-source-filter").addEventListener("change", () => renderRunLogs(adminState.logs));
 document.getElementById("admin-infra-status-filter").addEventListener("change", () => renderInfrastructure(adminState.infra));
+["admin-user-filter", "admin-from-filter", "admin-to-filter", "admin-event-type-filter"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("change", loadAdministrationDashboard);
+});
 loadAdministrationDashboard();

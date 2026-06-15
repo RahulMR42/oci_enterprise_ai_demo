@@ -1,20 +1,28 @@
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createPublicKey, createVerify, randomBytes } from "node:crypto";
 import { chmodSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { basename, extname, join, normalize, relative } from "node:path";
+import { basename, dirname, extname, join, normalize, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { appVersion } from "./src/version.js";
 
 const port = Number.parseInt(process.env.PORT ?? "5173", 10);
 const host = process.env.HOST ?? "127.0.0.1";
 const root = process.cwd();
+const pythonExecutable = existsSync(join(root, "env/bin/python")) ? join(root, "env/bin/python") : "python3";
+const ociCliExecutable = process.env.OCI_CLI_PATH || (existsSync(join(root, "env/bin/oci")) ? join(root, "env/bin/oci") : "oci");
+const resolvedSecretReferenceCache = new Map();
 const portalAuthUser = "oci";
 const portalAuthPasswordFile = process.env.OCI_PORTAL_PASSWORD_FILE || join(root, ".oci-portal-password");
 const portalAuthPasswordConfig = resolvePortalAuthPassword();
 const portalAuthPassword = portalAuthPasswordConfig.password;
 const portalSessionCookie = "oci_portal_session";
+const portalSsoStateCookie = "oci_portal_sso_state";
+const portalSsoStateMaxAgeMs = 10 * 60 * 1000;
 const portalSessionTokens = new Set();
+const portalSessionIdentities = new Map();
+const portalSessionAuditIds = new Map();
+const portalSsoStates = new Map();
 let idcsTokenCache = {
   value: "",
   expiresAt: 0
@@ -29,7 +37,8 @@ const demoGeneratedDirs = {
   "code-interpreter": join(root, "infra/code-interpreter/.terraform/generated"),
   "hosted-agentic-applications": join(root, "infra/hosted-agentic-applications/.terraform/generated")
 };
-const pythonExecutable = existsSync(join(root, "env/bin/python")) ? join(root, "env/bin/python") : "python3";
+const portalAuthStoreScript = process.env.OCI_PORTAL_AUTH_STORE_SCRIPT || join(root, "backend/portal_auth_store.py");
+const portalAuthStoreClientError = "Protected user authentication is unavailable.";
 const portalRuntimeConfigObject = {
   namespace: process.env.OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE || "",
   bucket: process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
@@ -40,12 +49,19 @@ const portalRunHistoryObject = {
   bucket: process.env.OCI_PORTAL_RUN_HISTORY_BUCKET || process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
   object: process.env.OCI_PORTAL_RUN_HISTORY_OBJECT || "portal-demo-run-summary.json"
 };
+const portalChangeLogObject = {
+  namespace: process.env.OCI_PORTAL_CHANGE_LOG_NAMESPACE || process.env.OCI_PORTAL_RUNTIME_CONFIG_NAMESPACE || "",
+  bucket: process.env.OCI_PORTAL_CHANGE_LOG_BUCKET || process.env.OCI_PORTAL_RUNTIME_CONFIG_BUCKET || "",
+  object: process.env.OCI_PORTAL_CHANGE_LOG_OBJECT || "portal-change-log.json"
+};
 let portalRuntimeConfigCache = {
   value: {},
   expiresAt: 0
 };
 const demoScripts = {
   "responses-api": "responses_api.py",
+  "openai-compatible-chat": "openai_compatible_chat.py",
+  "responses-streaming-structured-output": "responses_streaming_structured_output.py",
   "conversation-store": "conversation_store.py",
   guardrails: "guardrails.py",
   "file-search-vector-store-rag": "file_search_vector_store_rag.py",
@@ -85,6 +101,71 @@ export function demoProcessEnv(baseEnv = process.env, overrides = {}) {
     delete env[key];
   }
   return env;
+}
+
+function isVaultSecretReference(value = "") {
+  return /^ocid1\.vaultsecret\./.test(String(value || "").trim());
+}
+
+function vaultSecretRegion(secretId = "") {
+  return (
+    String(secretId || "").match(/^ocid1\.vaultsecret\.oc1\.([a-z0-9-]+)\./)?.[1] ||
+    process.env.OCI_GENAI_REGION ||
+    process.env.OCI_REGION ||
+    "us-chicago-1"
+  );
+}
+
+function hasResourcePrincipalAuth(env = process.env) {
+  return Object.keys(env || {}).some((key) => key.startsWith("OCI_RESOURCE_PRINCIPAL_"));
+}
+
+function readVaultSecretBundleValue(secretId, { region = vaultSecretRegion(secretId), spawn = spawnSync, cli = ociCliExecutable, env = process.env } = {}) {
+  const args = [
+    "secrets",
+    "secret-bundle",
+    "get",
+    "--secret-id",
+    secretId,
+    "--region",
+    region,
+    "--query",
+    'data."secret-bundle-content".content',
+    "--raw-output"
+  ];
+  if (hasResourcePrincipalAuth(env)) {
+    args.unshift("--auth", "resource_principal");
+  }
+  const result = spawn(cli, args, {
+    cwd: root,
+    encoding: "utf8",
+    env: demoProcessEnv(env),
+    timeout: 30_000
+  });
+  if (result.status !== 0) {
+    throw new Error(`Failed to resolve Vault secret ${secretId}: ${redactSensitiveText(result.stderr || result.error?.message || "unknown error")}`);
+  }
+  return Buffer.from(String(result.stdout || "").trim(), "base64").toString("utf8").trim();
+}
+
+export function resolveSecretReferenceValue(value = "", { cache = resolvedSecretReferenceCache, fetchSecret = readVaultSecretBundleValue } = {}) {
+  const trimmed = String(value || "").trim();
+  if (!isVaultSecretReference(trimmed)) {
+    return trimmed;
+  }
+  if (cache.has(trimmed)) {
+    return cache.get(trimmed);
+  }
+  const resolved = String(fetchSecret(trimmed) || "").trim();
+  if (!resolved) {
+    throw new Error(`Vault secret ${trimmed} resolved to an empty value.`);
+  }
+  cache.set(trimmed, resolved);
+  return resolved;
+}
+
+function resolveRuntimeSecret(name, fallback = "") {
+  return resolveSecretReferenceValue(process.env[name] || process.env[`${name}_SECRET_ID`] || fallback || "");
 }
 
 function persistLocalSecret(filePath, value) {
@@ -153,15 +234,48 @@ function redactSensitiveText(value = "") {
     );
 }
 
-function writeDemoLog(featureId, payload = {}) {
-  const logDir = join(root, "logs/demos", safeLogName(featureId));
-  mkdirSync(logDir, { recursive: true });
-  const createdAt = new Date().toISOString();
+export function writeDemoLog(featureId, payload = {}, options = {}) {
+  const {
+    logRoot = join(root, "logs/demos"),
+    mkdir = mkdirSync,
+    writeFile = writeFileSync,
+    writePersistentRecord = writePersistentDemoRunRecord,
+    now = () => new Date(),
+    randomHex = () => randomBytes(4).toString("hex"),
+    warn = (message) => console.warn(message)
+  } = options;
+  const logDir = join(logRoot, safeLogName(featureId));
+  const createdAtValue = typeof now === "function" ? now() : now;
+  const createdAt = createdAtValue instanceof Date ? createdAtValue.toISOString() : String(createdAtValue || new Date().toISOString());
   const timestamp = createdAt.replace(/[:.]/g, "-");
-  const logFile = join(logDir, `${timestamp}-${randomBytes(4).toString("hex")}.json`);
-  const record = redactForDemoLog({ featureId, createdAt, ...payload });
-  writeFileSync(logFile, JSON.stringify(record, null, 2));
-  writePersistentDemoRunRecord({ ...record, logFile });
+  const localLogFile = join(logDir, `${timestamp}-${randomHex()}.json`);
+  const rawRecord = { featureId, createdAt, ...payload };
+  const record = {
+    ...redactForDemoLog(rawRecord),
+    userId: rawRecord.userId || "",
+    userEmail: rawRecord.userEmail || "",
+    authType: rawRecord.authType || "",
+    sessionId: publicPortalSessionId(rawRecord.sessionId)
+  };
+  let logFile = "";
+  try {
+    mkdir(logDir, { recursive: true });
+    writeFile(localLogFile, JSON.stringify(record, null, 2));
+    logFile = localLogFile;
+  } catch (error) {
+    warn(`[demo-run] local log write skipped feature=${safeLogName(featureId)} error=${redactSensitiveText(error?.message || error)}`);
+  }
+
+  try {
+    writePersistentRecord({
+      ...record,
+      logFile,
+      logSource: logFile ? "local-and-object-storage" : "object-storage"
+    });
+  } catch (error) {
+    warn(`[demo-run] persistent log write skipped feature=${safeLogName(featureId)} error=${redactSensitiveText(error?.message || error)}`);
+  }
+
   return logFile;
 }
 
@@ -183,9 +297,50 @@ function errorLogDetails(error) {
   });
 }
 
+function publicPortalSessionId(value = "") {
+  const candidate = String(value || "");
+  return /^sess_[A-Za-z0-9_-]+$/.test(candidate) ? candidate : "";
+}
+
+function identityLogFields(identity = bootstrapPortalIdentity(), sessionId = "") {
+  const candidate = identity || bootstrapPortalIdentity();
+  return {
+    userId: candidate.userId || "",
+    userEmail: candidate.userEmail || candidate.displayEmail || "",
+    authType: candidate.authType || "unknown",
+    sessionId: publicPortalSessionId(sessionId)
+  };
+}
+
+export function recordPortalAuditEvent(event = {}, { writeEvent = callPortalAuthStore } = {}) {
+  try {
+    const result = writeEvent("record_event", {
+      ...event,
+      sessionId: publicPortalSessionId(event.sessionId),
+      details: redactForDemoLog(event.details || {})
+    });
+    if (result.status === "failed") {
+      console.warn(`[portal-audit] ${redactSensitiveText(result.error || "audit write failed")}`);
+    }
+    return result;
+  } catch (error) {
+    console.warn(`[portal-audit] ${redactSensitiveText(error.message)}`);
+    return { ok: false, status: "failed", error: "Portal audit write failed." };
+  }
+}
+
 export function summarizeDemoRunHistory(records = []) {
   const sortedRuns = records
-    .map((record) => redactForDemoLog(record || {}))
+    .map((record) => {
+      const rawRecord = record || {};
+      return {
+        ...redactForDemoLog(rawRecord),
+        userId: rawRecord.userId || "",
+        userEmail: rawRecord.userEmail || "",
+        authType: rawRecord.authType || "",
+        sessionId: publicPortalSessionId(rawRecord.sessionId)
+      };
+    })
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
     .map((record) => ({
       featureId: record.featureId || "unknown",
@@ -195,6 +350,10 @@ export function summarizeDemoRunHistory(records = []) {
       createdAt: record.createdAt || "",
       error: record.error || record.response?.error || "",
       logFile: record.logFile || "",
+      userId: record.userId || "",
+      userEmail: record.userEmail || "",
+      authType: record.authType || "",
+      sessionId: record.sessionId || "",
       stdout: demoLogPreview(record.stdout),
       stderr: demoLogPreview(record.stderr),
       request: demoLogObjectPreview(record.request),
@@ -252,11 +411,74 @@ export function summarizeDemoRunHistory(records = []) {
   };
 }
 
-export function readDemoRunHistory() {
+function parseAdminActivityFilters(searchParams) {
+  return {
+    userEmail: String(searchParams.get("userEmail") || "").trim(),
+    from: String(searchParams.get("from") || "").trim(),
+    to: String(searchParams.get("to") || "").trim(),
+    featureId: String(searchParams.get("featureId") || "").trim(),
+    eventType: String(searchParams.get("eventType") || "").trim(),
+    status: String(searchParams.get("status") || "").trim()
+  };
+}
+
+function adminFilterValue(value = "") {
+  const candidate = String(value || "").trim();
+  return candidate === "all" ? "" : candidate;
+}
+
+function adminActivityTimestamp(value = "") {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function hasAdminActivityFilters(filters = {}) {
+  return ["userEmail", "from", "to", "featureId", "eventType", "status"].some((key) =>
+    Boolean(adminFilterValue(filters[key]))
+  );
+}
+
+function matchesAdminActivityFilters(activity = {}, filters = {}, { defaultEventType = "" } = {}) {
+  const userEmail = adminFilterValue(filters.userEmail).toLowerCase();
+  if (userEmail && String(activity.userEmail || "").toLowerCase() !== userEmail) {
+    return false;
+  }
+
+  const featureId = adminFilterValue(filters.featureId);
+  if (featureId && String(activity.featureId || "") !== featureId) {
+    return false;
+  }
+
+  const status = adminFilterValue(filters.status);
+  if (status && String(activity.status || "") !== status) {
+    return false;
+  }
+
+  const eventType = adminFilterValue(filters.eventType);
+  if (eventType && String(activity.eventType || defaultEventType || "") !== eventType) {
+    return false;
+  }
+
+  const createdAt = adminActivityTimestamp(activity.createdAt);
+  const from = adminActivityTimestamp(filters.from);
+  const to = adminActivityTimestamp(filters.to);
+  if (from !== null && (createdAt === null || createdAt < from)) {
+    return false;
+  }
+  if (to !== null && (createdAt === null || createdAt > to)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function readDemoRunHistory(filters = {}) {
   const logRoot = join(root, "logs/demos");
   const persistentRecords = readPersistentDemoRunRecords();
   if (!existsSync(logRoot)) {
-    return summarizeDemoRunHistory(persistentRecords);
+    return summarizeDemoRunHistory(
+      persistentRecords.filter((record) => matchesAdminActivityFilters(record, filters, { defaultEventType: "demo_run" }))
+    );
   }
 
   const records = [...persistentRecords];
@@ -290,7 +512,9 @@ export function readDemoRunHistory() {
     }
   }
 
-  return summarizeDemoRunHistory(records);
+  return summarizeDemoRunHistory(
+    records.filter((record) => matchesAdminActivityFilters(record, filters, { defaultEventType: "demo_run" }))
+  );
 }
 
 function demoRunKey(record = {}) {
@@ -299,6 +523,45 @@ function demoRunKey(record = {}) {
 
 function hasObjectStorageReference(reference = {}) {
   return Boolean(reference.namespace && reference.bucket && reference.object);
+}
+
+export function resolvePortalObjectStorageReference(envReference = {}, runtimeConfig = {}, options = {}) {
+  const { namespaceKey = "", bucketKey = "", objectKey = "", defaultObject = "" } = options;
+  return {
+    namespace: String(
+      envReference.namespace ||
+        (namespaceKey ? runtimeConfig[namespaceKey] : "") ||
+        runtimeConfig.runtimeConfigObjectNamespace ||
+        portalRuntimeConfigObject.namespace ||
+        ""
+    ).trim(),
+    bucket: String(
+      envReference.bucket ||
+        (bucketKey ? runtimeConfig[bucketKey] : "") ||
+        runtimeConfig.runtimeConfigObjectBucket ||
+        portalRuntimeConfigObject.bucket ||
+        ""
+    ).trim(),
+    object: String(envReference.object || (objectKey ? runtimeConfig[objectKey] : "") || defaultObject || "").trim()
+  };
+}
+
+function portalRunHistoryReference() {
+  return resolvePortalObjectStorageReference(portalRunHistoryObject, readPortalRuntimeConfig(), {
+    namespaceKey: "runHistoryObjectNamespace",
+    bucketKey: "runHistoryObjectBucket",
+    objectKey: "runHistoryObjectName",
+    defaultObject: "portal-demo-run-summary.json"
+  });
+}
+
+function portalChangeLogReference() {
+  return resolvePortalObjectStorageReference(portalChangeLogObject, readPortalRuntimeConfig(), {
+    namespaceKey: "changeLogObjectNamespace",
+    bucketKey: "changeLogObjectBucket",
+    objectKey: "changeLogObjectName",
+    defaultObject: "portal-change-log.json"
+  });
 }
 
 function readObjectStorageJson(reference = {}) {
@@ -313,12 +576,14 @@ import sys
 import oci
 
 namespace, bucket, object_name = sys.argv[1:4]
+region = os.environ.get("OCI_GENAI_REGION") or os.environ.get("OCI_REGION") or "us-chicago-1"
 try:
     signer = oci.auth.signers.get_resource_principals_signer()
-    client = oci.object_storage.ObjectStorageClient(config={}, signer=signer)
+    client = oci.object_storage.ObjectStorageClient(config={"region": region}, signer=signer)
     response = client.get_object(namespace, bucket, object_name)
     sys.stdout.write(response.data.content.decode("utf-8"))
-except Exception:
+except Exception as exc:
+    sys.stderr.write(str(exc))
     sys.stdout.write("{}")
 `;
   const result = spawnSync(pythonExecutable, ["-c", script, reference.namespace, reference.bucket, reference.object], {
@@ -326,11 +591,16 @@ except Exception:
     env: demoProcessEnv()
   });
   if (result.status !== 0 || !result.stdout.trim()) {
+    const detail = redactSensitiveText(result.stderr || result.error?.message || `exit ${result.status}`);
+    if (detail) {
+      console.warn(`[object-storage] read failed object=${reference.bucket}/${reference.object} error=${detail}`);
+    }
     return {};
   }
   try {
     return JSON.parse(result.stdout);
-  } catch {
+  } catch (error) {
+    console.warn(`[object-storage] read failed object=${reference.bucket}/${reference.object} error=${redactSensitiveText(error.message)}`);
     return {};
   }
 }
@@ -342,12 +612,14 @@ function writeObjectStorageJson(reference = {}, payload = {}) {
 
   const script = `
 import sys
+import os
 import oci
 
 namespace, bucket, object_name = sys.argv[1:4]
+region = os.environ.get("OCI_GENAI_REGION") or os.environ.get("OCI_REGION") or "us-chicago-1"
 content = sys.stdin.read()
 signer = oci.auth.signers.get_resource_principals_signer()
-client = oci.object_storage.ObjectStorageClient(config={}, signer=signer)
+client = oci.object_storage.ObjectStorageClient(config={"region": region}, signer=signer)
 client.put_object(namespace, bucket, object_name, content.encode("utf-8"), content_type="application/json")
 `;
   const result = spawnSync(pythonExecutable, ["-c", script, reference.namespace, reference.bucket, reference.object], {
@@ -355,7 +627,12 @@ client.put_object(namespace, bucket, object_name, content.encode("utf-8"), conte
     env: demoProcessEnv(),
     input: JSON.stringify(payload, null, 2)
   });
-  return result.status === 0;
+  const ok = result.status === 0;
+  if (!ok) {
+    const detail = redactSensitiveText(result.stderr || result.error?.message || `exit ${result.status}`);
+    console.warn(`[object-storage] write failed object=${reference.bucket}/${reference.object} error=${detail}`);
+  }
+  return ok;
 }
 
 function readPortalRuntimeConfig({ refresh = false } = {}) {
@@ -399,43 +676,103 @@ function portalRuntimeValue(key) {
 }
 
 function readPersistentDemoRunRecords() {
-  const payload = readObjectStorageJson(portalRunHistoryObject);
+  const payload = readObjectStorageJson(portalRunHistoryReference());
   return Array.isArray(payload.runs) ? payload.runs : [];
 }
 
 function writePersistentDemoRunRecord(record = {}) {
-  if (!hasObjectStorageReference(portalRunHistoryObject)) {
+  const reference = portalRunHistoryReference();
+  if (!hasObjectStorageReference(reference)) {
     return;
   }
 
   const current = readPersistentDemoRunRecords();
   const seen = new Set(current.map(demoRunKey));
   const next = seen.has(demoRunKey(record)) ? current : [record, ...current].slice(0, 250);
-  writeObjectStorageJson(portalRunHistoryObject, {
+  writeObjectStorageJson(reference, {
     updatedAt: new Date().toISOString(),
     metrics: summarizeDemoRunHistory(next).metrics,
     runs: next
   });
 }
 
+export function readPortalChangeLog() {
+  const localPath = join(root, "change-log.json");
+  const localPayload = existsSync(localPath) ? JSON.parse(readFileSync(localPath, "utf8")) : {};
+  const reference = portalChangeLogReference();
+  const objectPayload = readObjectStorageJson(reference);
+  const payload = Object.keys(objectPayload).length ? objectPayload : localPayload;
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  return redactForDemoLog({
+    name: payload.name || "OCI Enterprise AI Portal Change Log",
+    generatedAt: payload.generatedAt || new Date().toISOString(),
+    source: hasObjectStorageReference(reference) && Object.keys(objectPayload).length ? "object-storage" : "local-file",
+    object: hasObjectStorageReference(reference)
+      ? {
+          namespace: reference.namespace,
+          bucket: reference.bucket,
+          name: reference.object
+        }
+      : {},
+    entries
+  });
+}
+
 function resolvePortalAuthPassword() {
-  if (existsSync(portalAuthPasswordFile)) {
-    const password = readFileSync(portalAuthPasswordFile, "utf8").trim();
+  return resolvePortalAuthPasswordValue({
+    passwordFile: portalAuthPasswordFile,
+    envPassword: process.env.OCI_PORTAL_PASSWORD
+  });
+}
+
+export function resolvePortalAuthPasswordValue({
+  passwordFile = portalAuthPasswordFile,
+  envPassword = process.env.OCI_PORTAL_PASSWORD,
+  exists = existsSync,
+  read = readFileSync,
+  persist = persistLocalSecret,
+  generate = () => randomBytes(9).toString("base64url"),
+  resolveSecret = resolveSecretReferenceValue
+} = {}) {
+  if (exists(passwordFile)) {
+    const password = read(passwordFile, "utf8").trim();
     if (password) {
       return { password, source: "local-file" };
     }
   }
 
-  const envPassword = String(process.env.OCI_PORTAL_PASSWORD || "").trim();
-  const password = envPassword || randomBytes(9).toString("base64url");
-  persistLocalSecret(portalAuthPasswordFile, password);
-  return { password, source: envPassword ? "env-file" : "generated-file" };
+  const passwordFromEnv = String(envPassword || "").trim();
+  if (passwordFromEnv) {
+    return { password: resolveSecret(passwordFromEnv), source: "env" };
+  }
+
+  const password = generate();
+  persist(passwordFile, password);
+  return { password, source: "generated-file" };
 }
 
 export function resolvePath(urlPath) {
   const cleanPath = normalize(decodeURIComponent(urlPath.split("?")[0])).replace(/^(\.\.[/\\])+/, "");
   const filePath = cleanPath === "/" ? "index.html" : cleanPath.replace(/^[/\\]/, "");
   return join(root, filePath);
+}
+
+export function normalizedRequestPathForAccessControl(requestPath = "/") {
+  const rawPath = String(requestPath || "/").split("?")[0] || "/";
+  let decodedPath = rawPath;
+  try {
+    decodedPath = decodeURIComponent(rawPath);
+  } catch {
+    decodedPath = rawPath;
+  }
+  const slashPath = decodedPath.replace(/\\/g, "/");
+  const normalizedPath = normalize(slashPath)
+    .replace(/\\/g, "/")
+    .replace(/^(\.\.\/)+/, "");
+  if (!normalizedPath || normalizedPath === ".") {
+    return "/";
+  }
+  return normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`;
 }
 
 export function readRequestBody(request) {
@@ -502,20 +839,537 @@ export function parseCookies(header = "") {
     }, {});
 }
 
+function storePortalSessionAuditId(token = "", openSession = {}, sessionAuditIds = portalSessionAuditIds) {
+  const sessionId = publicPortalSessionId(openSession?.sessionId);
+  if (token && sessionId) {
+    sessionAuditIds.set(token, sessionId);
+  }
+  return sessionId;
+}
+
+export function portalAuditSessionIdForRequest(request, { sessionAuditIds = portalSessionAuditIds } = {}) {
+  const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
+  return sessionToken ? publicPortalSessionId(sessionAuditIds.get(sessionToken)) : "";
+}
+
 export function createPortalSession(sessions = portalSessionTokens) {
   const token = randomBytes(18).toString("base64url");
   sessions.add(token);
   return token;
 }
 
-export function isAuthorizedRequest(request, password = portalAuthPassword, sessions = portalSessionTokens) {
+export function bootstrapPortalIdentity() {
+  return {
+    userId: "bootstrap:oci",
+    userEmail: portalAuthUser,
+    displayEmail: portalAuthUser,
+    authType: "bootstrap",
+    role: "admin"
+  };
+}
+
+export function portalSsoCallbackUrlFromInvokeUrl(invokeUrl = "") {
+  const base = String(invokeUrl || "").trim().replace(/\/+$/, "");
+  return base ? `${base}/auth/sso/callback` : "";
+}
+
+function normalizePortalSsoAdminEmails(value = "") {
+  const raw = Array.isArray(value) ? value : String(value || "").split(",");
+  return raw
+    .map((entry) => String(entry || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function portalSsoEnabledValue(value) {
+  const normalized = String(value ?? "true").trim().toLowerCase();
+  return !["0", "false", "no", "off", "disabled"].includes(normalized);
+}
+
+export function resolvePortalSsoConfig(env = process.env) {
+  const domainUrl = String(
+    env.OCI_PORTAL_SSO_DOMAIN_URL ||
+      env.OCI_HOSTED_APP_IDCS_DOMAIN_URL ||
+      env.IDCS_DOMAIN_URL ||
+      ""
+  ).replace(/\/+$/, "");
+  const tokenUrl = String(
+    env.OCI_PORTAL_SSO_TOKEN_URL ||
+      env.OCI_HOSTED_APP_IDCS_TOKEN_URL ||
+      env.IDCS_TOKEN_URL ||
+      (domainUrl ? `${domainUrl}/oauth2/v1/token` : "")
+  );
+  const authorizeUrl = String(env.OCI_PORTAL_SSO_AUTHORIZE_URL || (domainUrl ? `${domainUrl}/oauth2/v1/authorize` : ""));
+  const clientId = String(
+    env.OCI_PORTAL_SSO_CLIENT_ID ||
+      env.OCI_HOSTED_APP_IDCS_CLIENT_ID ||
+      env.IDCS_CLIENT_ID ||
+      ""
+  );
+  const clientSecret = resolveSecretReferenceValue(
+    env.OCI_PORTAL_SSO_CLIENT_SECRET ||
+      env.OCI_PORTAL_SSO_CLIENT_SECRET_ID ||
+      env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET ||
+      env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET_SECRET_ID ||
+      env.IDCS_CLIENT_SECRET ||
+      env.IDCS_CLIENT_SECRET_ID ||
+      ""
+  );
+  return {
+    enabled: portalSsoEnabledValue(env.OCI_PORTAL_SSO_ENABLED),
+    domainUrl,
+    tokenUrl,
+    authorizeUrl,
+    clientId,
+    clientSecret,
+    redirectUri: String(env.OCI_PORTAL_SSO_REDIRECT_URI || "").trim(),
+    scope: String(env.OCI_PORTAL_SSO_SCOPE || "openid email profile").trim(),
+    adminEmails: normalizePortalSsoAdminEmails(env.OCI_PORTAL_SSO_ADMIN_EMAILS || "")
+  };
+}
+
+export function portalSsoIsConfigured(config = resolvePortalSsoConfig()) {
+  return Boolean(config.enabled && config.domainUrl && config.authorizeUrl && config.tokenUrl && config.clientId && config.clientSecret && config.redirectUri && config.scope);
+}
+
+export function createPortalSsoState({ states = portalSsoStates, now = Date.now } = {}) {
+  const state = randomBytes(18).toString("base64url");
+  const nonce = randomBytes(18).toString("base64url");
+  const createdAt = Number(now());
+  states.set(state, {
+    nonce,
+    createdAt,
+    expiresAt: createdAt + portalSsoStateMaxAgeMs
+  });
+  return {
+    state,
+    nonce,
+    cookie: `${portalSsoStateCookie}=${encodeURIComponent(state)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(portalSsoStateMaxAgeMs / 1000)}`
+  };
+}
+
+export function consumePortalSsoState(state = "", cookieState = "", { states = portalSsoStates, now = Date.now } = {}) {
+  const expectedState = String(state || "");
+  if (!expectedState || expectedState !== String(cookieState || "")) {
+    throw new Error("SSO state mismatch.");
+  }
+  const record = states.get(expectedState);
+  states.delete(expectedState);
+  if (!record || Number(now()) > Number(record.expiresAt || 0)) {
+    throw new Error("SSO state expired or unknown.");
+  }
+  return record;
+}
+
+export function buildPortalSsoAuthorizeUrl(config, stateRecord) {
+  const url = new URL(config.authorizeUrl);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", config.clientId);
+  url.searchParams.set("redirect_uri", config.redirectUri);
+  url.searchParams.set("scope", config.scope || "openid email profile");
+  url.searchParams.set("state", stateRecord.state);
+  url.searchParams.set("nonce", stateRecord.nonce);
+  return url.toString();
+}
+
+export function portalSsoIdentityFromClaims(claims = {}, config = resolvePortalSsoConfig()) {
+  const subject = String(claims.sub || claims.user_id || claims.userId || "").trim();
+  if (!subject) {
+    throw new Error("SSO identity did not include a subject.");
+  }
+  const displayEmail = String(claims.email || claims.preferred_username || claims.username || subject).trim();
+  const userEmail = displayEmail.toLowerCase();
+  const adminEmails = Array.isArray(config.adminEmails) ? config.adminEmails : [];
+  return {
+    userId: `sso:${subject}`,
+    userEmail,
+    displayEmail,
+    authType: "sso",
+    role: adminEmails.includes(userEmail) ? "admin" : "user"
+  };
+}
+
+function clearPortalSsoStateCookie() {
+  return `${portalSsoStateCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
+}
+
+function decodePortalSsoJwtSegment(segment = "", label = "segment") {
+  try {
+    return JSON.parse(Buffer.from(segment, "base64url").toString("utf8"));
+  } catch {
+    throw new Error(`Invalid SSO ID token ${label}.`);
+  }
+}
+
+function parsePortalSsoJwt(token = "") {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3 || parts.some((part) => !part)) {
+    throw new Error("Invalid SSO ID token format.");
+  }
+  return {
+    encodedHeader: parts[0],
+    encodedPayload: parts[1],
+    encodedSignature: parts[2],
+    header: decodePortalSsoJwtSegment(parts[0], "header"),
+    claims: decodePortalSsoJwtSegment(parts[1], "claims")
+  };
+}
+
+function portalSsoAudienceIncludes(audience, clientId = "") {
+  const values = Array.isArray(audience) ? audience : [audience];
+  return values.map((value) => String(value || "")).includes(String(clientId || ""));
+}
+
+function selectPortalSsoJwk(jwks = {}, header = {}) {
+  const keys = Array.isArray(jwks.keys) ? jwks.keys : [];
+  const kid = String(header.kid || "");
+  const candidates = kid ? keys.filter((key) => String(key.kid || "") === kid) : keys;
+  const key = candidates.find((candidate) => String(candidate.kty || "").toUpperCase() === "RSA") || null;
+  if (!key) {
+    throw new Error("SSO signing key was not found.");
+  }
+  return key;
+}
+
+function verifyPortalSsoJwtSignature(jwt, jwk) {
+  const verifier = createVerify("RSA-SHA256");
+  verifier.update(`${jwt.encodedHeader}.${jwt.encodedPayload}`);
+  verifier.end();
+  let publicKey;
+  try {
+    publicKey = createPublicKey({ key: jwk, format: "jwk" });
+  } catch {
+    throw new Error("SSO signing key is invalid.");
+  }
+  const valid = verifier.verify(publicKey, Buffer.from(jwt.encodedSignature, "base64url"));
+  if (!valid) {
+    throw new Error("SSO ID token signature is invalid.");
+  }
+}
+
+export async function fetchPortalSsoJson(url, options = {}, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("SSO fetch implementation is unavailable.");
+  }
+  const response = await fetchImpl(url, options);
+  const text = await response.text();
+  let payload = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      const parseError = new Error("SSO response was not valid JSON.");
+      parseError.statusCode = response.status;
+      throw parseError;
+    }
+  }
+  if (!response.ok) {
+    const detail = redactSensitiveText(String(payload.error_description || payload.error || text || response.statusText || ""));
+    const error = new Error(`SSO request failed with HTTP ${response.status}${detail ? `: ${detail.slice(0, 240)}` : ""}`);
+    error.statusCode = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+export async function exchangePortalSsoCode(config, code = "", fetchImpl = globalThis.fetch) {
+  if (!portalSsoIsConfigured(config)) {
+    throw new Error("SSO is not configured.");
+  }
+  if (!String(code || "").trim()) {
+    throw new Error("SSO authorization code is missing.");
+  }
+  const buildRequest = (includeClientSecretInBody = false) => {
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      code: String(code),
+      redirect_uri: config.redirectUri
+    });
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded"
+    };
+    if (includeClientSecretInBody) {
+      body.set("client_id", config.clientId);
+      body.set("client_secret", config.clientSecret);
+    } else {
+      headers.Authorization = `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`;
+    }
+    return {
+      method: "POST",
+      headers,
+      body: body.toString()
+    };
+  };
+
+  try {
+    const payload = await fetchPortalSsoJson(config.tokenUrl, buildRequest(false), fetchImpl);
+    if (!payload.id_token) {
+      throw new Error("SSO token response did not include an ID token.");
+    }
+    return payload;
+  } catch (error) {
+    if (![400, 401].includes(Number(error.statusCode))) {
+      throw error;
+    }
+    const payload = await fetchPortalSsoJson(config.tokenUrl, buildRequest(true), fetchImpl);
+    if (!payload.id_token) {
+      throw new Error("SSO token response did not include an ID token.");
+    }
+    return payload;
+  }
+}
+
+async function fetchPortalSsoJwks(config, fetchImpl = globalThis.fetch) {
+  const discoveryUrl = `${config.domainUrl}/.well-known/openid-configuration`;
+  try {
+    const discovery = await fetchPortalSsoJson(discoveryUrl, { headers: { Accept: "application/json" } }, fetchImpl);
+    if (discovery.jwks_uri) {
+      const jwks = await fetchPortalSsoJson(discovery.jwks_uri, { headers: { Accept: "application/json" } }, fetchImpl);
+      return {
+        ...jwks,
+        issuer: String(discovery.issuer || "").trim()
+      };
+    }
+  } catch (error) {
+    console.warn(`[portal-sso] discovery failed: ${redactSensitiveText(error.message)}`);
+  }
+
+  const jwksEndpoints = [
+    `${config.domainUrl}/oauth2/v1/keys`,
+    `${config.domainUrl}/admin/v1/SigningCert/jwk`
+  ];
+  let lastError = null;
+  for (const endpoint of jwksEndpoints) {
+    try {
+      return await fetchPortalSsoJson(endpoint, { headers: { Accept: "application/json" } }, fetchImpl);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("SSO JWKS endpoint is unavailable.");
+}
+
+function normalizePortalSsoIssuer(value = "") {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+export async function validatePortalSsoIdToken(
+  idToken = "",
+  config = resolvePortalSsoConfig(),
+  { nonce = "", now = Date.now, jwks = null, fetchImpl = globalThis.fetch } = {}
+) {
+  const jwt = parsePortalSsoJwt(idToken);
+  if (jwt.header.alg !== "RS256") {
+    throw new Error("SSO ID token must use RS256.");
+  }
+
+  const resolvedJwks = jwks || await fetchPortalSsoJwks(config, fetchImpl);
+  verifyPortalSsoJwtSignature(jwt, selectPortalSsoJwk(resolvedJwks, jwt.header));
+
+  const claims = jwt.claims;
+  const expectedIssuer = normalizePortalSsoIssuer(config.issuer || resolvedJwks.issuer || config.domainUrl);
+  const actualIssuer = normalizePortalSsoIssuer(claims.iss);
+  if (expectedIssuer && actualIssuer !== expectedIssuer) {
+    throw new Error("SSO ID token issuer is invalid.");
+  }
+  if (!portalSsoAudienceIncludes(claims.aud, config.clientId)) {
+    throw new Error("SSO ID token audience is invalid.");
+  }
+  if (!claims.sub) {
+    throw new Error("SSO ID token subject is missing.");
+  }
+  if (nonce && String(claims.nonce || "") !== String(nonce)) {
+    throw new Error("SSO nonce mismatch.");
+  }
+
+  const nowSeconds = Math.floor(Number(now()) / 1000);
+  const leewaySeconds = 60;
+  if (!claims.exp || nowSeconds > Number(claims.exp) + leewaySeconds) {
+    throw new Error("SSO ID token is expired.");
+  }
+  if (claims.nbf && nowSeconds + leewaySeconds < Number(claims.nbf)) {
+    throw new Error("SSO ID token is not valid yet.");
+  }
+  if (claims.iat && nowSeconds + 300 < Number(claims.iat)) {
+    throw new Error("SSO ID token issued-at time is invalid.");
+  }
+
+  return claims;
+}
+
+export function isAdminIdentity(identity = {}) {
+  const candidate = identity || {};
+  return candidate.role === "admin" || candidate.authType === "bootstrap";
+}
+
+function requireAdminIdentity(
+  request,
+  response,
+  identity,
+  requestPath = normalizedRequestPathForAccessControl(
+    new URL(request.url || "/", `http://${host}:${port}`).pathname
+  )
+) {
+  if (isAdminIdentity(identity)) {
+    return true;
+  }
+  if (requestPath.startsWith("/api/admin/")) {
+    sendJson(response, 403, { status: "forbidden", error: "Administrator access is required." });
+  } else {
+    response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    response.end("Administrator access is required.");
+  }
+  return false;
+}
+
+export function createPortalSessionForIdentity(
+  identity = bootstrapPortalIdentity(),
+  sessions = portalSessionTokens,
+  sessionIdentities = portalSessionIdentities
+) {
+  const token = createPortalSession(sessions);
+  sessionIdentities.set(token, identity);
+  return token;
+}
+
+function openPortalAuthSession(token, identity, request) {
+  try {
+    const openSession = callPortalAuthStore("open_session", {
+      sessionToken: token,
+      identity,
+      ip: request.socket?.remoteAddress || "",
+      userAgent: request.headers["user-agent"] || ""
+    });
+    return storePortalSessionAuditId(token, openSession);
+  } catch (error) {
+    console.warn(`[portal-auth-session] ${redactSensitiveText(error.message)}`);
+    return "";
+  }
+}
+
+function validatePortalAuthSession(sessionToken = "") {
+  return callPortalAuthStore("validate_session", { sessionToken });
+}
+
+function recoverPortalIdentityFromAuthStore(
+  sessionToken,
+  {
+    sessions = portalSessionTokens,
+    sessionIdentities = portalSessionIdentities,
+    sessionAuditIds = portalSessionAuditIds,
+    authStoreSessionValidator = validatePortalAuthSession
+  } = {}
+) {
+  try {
+    const validation = authStoreSessionValidator(sessionToken);
+    const identity = validation?.status === "success" ? validation.identity : null;
+    if (!identity?.userEmail || !identity?.authType) {
+      return null;
+    }
+    sessions.add(sessionToken);
+    sessionIdentities.set(sessionToken, identity);
+    storePortalSessionAuditId(sessionToken, validation, sessionAuditIds);
+    return identity;
+  } catch (error) {
+    console.warn(`[portal-auth-session] validate_session failed: ${redactSensitiveText(error.message)}`);
+    return null;
+  }
+}
+
+export function resolvePortalIdentity(
+  request,
+  {
+    password = portalAuthPassword,
+    sessions = portalSessionTokens,
+    sessionIdentities = portalSessionIdentities,
+    sessionAuditIds = portalSessionAuditIds,
+    authStoreSessionValidator = validatePortalAuthSession
+  } = {}
+) {
   const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
   if (sessionToken && sessions.has(sessionToken)) {
-    return true;
+    const identity = sessionIdentities.get(sessionToken);
+    if (identity) {
+      return identity;
+    }
+  }
+
+  if (sessionToken) {
+    const recoveredIdentity = recoverPortalIdentityFromAuthStore(sessionToken, {
+      sessions,
+      sessionIdentities,
+      sessionAuditIds,
+      authStoreSessionValidator
+    });
+    if (recoveredIdentity) {
+      return recoveredIdentity;
+    }
   }
 
   const credentials = parseBasicAuthHeader(request.headers.authorization || "");
-  return credentials?.username === portalAuthUser && credentials.password === password;
+  if (credentials?.username === portalAuthUser && credentials.password === password) {
+    return bootstrapPortalIdentity();
+  }
+
+  return null;
+}
+
+export function isAuthorizedRequest(
+  request,
+  password = portalAuthPassword,
+  sessions = portalSessionTokens,
+  sessionIdentities = portalSessionIdentities
+) {
+  return Boolean(resolvePortalIdentity(request, { password, sessions, sessionIdentities }));
+}
+
+function logPortalAuthStoreFailure(action, diagnostics = {}) {
+  const sanitized = Object.fromEntries(
+    Object.entries(diagnostics).map(([key, value]) => [key, redactSensitiveText(String(value ?? "").slice(0, 4000))])
+  );
+  console.error(`[portal-auth-store] ${redactSensitiveText(String(action || "unknown"))} failed`, sanitized);
+}
+
+function portalAuthStoreFailure() {
+  return { ok: false, status: "failed", error: portalAuthStoreClientError };
+}
+
+function portalAuthStoreEnv(env = process.env) {
+  const nextEnv = { ...env };
+  const passwordValue = String(nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD || "").trim();
+  if (isVaultSecretReference(passwordValue) && !nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID) {
+    nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD_SECRET_ID = passwordValue;
+    delete nextEnv.OCI_PORTAL_AUTH_DB_PASSWORD;
+  }
+  return demoProcessEnv(nextEnv);
+}
+
+export function callPortalAuthStore(action, payload = {}, { env = process.env, script = portalAuthStoreScript } = {}) {
+  const result = spawnSync(pythonExecutable, [script], {
+    cwd: root,
+    encoding: "utf8",
+    env: portalAuthStoreEnv(env),
+    input: JSON.stringify({ action, payload })
+  });
+  if (result.status !== 0) {
+    logPortalAuthStoreFailure(action, {
+      status: result.status,
+      error: result.error?.message || "",
+      stderr: result.stderr || "",
+      stdout: result.stdout || ""
+    });
+    return portalAuthStoreFailure();
+  }
+  try {
+    return JSON.parse(result.stdout || "{}");
+  } catch (error) {
+    logPortalAuthStoreFailure(action, {
+      error: error.message,
+      stderr: result.stderr || "",
+      stdout: result.stdout || ""
+    });
+    return portalAuthStoreFailure();
+  }
 }
 
 function sessionCookie(token, maxAgeSeconds = 8 * 60 * 60) {
@@ -529,6 +1383,20 @@ function clearSessionCookie() {
 function renderLoginPage({ error = "", notice = "" } = {}) {
   const errorMarkup = error ? `<p class="error">${error}</p>` : "";
   const noticeMarkup = notice ? `<p class="notice">${notice}</p>` : "";
+  const oracleSsoIcon = `<span class="auth-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7.25 6.25h9.5a5.75 5.75 0 0 1 0 11.5h-9.5a5.75 5.75 0 0 1 0-11.5Zm0 2.25a3.5 3.5 0 0 0 0 7h9.5a3.5 3.5 0 0 0 0-7h-9.5Z"/></svg></span>`;
+  const localUserIcon = `<span class="auth-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 12.25a4.5 4.5 0 1 0-4.5-4.5 4.5 4.5 0 0 0 4.5 4.5Zm0-6.75a2.25 2.25 0 1 1-2.25 2.25A2.25 2.25 0 0 1 12 5.5Zm7.5 14.25v-1.1c0-3.15-3.25-5.65-7.5-5.65s-7.5 2.5-7.5 5.65v1.1h2.25v-1.1c0-1.78 2.25-3.4 5.25-3.4s5.25 1.62 5.25 3.4v1.1h2.25Z"/></svg></span>`;
+  let ssoMarkup = "";
+  try {
+    if (portalSsoIsConfigured()) {
+      ssoMarkup = `
+      <form class="sso-login" method="get" action="./auth/sso/start">
+        <button class="auth-button" type="submit">${oracleSsoIcon}<span>Continue with Oracle SSO</span></button>
+      </form>`;
+    }
+  } catch (error) {
+    console.warn(`[portal-sso] login availability check failed: ${redactSensitiveText(error.message)}`);
+  }
+  const localLoginClass = ssoMarkup ? "local-login with-sso" : "local-login";
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -537,6 +1405,14 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
     <title>OCI Enterprise AI Portal Login</title>
     <style>
       :root {
+        --oci-brand-red: #c74634;
+        --oci-brand-red-dark: #9d392c;
+        --oci-cloud-ink: #1f1f1f;
+        --oci-graphite: #312d2a;
+        --oci-muted: #5f6368;
+        --oci-border: #d6d2cc;
+        --oci-console-bg: #f8f7f4;
+        --oci-cyan: #00758f;
         color-scheme: light;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
@@ -545,36 +1421,38 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         min-height: 100vh;
         margin: 0;
         place-items: center;
-        color: #111827;
+        color: var(--oci-cloud-ink);
         background:
-          radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.13), transparent 28%),
-          linear-gradient(135deg, #f8fafc 0%, #eef2f7 48%, #f9fafb 100%);
+          linear-gradient(90deg, rgba(31, 31, 31, 0.035) 0 1px, transparent 1px 100%),
+          linear-gradient(180deg, rgba(31, 31, 31, 0.028) 0 1px, transparent 1px 100%),
+          linear-gradient(135deg, #ffffff 0%, #f1efea 48%, var(--oci-console-bg) 100%);
+        background-size: 48px 48px, 48px 48px, auto;
       }
       main {
         width: min(100% - 32px, 420px);
         padding: 28px;
-        border: 1px solid rgba(15, 23, 42, 0.1);
-        border-radius: 12px;
+        border: 1px solid rgba(31, 31, 31, 0.12);
+        border-radius: 8px;
         background: rgba(255, 255, 255, 0.94);
-        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+        box-shadow: 0 24px 70px rgba(31, 31, 31, 0.12);
       }
       .eyebrow {
         margin: 0 0 8px;
-        color: #475569;
+        color: var(--oci-cyan);
         font-size: 0.78rem;
-        font-weight: 800;
-        letter-spacing: 0.04em;
+        font-weight: 900;
+        letter-spacing: 0;
         text-transform: uppercase;
       }
       h1 {
         margin: 0 0 8px;
-        color: #0f172a;
+        color: var(--oci-cloud-ink);
         font-size: 1.45rem;
         line-height: 1.2;
       }
       .subtext {
         margin: 0 0 22px;
-        color: #64748b;
+        color: var(--oci-muted);
         font-size: 0.92rem;
         line-height: 1.5;
       }
@@ -582,22 +1460,22 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         display: grid;
         gap: 7px;
         margin: 0 0 14px;
-        color: #334155;
+        color: var(--oci-graphite);
         font-size: 0.82rem;
         font-weight: 800;
       }
       input {
         min-height: 42px;
         padding: 0 12px;
-        border: 1px solid rgba(15, 23, 42, 0.16);
+        border: 1px solid rgba(31, 31, 31, 0.16);
         border-radius: 8px;
-        color: #0f172a;
+        color: var(--oci-cloud-ink);
         background: #ffffff;
         font: inherit;
       }
       input:focus {
-        border-color: #2563eb;
-        outline: 3px solid rgba(37, 99, 235, 0.16);
+        border-color: var(--oci-brand-red);
+        outline: 3px solid rgba(199, 70, 52, 0.16);
       }
       button {
         width: 100%;
@@ -606,13 +1484,46 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         border-radius: 8px;
         color: #ffffff;
         cursor: pointer;
-        background: #1d4ed8;
+        background: var(--oci-brand-red);
         font-size: 0.9rem;
         font-weight: 900;
       }
+      .auth-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .auth-icon {
+        display: inline-grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        flex: 0 0 auto;
+      }
+      .auth-icon svg {
+        display: block;
+        width: 22px;
+        height: 22px;
+        fill: currentColor;
+      }
       button:hover,
       button:focus-visible {
-        background: #1e40af;
+        background: var(--oci-brand-red-dark);
+      }
+      .sso-login {
+        margin: 0 0 16px;
+      }
+      .sso-login button {
+        background: var(--oci-cloud-ink);
+      }
+      .sso-login button:hover,
+      .sso-login button:focus-visible {
+        background: var(--oci-graphite);
+      }
+      .local-login.with-sso {
+        padding-top: 16px;
+        border-top: 1px solid rgba(31, 31, 31, 0.12);
       }
       .error {
         margin: 0 0 14px;
@@ -627,10 +1538,10 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
       .notice {
         margin: 0 0 14px;
         padding: 10px 12px;
-        border: 1px solid rgba(37, 99, 235, 0.2);
+        border: 1px solid rgba(0, 117, 143, 0.22);
         border-radius: 8px;
-        color: #1e3a8a;
-        background: #eff6ff;
+        color: #005c70;
+        background: #eef8fa;
         font-size: 0.84rem;
         font-weight: 760;
       }
@@ -638,17 +1549,17 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
         margin-top: 12px;
       }
       .forgot-password button {
-        color: #1e293b;
+        color: var(--oci-graphite);
         background: transparent;
-        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.14);
+        box-shadow: inset 0 0 0 1px rgba(31, 31, 31, 0.14);
       }
       .forgot-password button:hover,
       .forgot-password button:focus-visible {
-        background: #f8fafc;
+        background: var(--oci-console-bg);
       }
       .version {
         margin: 18px 0 0;
-        color: #64748b;
+        color: var(--oci-muted);
         font-size: 0.78rem;
         font-weight: 800;
         text-align: center;
@@ -659,10 +1570,11 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
     <main>
       <p class="eyebrow">Secure Access</p>
       <h1>OCI Enterprise AI Portal</h1>
-      <p class="subtext">Sign in to access the demo portal and OCI Enterprise AI workflows.</p>
+      <p class="subtext">Sign in to access the demo portal and Oracle Cloud Enterprise AI workflows.</p>
       ${noticeMarkup}
       ${errorMarkup}
-      <form method="post" action="/login">
+      ${ssoMarkup}
+      <form class="${localLoginClass}" method="post" action="./login">
         <label>
           Username
           <input name="username" value="oci" autocomplete="username" required />
@@ -671,9 +1583,9 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
           Password
           <input name="password" type="password" autocomplete="current-password" required autofocus />
         </label>
-        <button type="submit">Sign in</button>
+        <button class="auth-button" type="submit">${localUserIcon}<span>Sign in as local user</span></button>
       </form>
-      <form class="forgot-password" method="post" action="/forgot-password">
+      <form class="forgot-password" method="post" action="./forgot-password">
         <button type="submit">Forgot password</button>
       </form>
       <p class="version">Version ${appVersion}</p>
@@ -682,10 +1594,11 @@ function renderLoginPage({ error = "", notice = "" } = {}) {
 </html>`;
 }
 
-function sendLoginPage(response, statusCode = 200, options = {}) {
+function sendLoginPage(response, statusCode = 200, options = {}, headers = {}) {
   response.writeHead(statusCode, {
     "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    ...headers
   });
   response.end(renderLoginPage(options));
 }
@@ -700,7 +1613,7 @@ function requestLogin(request, response, requestPath) {
   }
 
   response.writeHead(302, {
-    Location: "/login",
+    Location: "./login",
     "Cache-Control": "no-store"
   });
   response.end();
@@ -775,9 +1688,8 @@ export function buildTerraformStateCommandForModule(modulePath) {
 function buildHostedTerraformRefreshCommand() {
   const hostedInput = readHostedTerraformInput("hosted_agentic_application");
   const langGraphInput = readHostedTerraformInput("langgraph_hosted_agentic_application");
-  const langfuseInput = readHostedTerraformInput("langfuse_hosted_observability");
   const openclawInput = readHostedTerraformInput("openclaw_hosted_agent_gateway");
-  const input = { ...hostedInput, ...langGraphInput, ...langfuseInput, ...openclawInput };
+  const input = { ...hostedInput, ...langGraphInput, ...openclawInput };
   return {
     label: "infra/hosted-agentic-applications refresh",
     cmd: "terraform",
@@ -794,24 +1706,6 @@ function buildHostedTerraformRefreshCommand() {
       `-var=idcs_domain_url=${input.idcs_domain_url || "unused"}`,
       `-var=idcs_audience=${input.idcs_audience || "unused"}`,
       `-var=idcs_scope=${input.idcs_scope || "unused"}`,
-      `-var=langfuse_image_repository_uri=${input.langfuse_image_repository_uri || ""}`,
-      `-var=langfuse_database_url=${process.env.LANGFUSE_DATABASE_URL || ""}`,
-      `-var=langfuse_clickhouse_url=${process.env.LANGFUSE_CLICKHOUSE_URL || ""}`,
-      `-var=langfuse_clickhouse_migration_url=${process.env.LANGFUSE_CLICKHOUSE_MIGRATION_URL || ""}`,
-      `-var=langfuse_clickhouse_user=${process.env.LANGFUSE_CLICKHOUSE_USER || ""}`,
-      `-var=langfuse_clickhouse_password=${process.env.LANGFUSE_CLICKHOUSE_PASSWORD || ""}`,
-      `-var=langfuse_redis_connection_string=${process.env.LANGFUSE_REDIS_CONNECTION_STRING || ""}`,
-      `-var=langfuse_s3_event_upload_bucket=${process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || ""}`,
-      `-var=langfuse_s3_media_upload_bucket=${process.env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET || ""}`,
-      `-var=langfuse_s3_upload_region=${process.env.LANGFUSE_S3_UPLOAD_REGION || "auto"}`,
-      `-var=langfuse_s3_upload_endpoint=${process.env.LANGFUSE_S3_UPLOAD_ENDPOINT || ""}`,
-      `-var=langfuse_s3_upload_access_key_id=${process.env.LANGFUSE_S3_UPLOAD_ACCESS_KEY_ID || ""}`,
-      `-var=langfuse_s3_upload_secret_access_key=${process.env.LANGFUSE_S3_UPLOAD_SECRET_ACCESS_KEY || ""}`,
-      `-var=langfuse_nextauth_secret=${process.env.LANGFUSE_NEXTAUTH_SECRET || ""}`,
-      `-var=langfuse_salt=${process.env.LANGFUSE_SALT || ""}`,
-      `-var=langfuse_encryption_key=${process.env.LANGFUSE_ENCRYPTION_KEY || ""}`,
-      `-var=langfuse_init_user_email=${process.env.LANGFUSE_INIT_USER_EMAIL || ""}`,
-      `-var=langfuse_init_user_password=${process.env.LANGFUSE_INIT_USER_PASSWORD || ""}`,
       `-var=openclaw_image_repository_uri=${input.openclaw_image_repository_uri || ""}`,
       `-var=openclaw_gateway_token=${process.env.OPENCLAW_GATEWAY_TOKEN || ""}`
     ]
@@ -840,6 +1734,35 @@ function readJsonFile(filePath) {
   }
 }
 
+export function writeGeneratedMetadataFile(filePath, content, { label = "generated metadata persistence" } = {}) {
+  const startedAt = new Date().toISOString();
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, content);
+    return {
+      label,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      command: `write ${filePath}`,
+      status: "success",
+      exitCode: 0,
+      stdout: `Persisted ${filePath}`,
+      stderr: ""
+    };
+  } catch (error) {
+    return {
+      label,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      command: `write ${filePath}`,
+      status: "skipped",
+      exitCode: null,
+      stdout: "",
+      stderr: `Skipped persisting ${filePath}: ${redactSensitiveText(error.message)}`
+    };
+  }
+}
+
 function readHostedTerraformInput(resourceName) {
   const state = readJsonFile(join(root, "infra/hosted-agentic-applications/terraform.tfstate"));
   const resource = (state.resources || []).find((candidate) => candidate.type === "terraform_data" && candidate.name === resourceName);
@@ -858,7 +1781,7 @@ export function readProvisionedDetails() {
     projectDisplayName: project["display-name"] || project.displayName || "",
     apiKeyId: apiKey.id || "",
     apiKeyDisplayName: apiKey["display-name"] || apiKey.displayName || "",
-    apiKeySecret: process.env.OCI_GENAI_API_KEY || primaryKey.key || "",
+    apiKeySecret: resolveRuntimeSecret("OCI_GENAI_API_KEY", primaryKey.key || ""),
     apiKeyMask: primaryKey["key-mask"] || "",
     apiKeyState: primaryKey.state || apiKey["lifecycle-state"] || ""
   };
@@ -898,18 +1821,7 @@ export function parseTerraformStateResources(stateJson = {}) {
       "terraform_data.file_search_seed_documents": "File Search Seed Documents",
       "terraform_data.code_interpreter_container": "Code Interpreter Container",
       "terraform_data.hosted_agentic_application": "Hosted Agentic Application Module",
-      "terraform_data.langfuse_hosted_observability": "Langfuse Hosted Observability Module",
       "terraform_data.openclaw_hosted_agent_gateway": "OpenClaw Hosted Agent Gateway Module",
-      "oci_core_vcn.langfuse": "Langfuse VCN",
-      "oci_core_subnet.langfuse_private": "Langfuse Private Subnet",
-      "oci_core_nat_gateway.langfuse": "Langfuse NAT Gateway",
-      "oci_core_service_gateway.langfuse": "Langfuse Service Gateway",
-      "oci_core_network_security_group.langfuse_hosted_app": "Langfuse Hosted App NSG",
-      "oci_core_network_security_group.langfuse_dependencies": "Langfuse Dependencies NSG",
-      "oci_psql_db_system.langfuse": "Langfuse PostgreSQL",
-      "oci_container_instances_container_instance.langfuse_clickhouse": "Langfuse ClickHouse Container",
-      "oci_container_instances_container_instance.langfuse_redis": "Langfuse Redis Container",
-      "oci_objectstorage_bucket.langfuse": "Langfuse Object Storage Bucket",
       "oci_kms_vault.sql_search": "SQL Search Vault",
       "oci_kms_key.sql_search": "SQL Search Vault Key",
       "oci_vault_secret.sql_search_admin_password": "SQL Search DB Password Secret",
@@ -943,7 +1855,8 @@ export function summarizeInfrastructureState(resources = [], provisionedDetails 
   const suffix = resources.find((resource) => resource.address === "terraform_data.resource_suffix");
   const project = resources.find((resource) => resource.address === "terraform_data.generative_ai_project");
   const apiKey = resources.find((resource) => resource.address === "terraform_data.generative_ai_api_key");
-  const isCreated = hasAllRequiredTerraformResources(resources);
+  const hasExternalRuntime = Boolean(provisionedDetails.projectId && provisionedDetails.apiKeySecret);
+  const isCreated = hasAllRequiredTerraformResources(resources) || hasExternalRuntime;
   const hasFailedResources = resources.some((resource) => resource.status === "failed");
 
   return {
@@ -1065,12 +1978,29 @@ async function refreshHostedJsonFile({ label, id, targetFile, commandArgs, runti
     return result;
   }
 
-  writeFileSync(targetFile, result.stdout);
+  const persistenceResults = [
+    writeGeneratedMetadataFile(targetFile, result.stdout, {
+      label: `${label} metadata persistence`
+    })
+  ];
   if (runtimeFile && runtimeKey) {
     const payload = JSON.parse(result.stdout).data || {};
     const runtime = readJsonFile(runtimeFile);
     runtime[runtimeKey] = payload["lifecycle-state"] || payload.lifecycleState || payload.status || runtime[runtimeKey] || "";
-    writeFileSync(runtimeFile, JSON.stringify(runtime, null, 2));
+    persistenceResults.push(
+      writeGeneratedMetadataFile(runtimeFile, JSON.stringify(runtime, null, 2), {
+        label: `${label} runtime metadata persistence`
+      })
+    );
+  }
+  const skippedPersistence = persistenceResults.filter((item) => item.status !== "success");
+  if (skippedPersistence.length > 0) {
+    return {
+      ...result,
+      status: "skipped",
+      stdout: `Fetched ${targetFile}; metadata persistence skipped.`,
+      stderr: [result.stderr, ...skippedPersistence.map((item) => item.stderr)].filter(Boolean).join("\n")
+    };
   }
 
   return {
@@ -1116,18 +2046,6 @@ function hostedRuntimeDiscoveryDefinitions(resourceSuffix = resolveHostedRuntime
       envUrl: process.env.OCI_HOSTED_LANGGRAPH_URL || portalRuntimeHostedValue("LANGGRAPH_URL"),
       envDeploymentId: process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID"),
       repositoryName: `enterprise-ai-demo/hosted-langgraph-agent-${resourceSuffix}`
-    },
-    {
-      label: "Langfuse",
-      runtime: "langfuse",
-      applicationDisplayName: `enterprise-ai-demo-langfuse-${resourceSuffix}`,
-      deploymentDisplayName: `enterprise-ai-demo-langfuse-deployment-${resourceSuffix}`,
-      runtimeFile: "langfuse_hosted_observability.json",
-      applicationFile: "langfuse_hosted_application.json",
-      deploymentFile: "langfuse_hosted_deployment.json",
-      envUrl: process.env.OCI_HOSTED_LANGFUSE_URL || portalRuntimeHostedValue("LANGFUSE_URL"),
-      envDeploymentId: process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID"),
-      repositoryName: `enterprise-ai-demo/hosted-langfuse-${resourceSuffix}`
     },
     {
       label: "OpenClaw",
@@ -1292,7 +2210,6 @@ export function selectHostedRuntimeCandidate({
 
 async function discoverGeneratedHostedRuntimeState() {
   const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
-  mkdirSync(hostedDir, { recursive: true });
   const logs = [];
 
   for (const definition of hostedRuntimeDiscoveryDefinitions()) {
@@ -1359,7 +2276,7 @@ async function discoverGeneratedHostedRuntimeState() {
     });
 
     if (selected.hostedApplicationId || selected.hostedDeploymentId || selected.endpoint || seededCurrent.hostedApplicationId || seededCurrent.hostedDeploymentId || seededCurrent.url || seededCurrent.endpoint || definition.envUrl || definition.envDeploymentId) {
-      writeFileSync(
+      const persistence = writeGeneratedMetadataFile(
         targetFile,
         JSON.stringify(
           {
@@ -1377,8 +2294,12 @@ async function discoverGeneratedHostedRuntimeState() {
           },
           null,
           2
-        )
+        ),
+        { label: `${definition.label} runtime metadata persistence` }
       );
+      if (persistence.status !== "success") {
+        logs.push(persistence);
+      }
     }
   }
 
@@ -1390,11 +2311,9 @@ async function refreshGeneratedRuntimeState() {
   const hostedDir = demoGeneratedDirs["hosted-agentic-applications"];
   const hostedRuntimeFile = join(hostedDir, "hosted_agent.json");
   const langGraphRuntimeFile = join(hostedDir, "langgraph_hosted_agent.json");
-  const langfuseRuntimeFile = join(hostedDir, "langfuse_hosted_observability.json");
   const openclawRuntimeFile = join(hostedDir, "openclaw_hosted_gateway.json");
   const hostedAgent = readJsonFile(hostedRuntimeFile);
   const langGraphAgent = readJsonFile(langGraphRuntimeFile);
-  const langfuseObservability = readJsonFile(langfuseRuntimeFile);
   const openclawGateway = readJsonFile(openclawRuntimeFile);
   const llamaIndexControlTower = readLlamaIndexControlTowerMetadata();
 
@@ -1429,22 +2348,6 @@ async function refreshGeneratedRuntimeState() {
       targetFile: join(hostedDir, "langgraph_hosted_deployment.json"),
       commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
       runtimeFile: langGraphRuntimeFile,
-      runtimeKey: "hostedDeploymentLifecycleState"
-    }),
-    refreshHostedJsonFile({
-      label: "OCI Langfuse hosted application refresh",
-      id: langfuseObservability.hostedApplicationId,
-      targetFile: join(hostedDir, "langfuse_hosted_application.json"),
-      commandArgs: (id) => ["generative-ai", "hosted-application", "get", "--hosted-application-id", id],
-      runtimeFile: langfuseRuntimeFile,
-      runtimeKey: "hostedApplicationLifecycleState"
-    }),
-    refreshHostedJsonFile({
-      label: "OCI Langfuse hosted deployment refresh",
-      id: langfuseObservability.hostedDeploymentId,
-      targetFile: join(hostedDir, "langfuse_hosted_deployment.json"),
-      commandArgs: (id) => ["generative-ai", "hosted-deployment", "get", "--hosted-deployment-id", id],
-      runtimeFile: langfuseRuntimeFile,
       runtimeKey: "hostedDeploymentLifecycleState"
     }),
     refreshHostedJsonFile({
@@ -1624,24 +2527,51 @@ function hostedRuntimeEnvOverrides(hostedRuntime = {}) {
   return {};
 }
 
-function readLangfuseLaunchUrl() {
-  const observability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
-  return hostedRuntimeUrl(
-    observability.url,
-    observability.endpoint,
-    process.env.OCI_HOSTED_LANGFUSE_URL,
-    portalRuntimeHostedValue("LANGFUSE_URL")
-  );
-}
-
 function readOpenClawLaunchUrl() {
   const gateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
   return hostedRuntimeUrl(
-    gateway.url,
-    gateway.endpoint,
     process.env.OCI_HOSTED_OPENCLAW_URL,
-    portalRuntimeHostedValue("OPENCLAW_URL")
+    portalRuntimeHostedValue("OPENCLAW_URL"),
+    gateway.url,
+    gateway.endpoint
   );
+}
+
+function readHostedAgentLaunchUrl() {
+  const hostedAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_agent.json"));
+  return hostedRuntimeUrl(
+    process.env.OCI_HOSTED_AGENT_URL,
+    portalRuntimeHostedValue("HOSTED_AGENT_URL"),
+    hostedAgent.url,
+    hostedAgent.endpoint
+  );
+}
+
+function readLangGraphLaunchUrl() {
+  const langGraphAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_agent.json"));
+  return hostedRuntimeUrl(
+    process.env.OCI_HOSTED_LANGGRAPH_URL,
+    portalRuntimeHostedValue("LANGGRAPH_URL"),
+    langGraphAgent.url,
+    langGraphAgent.endpoint
+  );
+}
+
+function hostedLaunchDefinition(featureId = "") {
+  return {
+    "hosted-agentic-applications": {
+      label: "Hosted Agent",
+      launchUrl: readHostedAgentLaunchUrl()
+    },
+    "a2a-agent-collaboration": {
+      label: "A2A Primary Hosted Agent",
+      launchUrl: readHostedAgentLaunchUrl()
+    },
+    "langgraph-hosted-agent-mcp": {
+      label: "LangGraph Hosted Agent",
+      launchUrl: readLangGraphLaunchUrl()
+    }
+  }[featureId] || null;
 }
 
 function readLlamaIndexControlTowerMetadata() {
@@ -1699,9 +2629,9 @@ export function hostedRuntimeIsLaunchable(metadata = {}) {
 function readLlamaIndexControlTowerLaunchUrl() {
   const metadata = readLlamaIndexControlTowerMetadata();
   return (
-    (hostedRuntimeIsLaunchable(metadata) ? metadata.endpoint || metadata.url : "") ||
     process.env.OCI_HOSTED_LLAMAINDEX_URL ||
     portalRuntimeHostedValue("LLAMAINDEX_URL") ||
+    (hostedRuntimeIsLaunchable(metadata) ? metadata.endpoint || metadata.url : "") ||
     (hostedRuntimeIsLaunchable(metadata) && metadata.hostedApplicationId
       ? hostedApplicationInvokeUrl(metadata.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
       : "")
@@ -1727,9 +2657,11 @@ function readHostedAppIdcsLaunchConfig() {
       (domainUrl ? `${domainUrl}/oauth2/v1/token` : "")
   );
   const clientId = String(process.env.IDCS_CLIENT_ID || process.env.OCI_HOSTED_APP_IDCS_CLIENT_ID || generated.clientId || "");
-  const clientSecret = String(
+  const clientSecret = resolveSecretReferenceValue(
     process.env.IDCS_CLIENT_SECRET ||
+      process.env.IDCS_CLIENT_SECRET_ID ||
       process.env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET ||
+      process.env.OCI_HOSTED_APP_IDCS_CLIENT_SECRET_SECRET_ID ||
       generated.clientSecret ||
       ""
   );
@@ -1853,22 +2785,6 @@ export async function getIdcsAccessToken() {
   return idcsTokenCache.value;
 }
 
-function langfuseProxyTargetUrl(requestPath, search = "") {
-  const launchUrl = readLangfuseLaunchUrl();
-  if (!launchUrl) {
-    throw new Error("Langfuse hosted URL is not available. Provision hosted application infrastructure and refresh Resources first.");
-  }
-
-  const base = new URL(launchUrl);
-  const suffix = requestPath.startsWith("/api/langfuse/launch")
-    ? requestPath.replace(/^\/api\/langfuse\/launch\/?/, "")
-    : requestPath.replace(/^\/+/, "");
-  const basePath = base.pathname.replace(/\/?$/, "/");
-  base.pathname = suffix ? `${basePath}${suffix}` : basePath;
-  base.search = search || base.search;
-  return base;
-}
-
 function openclawProxyTargetUrl(requestPath, search = "") {
   const launchUrl = readOpenClawLaunchUrl();
   if (!launchUrl) {
@@ -1896,25 +2812,22 @@ export function llamaIndexControlTowerProxyTargetUrl(requestPath, search = "", l
   return base;
 }
 
-function isLangfusePassthroughPath(requestPath = "") {
-  return [
-    "/_next/",
-    "/account/",
-    "/api/admin/",
-    "/api/auth/",
-    "/api/dashboard/",
-    "/api/feedback",
-    "/api/public/",
-    "/api/trpc/",
-    "/assets/",
-    "/auth/",
-    "/favicon.ico",
-    "/icon.svg",
-    "/onboarding",
-    "/organization/",
-    "/project/",
-    "/setup"
-  ].some((prefix) => requestPath === prefix.replace(/\/$/, "") || requestPath.startsWith(prefix));
+export function hostedLaunchProxyTargetUrl(featureId = "", requestPath = "", search = "", launchUrl = "") {
+  const definition = hostedLaunchDefinition(featureId);
+  const resolvedLaunchUrl = launchUrl || definition?.launchUrl || "";
+  if (!definition || !resolvedLaunchUrl) {
+    throw new Error("Hosted application URL is not available. Provision hosted application infrastructure and refresh Resources first.");
+  }
+
+  const base = new URL(resolvedLaunchUrl);
+  const proxyPrefix = `/api/hosted/launch/${featureId}`;
+  const suffix = requestPath.startsWith(proxyPrefix)
+    ? requestPath.slice(proxyPrefix.length).replace(/^\/+/, "")
+    : requestPath.replace(/^\/+/, "");
+  const basePath = base.pathname.replace(/\/?$/, "/");
+  base.pathname = suffix ? `${basePath}${suffix}` : basePath;
+  base.search = search || base.search;
+  return base;
 }
 
 export function forwardedCookieHeader(cookieHeader = "") {
@@ -1954,19 +2867,11 @@ export function proxyResponseHeaders(headers, requestPath, { launchUrl = "", pro
       continue;
     }
     if (name.toLowerCase() === "location") {
-      if (proxyBase === "/api/langfuse/launch/" && value.startsWith("http://0.0.0.0:3000")) {
-        result[name] = value.replace("http://0.0.0.0:3000", proxyBase.replace(/\/$/, ""));
-      } else if (launchUrl && value.startsWith(launchUrl)) {
+      if (launchUrl && value.startsWith(launchUrl)) {
         result[name] = value.replace(launchUrl, proxyBase);
-      } else if (proxyBase === "/api/langfuse/launch/" && value.startsWith("/")) {
-        result[name] = `${proxyBase.replace(/\/$/, "")}${value}`;
       } else {
         result[name] = value;
       }
-      continue;
-    }
-    if (proxyBase === "/api/langfuse/launch/" && name.toLowerCase() === "set-cookie") {
-      result[name] = String(value).replaceAll(/Path=\//gi, `Path=${proxyBase.replace(/\/$/, "")}/`);
       continue;
     }
     result[name] = value;
@@ -1975,15 +2880,134 @@ export function proxyResponseHeaders(headers, requestPath, { launchUrl = "", pro
   return result;
 }
 
-function langfuseProxyOrigin(request) {
-  const host = request?.headers?.host || "127.0.0.1:5175";
-  const protocol = request?.headers?.["x-forwarded-proto"] || "http";
-  return `${protocol}://${host}`;
+function recordHostedLaunchAuditEvent({
+  featureId = "",
+  request = {},
+  parsedUrl = {},
+  identity = bootstrapPortalIdentity(),
+  sessionId = "",
+  status = "unknown",
+  durationMs = 0,
+  upstreamStatus = ""
+} = {}) {
+  const details = { path: parsedUrl.pathname || "" };
+  if (upstreamStatus !== "") {
+    details.upstreamStatus = upstreamStatus;
+  }
+  recordPortalAuditEvent({
+    sessionId,
+    identity,
+    eventType: "hosted_launch",
+    featureId,
+    action: request.method || "",
+    status,
+    durationMs,
+    details
+  });
 }
 
-export async function proxyOpenClawLaunch(request, response, parsedUrl) {
+export async function proxyHostedApplicationLaunch(
+  request,
+  response,
+  parsedUrl,
+  featureId,
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
+  const startedAt = Date.now();
+  const identityFields = identityLogFields(identity, sessionId);
+  const definition = hostedLaunchDefinition(featureId);
+  const featureLabel = definition?.label || "Hosted application";
+  try {
+    const targetUrl = hostedLaunchProxyTargetUrl(featureId, parsedUrl.pathname, parsedUrl.search);
+    const token = await getIdcsAccessToken();
+    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
+    const upstream = await fetch(targetUrl, {
+      method: request.method,
+      headers: forwardedHeaders(request.headers, token),
+      body,
+      redirect: "manual"
+    });
+    const contentType = upstream.headers.get("content-type") || "";
+    const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
+    const proxyBase = `/api/hosted/launch/${featureId}/`;
+    const durationMs = Date.now() - startedAt;
+    const status = upstream.ok ? "success" : "failed";
+    const logFile = writeDemoLog(featureId, {
+      ...identityFields,
+      action: "launch",
+      status,
+      durationMs,
+      request: {
+        method: request.method,
+        path: parsedUrl.pathname
+      },
+      upstream: {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        contentType,
+        opcRequestId: upstream.headers.get("opc-request-id") || "",
+        target: `${targetUrl.origin}${targetUrl.pathname}`,
+        bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
+      }
+    });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status,
+      durationMs,
+      upstreamStatus: upstream.status
+    });
+    response.writeHead(upstream.status, {
+      ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
+        launchUrl: definition?.launchUrl || "",
+        proxyBase
+      }),
+      "X-Demo-Log-File": logFile
+    });
+    response.end(responseBody);
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    const logFile = writeDemoLog(featureId || "hosted-application", {
+      ...identityFields,
+      action: "launch",
+      status: "failed",
+      durationMs,
+      request: {
+        method: request.method,
+        path: parsedUrl.pathname
+      },
+      error: error.message || String(error)
+    });
+    recordHostedLaunchAuditEvent({
+      featureId: featureId || "hosted-application",
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status: "failed",
+      durationMs
+    });
+    response.writeHead(502, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Demo-Log-File": logFile
+    });
+    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>${featureLabel} launch failed</title></head><body><h1>${featureLabel} launch failed</h1><p>${String(error.message || error).replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p><p>Log file: ${logFile.replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p></body></html>`);
+  }
+}
+
+export async function proxyOpenClawLaunch(
+  request,
+  response,
+  parsedUrl,
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const startedAt = Date.now();
   const featureId = "openclaw-hosted-agent-gateway";
+  const identityFields = identityLogFields(identity, sessionId);
   try {
     const targetUrl = openclawProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
     const token = await getIdcsAccessToken();
@@ -1996,10 +3020,13 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
     });
     const contentType = upstream.headers.get("content-type") || "";
     const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
+    const durationMs = Date.now() - startedAt;
+    const status = upstream.ok ? "success" : "failed";
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
+      status,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
@@ -2013,6 +3040,16 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
         bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
       }
     });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status,
+      durationMs,
+      upstreamStatus: upstream.status
+    });
     response.writeHead(upstream.status, {
       ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
         launchUrl: readOpenClawLaunchUrl(),
@@ -2022,15 +3059,26 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
     });
     response.end(responseBody);
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
       status: "failed",
-      durationMs: Date.now() - startedAt,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
       },
       error: error.message || String(error)
+    });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status: "failed",
+      durationMs
     });
     response.writeHead(502, {
       "Content-Type": "text/html; charset=utf-8",
@@ -2041,9 +3089,15 @@ export async function proxyOpenClawLaunch(request, response, parsedUrl) {
   }
 }
 
-export async function proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl) {
+export async function proxyLlamaIndexControlTowerLaunch(
+  request,
+  response,
+  parsedUrl,
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const startedAt = Date.now();
   const featureId = "agentic-control-tower";
+  const identityFields = identityLogFields(identity, sessionId);
   try {
     const targetUrl = llamaIndexControlTowerProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
     const token = await getIdcsAccessToken();
@@ -2056,10 +3110,13 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
     });
     const contentType = upstream.headers.get("content-type") || "";
     const responseBody = request.method === "HEAD" ? Buffer.from("") : Buffer.from(await upstream.arrayBuffer());
+    const durationMs = Date.now() - startedAt;
+    const status = upstream.ok ? "success" : "failed";
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
+      status,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
@@ -2072,6 +3129,16 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
         target: `${targetUrl.origin}${targetUrl.pathname}`,
         bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
       }
+    });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status,
+      durationMs,
+      upstreamStatus: upstream.status
     });
     response.writeHead(upstream.status, {
       ...proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
@@ -2082,15 +3149,26 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
     });
     response.end(responseBody);
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     const logFile = writeDemoLog(featureId, {
+      ...identityFields,
       action: "launch",
       status: "failed",
-      durationMs: Date.now() - startedAt,
+      durationMs,
       request: {
         method: request.method,
         path: parsedUrl.pathname
       },
       error: error.message || String(error)
+    });
+    recordHostedLaunchAuditEvent({
+      featureId,
+      request,
+      parsedUrl,
+      identity,
+      sessionId,
+      status: "failed",
+      durationMs
     });
     response.writeHead(502, {
       "Content-Type": "text/html; charset=utf-8",
@@ -2101,171 +3179,27 @@ export async function proxyLlamaIndexControlTowerLaunch(request, response, parse
   }
 }
 
-function langfuseProxyBaseUrl(proxyOrigin = "") {
-  return proxyOrigin ? `${String(proxyOrigin).replace(/\/+$/, "")}/api/langfuse/launch` : "";
-}
-
-function langfuseRootProxyPath() {
-  return "/api/langfuse/launch/";
-}
-
-function rewriteLangfuseAbsoluteUrl(value = "", proxyOrigin = "") {
-  const proxyBase = proxyOrigin ? langfuseProxyBaseUrl(proxyOrigin) : langfuseRootProxyPath().replace(/\/$/, "");
-  return String(value)
-    .replaceAll("http://0.0.0.0:3000", proxyBase)
-    .replaceAll("http://127.0.0.1:3000", proxyBase)
-    .replaceAll("http://localhost:3000", proxyBase);
-}
-
-function rewriteLangfuseRootRelativeUrl(value = "") {
-  if (!value || value.startsWith("//") || value.startsWith("/api/langfuse/launch")) {
-    return value;
-  }
-  return value.startsWith("/") ? `${langfuseRootProxyPath().replace(/\/$/, "")}${value}` : value;
-}
-
-export function rewriteLangfuseLaunchHtml(html, proxyOrigin = "") {
-  return rewriteLangfuseAbsoluteUrl(String(html), proxyOrigin)
-    .replace(/\b(href|src|action)=["']\/(?!\/)([^"']*)["']/g, (_match, attribute, path) => `${attribute}="${langfuseRootProxyPath()}${path}"`)
-    .replace(/\b(url|callbackUrl|redirectTo):\s*["']\/(?!\/)([^"']*)["']/g, (_match, key, path) => `${key}:"${langfuseRootProxyPath()}${path}"`)
-    .replace(/window\.location\.(?:href|assign|replace)\(["']\/(?!\/)([^"']*)["']\)/g, (_match, path) => `window.location.assign("${langfuseRootProxyPath()}${path}")`);
-}
-
-function rewriteLangfuseJsonValue(value, proxyOrigin = "") {
-  if (typeof value === "string") {
-    return rewriteLangfuseRootRelativeUrl(rewriteLangfuseAbsoluteUrl(value, proxyOrigin));
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => rewriteLangfuseJsonValue(item, proxyOrigin));
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewriteLangfuseJsonValue(item, proxyOrigin)]));
-  }
-  return value;
-}
-
-export function rewriteLangfuseLaunchJson(jsonText, proxyOrigin = "") {
-  try {
-    return JSON.stringify(rewriteLangfuseJsonValue(JSON.parse(jsonText), proxyOrigin));
-  } catch {
-    return rewriteLangfuseAbsoluteUrl(String(jsonText), proxyOrigin);
-  }
-}
-
-export async function proxyLangfuseLaunch(request, response, parsedUrl) {
-  const startedAt = Date.now();
-  const featureId = "langfuse-hosted-observability";
-  let stage = "resolve-target";
-  let targetUrl = null;
-  let proxyOrigin = "";
-  try {
-    targetUrl = langfuseProxyTargetUrl(parsedUrl.pathname, parsedUrl.search);
-    proxyOrigin = langfuseProxyOrigin(request);
-    stage = "idcs-token";
-    const token = await getIdcsAccessToken();
-    stage = "read-request";
-    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
-    stage = "upstream-fetch";
-    const upstream = await fetch(targetUrl, {
-      method: request.method,
-      headers: forwardedHeaders(request.headers, token),
-      body,
-      redirect: "manual"
-    });
-    stage = "upstream-response";
-    const contentType = upstream.headers.get("content-type") || "";
-    const arrayBuffer = request.method === "HEAD" ? new ArrayBuffer(0) : await upstream.arrayBuffer();
-    const upstreamBody = Buffer.from(arrayBuffer);
-    const responseBody = contentType.includes("text/html")
-      ? Buffer.from(rewriteLangfuseLaunchHtml(upstreamBody.toString("utf8"), proxyOrigin))
-      : contentType.includes("application/json")
-        ? Buffer.from(rewriteLangfuseLaunchJson(upstreamBody.toString("utf8"), proxyOrigin))
-        : upstreamBody;
-    const responseHeaders = proxyResponseHeaders(upstream.headers, parsedUrl.pathname, {
-      launchUrl: readLangfuseLaunchUrl(),
-      proxyBase: "/api/langfuse/launch/"
-    });
-    const logFile = writeDemoLog(featureId, {
-      action: "launch",
-      status: upstream.ok ? "success" : "failed",
-      durationMs: Date.now() - startedAt,
-      request: {
-        method: request.method,
-        path: parsedUrl.pathname,
-        search: parsedUrl.search || "",
-        host: request.headers.host || "",
-        userAgent: request.headers["user-agent"] || ""
-      },
-      upstream: {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        contentType,
-        opcRequestId: upstream.headers.get("opc-request-id") || "",
-        location: upstream.headers.get("location") || "",
-        rewrittenLocation: responseHeaders.location || responseHeaders.Location || "",
-        setCookieCount: upstream.headers.has("set-cookie") ? 1 : 0,
-        target: `${targetUrl.origin}${targetUrl.pathname}`,
-        proxyOrigin,
-        rewroteBody: !upstreamBody.equals(responseBody),
-        bodyPreview: responseBody.toString("utf8", 0, Math.min(responseBody.length, 2000))
-      },
-      diagnostics: {
-        stage,
-        idcs: idcsDemoCredentialPosture(),
-        launchUrlConfigured: Boolean(readLangfuseLaunchUrl()),
-        hostedDeploymentId: portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID") || "",
-        hostedApplicationId: readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json")).hostedApplicationId || ""
-      }
-    });
-    response.writeHead(upstream.status, {
-      ...responseHeaders,
-      "X-Demo-Log-File": logFile
-    });
-    response.end(responseBody);
-  } catch (error) {
-    const logFile = writeDemoLog(featureId, {
-      action: "launch",
-      status: "failed",
-      durationMs: Date.now() - startedAt,
-      request: {
-        method: request.method,
-        path: parsedUrl.pathname,
-        search: parsedUrl.search || "",
-        host: request.headers.host || "",
-        userAgent: request.headers["user-agent"] || ""
-      },
-      upstream: {
-        target: targetUrl ? `${targetUrl.origin}${targetUrl.pathname}` : "",
-        proxyOrigin
-      },
-      diagnostics: {
-        stage,
-        idcs: idcsDemoCredentialPosture(),
-        launchUrlConfigured: Boolean(readLangfuseLaunchUrl()),
-        hostedDeploymentId: portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID") || "",
-        hostedApplicationId: readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json")).hostedApplicationId || ""
-      },
-      error: error.message || String(error),
-      stack: error?.stack || "",
-      errorDetails: errorLogDetails(error)
-    });
-    response.writeHead(502, {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Demo-Log-File": logFile
-    });
-    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>Langfuse launch failed</title></head><body><h1>Langfuse launch failed</h1><p>${String(error.message || error).replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p><p>Log file: ${logFile.replace(/[<>&"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "\"": "&quot;" })[char])}</p></body></html>`);
-  }
-}
-
-export function fileSearchRuntimeComponents({ vectorStore = {}, vectorStoreFiles = {}, vectorStoreId = "" } = {}) {
+export function fileSearchRuntimeComponents({
+  vectorStore = {},
+  vectorStoreFiles = {},
+  vectorStoreId = "",
+  seedDocumentCount = 0,
+  seedDocumentCompletedCount = 0
+} = {}) {
   const seedDocuments = Array.isArray(vectorStoreFiles.documents) ? vectorStoreFiles.documents : [];
   const completedSeedDocuments = seedDocuments.filter((document) => {
     const uploadedFile = document.file || {};
     const vectorStoreFile = document.vector_store_file || {};
     return statusFromLifecycle(uploadedFile.status) === "created" && statusFromLifecycle(vectorStoreFile.status) === "created";
   });
-  const hasCompletedSeeds = seedDocuments.length > 0 && completedSeedDocuments.length === seedDocuments.length;
+  const reportedSeedDocumentCount = Number(vectorStoreFiles.documentCount || vectorStoreFiles.count || seedDocumentCount || 0);
+  const reportedCompletedSeedDocumentCount = Number(
+    vectorStoreFiles.completedCount || vectorStoreFiles.completed || seedDocumentCompletedCount || 0
+  );
+  const totalSeedDocumentCount = seedDocuments.length > 0 ? seedDocuments.length : reportedSeedDocumentCount;
+  const completedSeedDocumentCount =
+    seedDocuments.length > 0 ? completedSeedDocuments.length : reportedCompletedSeedDocumentCount;
+  const hasCompletedSeeds = totalSeedDocumentCount > 0 && completedSeedDocumentCount >= totalSeedDocumentCount;
   const resolvedVectorStoreId = vectorStore.id || vectorStoreId;
   const vectorStoreStatus = resolvedVectorStoreId
     ? hasCompletedSeeds
@@ -2283,9 +3217,9 @@ export function fileSearchRuntimeComponents({ vectorStore = {}, vectorStoreFiles
     component(
       "generated.file_search_seed_documents",
       "File Search Seed Documents",
-      hasCompletedSeeds ? "created" : seedDocuments.length > 0 ? "creating" : "not-created",
-      seedDocuments.length > 0
-        ? `${completedSeedDocuments.length}/${seedDocuments.length} bundled Oracle PDFs completed`
+      hasCompletedSeeds ? "created" : totalSeedDocumentCount > 0 ? "creating" : "not-created",
+      totalSeedDocumentCount > 0
+        ? `${completedSeedDocumentCount}/${totalSeedDocumentCount} bundled Oracle PDFs completed`
         : "Bundled PDFs pending"
     )
   ];
@@ -2306,79 +3240,123 @@ export function sharedResponsesDemoComponents({ projectId = "", apiKeyAvailable 
   return demos.map(([address, name]) => component(address, name, status, value));
 }
 
+export function devopsHostedDeploymentComponents({ buildRunId = "", buildPipelineId = "", deployments = {} } = {}) {
+  const metadataValue = ({ label = "Hosted application", url = "", deploymentId = "" } = {}) => {
+    const values = [deploymentId, url].map((value) => String(value || "").trim()).filter(Boolean);
+    return values.length ? values.join(" | ") : `OCI DevOps build did not export ${label} deployment metadata`;
+  };
+  const deploymentEntries = Object.entries(deployments || {}).map(([key, deployment]) => {
+    const label = deployment?.label || key;
+    const url = String(deployment?.url || "").trim();
+    const deploymentId = String(deployment?.deploymentId || "").trim();
+    return component(
+      `generated.devops_hosted_${key}`,
+      `${label} DevOps Deployment Export`,
+      url || deploymentId ? "created" : "not-created",
+      metadataValue({ label, url, deploymentId })
+    );
+  });
+
+  return [
+    component(
+      "generated.devops_hosted_build_run",
+      "OCI DevOps Hosted Build Run",
+      buildRunId ? "created" : "not-created",
+      buildRunId || "OCI DevOps build run ID is not available"
+    ),
+    component(
+      "generated.devops_hosted_build_pipeline",
+      "OCI DevOps Hosted Build Pipeline",
+      buildPipelineId ? "created" : "not-created",
+      buildPipelineId || "OCI DevOps build pipeline ID is not available"
+    ),
+    ...deploymentEntries
+  ];
+}
+
 function demoRuntimeComponents() {
+  const portalRuntimeConfig = readPortalRuntimeConfig();
   const conversation = readJsonFile(join(demoGeneratedDirs["conversation-store"], "conversation.json"));
   const vectorStore = readJsonFile(join(demoGeneratedDirs["file-search-vector-store-rag"], "vector_store.json"));
   const vectorStoreFiles = readJsonFile(join(demoGeneratedDirs["file-search-vector-store-rag"], "vector_store_files.json"));
   const codeContainer = readJsonFile(join(demoGeneratedDirs["code-interpreter"], "container.json"));
   const hostedAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_agent.json"));
   const langGraphAgent = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_agent.json"));
-  const langfuseObservability = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_observability.json"));
   const openclawGateway = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_gateway.json"));
   const llamaIndexControlTower = readLlamaIndexControlTowerMetadata();
   const ocirRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "ocir_repository.json")).data || {};
   const langGraphRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_ocir_repository.json")).data || {};
-  const langfuseRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_ocir_repository.json")).data || {};
   const openclawRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_ocir_repository.json")).data || {};
   const llamaIndexRepository = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_ocir_repository.json")).data || {};
-  const langfuseRepositoryId = langfuseObservability.repositoryId || langfuseRepository.id || "";
   const hostedApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_application.json")).data || {};
   const langGraphApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_application.json")).data || {};
-  const langfuseApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_application.json")).data || {};
   const openclawApplication = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_application.json")).data || {};
   const hostedDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "hosted_deployment.json")).data || {};
   const langGraphDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langgraph_hosted_deployment.json")).data || {};
-  const langfuseDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "langfuse_hosted_deployment.json")).data || {};
   const openclawDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "openclaw_hosted_deployment.json")).data || {};
   const llamaIndexDeployment = readJsonFile(join(demoGeneratedDirs["hosted-agentic-applications"], "llamaindex_hosted_deployment.json")).data || {};
   const lifecycleValue = (value) => value["lifecycle-state"] || value.lifecycle_state || value.status || "";
   const artifactContainerUri = (artifact) => artifact["container-uri"] || artifact.container_uri || "";
   const hostedArtifact = hostedDeployment["active-artifact"] || hostedDeployment.active_artifact || {};
   const langGraphArtifact = langGraphDeployment["active-artifact"] || langGraphDeployment.active_artifact || {};
-  const langfuseArtifact = langfuseDeployment["active-artifact"] || langfuseDeployment.active_artifact || {};
   const openclawArtifact = openclawDeployment["active-artifact"] || openclawDeployment.active_artifact || {};
   const llamaIndexArtifact = llamaIndexDeployment["active-artifact"] || llamaIndexDeployment.active_artifact || {};
   const llamaIndexLaunchable = hostedRuntimeIsLaunchable(llamaIndexControlTower);
-  const langfuseHostedUrl = hostedRuntimeUrl(langfuseObservability.url, langfuseObservability.endpoint);
   const openclawHostedUrl = hostedRuntimeUrl(openclawGateway.url, openclawGateway.endpoint);
   const llamaIndexHostedUrl = llamaIndexLaunchable ? llamaIndexControlTower.url || llamaIndexControlTower.endpoint || "" : "";
   const hostedAgentDeploymentIdEnv = process.env.OCI_HOSTED_AGENT_DEPLOYMENT_ID || portalRuntimeHostedValue("HOSTED_AGENT_DEPLOYMENT_ID");
   const hostedAgentUrlEnv = process.env.OCI_HOSTED_AGENT_URL || portalRuntimeHostedValue("HOSTED_AGENT_URL");
   const langGraphDeploymentIdEnv = process.env.OCI_HOSTED_LANGGRAPH_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGGRAPH_DEPLOYMENT_ID");
   const langGraphHostedUrlEnv = process.env.OCI_HOSTED_LANGGRAPH_URL || portalRuntimeHostedValue("LANGGRAPH_URL");
-  const langfuseHostedUrlEnv = process.env.OCI_HOSTED_LANGFUSE_URL || portalRuntimeHostedValue("LANGFUSE_URL");
   const openclawHostedUrlEnv = process.env.OCI_HOSTED_OPENCLAW_URL || portalRuntimeHostedValue("OPENCLAW_URL");
   const llamaIndexHostedUrlEnv = process.env.OCI_HOSTED_LLAMAINDEX_URL || portalRuntimeHostedValue("LLAMAINDEX_URL");
-  const langfuseDeploymentIdEnv = process.env.OCI_HOSTED_LANGFUSE_DEPLOYMENT_ID || portalRuntimeHostedValue("LANGFUSE_DEPLOYMENT_ID");
   const openclawDeploymentIdEnv = process.env.OCI_HOSTED_OPENCLAW_DEPLOYMENT_ID || portalRuntimeHostedValue("OPENCLAW_DEPLOYMENT_ID");
   const llamaIndexDeploymentIdEnv = process.env.OCI_HOSTED_LLAMAINDEX_DEPLOYMENT_ID || portalRuntimeHostedValue("LLAMAINDEX_DEPLOYMENT_ID");
   const hostedAgentApplicationIdEnv = hostedApplicationIdFromInvokeUrl(hostedAgentUrlEnv);
   const langGraphApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langGraphHostedUrlEnv);
-  const langfuseApplicationIdEnv = hostedApplicationIdFromInvokeUrl(langfuseHostedUrlEnv);
   const openclawApplicationIdEnv = hostedApplicationIdFromInvokeUrl(openclawHostedUrlEnv);
-  const finalHostedAgentDeploymentId = hostedAgent.hostedDeploymentId || hostedAgentDeploymentIdEnv;
-  const finalHostedAgentApplicationId = hostedAgent.hostedApplicationId || hostedAgentApplicationIdEnv;
-  const finalHostedAgentUrl = hostedRuntimeUrl(hostedAgent.endpoint, hostedAgent.url, hostedAgentUrlEnv);
-  const finalLangGraphDeploymentId = langGraphAgent.hostedDeploymentId || langGraphDeploymentIdEnv;
-  const finalLangGraphApplicationId = langGraphAgent.hostedApplicationId || langGraphApplicationIdEnv;
-  const finalLangGraphHostedUrl = hostedRuntimeUrl(langGraphAgent.endpoint, langGraphAgent.url, langGraphHostedUrlEnv);
-  const finalLangfuseDeploymentId = langfuseObservability.hostedDeploymentId || langfuseDeploymentIdEnv;
-  const finalOpenclawDeploymentId = openclawGateway.hostedDeploymentId || openclawDeploymentIdEnv;
-  const finalLlamaIndexDeploymentId = llamaIndexControlTower.hostedDeploymentId || llamaIndexDeploymentIdEnv;
-  const finalLangfuseApplicationId = langfuseObservability.hostedApplicationId || langfuseApplicationIdEnv;
-  const finalOpenclawApplicationId = openclawGateway.hostedApplicationId || openclawApplicationIdEnv;
-  const finalConversationId = conversation.id || process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId");
-  const finalVectorStoreId = vectorStore.id || process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId");
+  const runtimeManagedStatus = (finalId, runtimeId, lifecycle) => {
+    if (!finalId) {
+      return "not-created";
+    }
+    return runtimeId && finalId === runtimeId ? "created" : statusFromLifecycle(lifecycle, "created");
+  };
+  const runtimeManagedValue = (knownValue, runtimeValue, fallbackValue) =>
+    knownValue || (runtimeValue ? fallbackValue : "");
+  const finalHostedAgentDeploymentId = hostedAgentDeploymentIdEnv || hostedAgent.hostedDeploymentId;
+  const finalHostedAgentApplicationId = hostedAgentApplicationIdEnv || hostedAgent.hostedApplicationId;
+  const finalHostedAgentUrl = hostedRuntimeUrl(hostedAgentUrlEnv, hostedAgent.endpoint, hostedAgent.url);
+  const finalLangGraphDeploymentId = langGraphDeploymentIdEnv || langGraphAgent.hostedDeploymentId;
+  const finalLangGraphApplicationId = langGraphApplicationIdEnv || langGraphAgent.hostedApplicationId;
+  const finalLangGraphHostedUrl = hostedRuntimeUrl(langGraphHostedUrlEnv, langGraphAgent.endpoint, langGraphAgent.url);
+  const finalOpenclawDeploymentId = openclawDeploymentIdEnv || openclawGateway.hostedDeploymentId;
+  const finalLlamaIndexDeploymentId = llamaIndexDeploymentIdEnv || llamaIndexControlTower.hostedDeploymentId;
+  const finalOpenclawApplicationId = openclawApplicationIdEnv || openclawGateway.hostedApplicationId;
+  const runtimeVectorStore = portalRuntimeConfig.fileSearchVectorStore || {};
+  const runtimeVectorStoreFiles = portalRuntimeConfig.fileSearchSeedDocuments || {};
+  const finalVectorStore = vectorStore.id ? vectorStore : runtimeVectorStore;
+  const finalVectorStoreFiles =
+    Array.isArray(vectorStoreFiles.documents) && vectorStoreFiles.documents.length > 0 ? vectorStoreFiles : runtimeVectorStoreFiles;
+  const finalConversationId = process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeConfig.conversationId || conversation.id;
+  const finalVectorStoreId = process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeConfig.vectorStoreId || finalVectorStore.id;
   const finalCodeInterpreterContainerId =
-    codeContainer.id || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeValue("codeInterpreterContainerId");
-  const finalLangfuseHostedUrl = hostedRuntimeUrl(langfuseHostedUrl, langfuseHostedUrlEnv);
-  const finalOpenclawHostedUrl = hostedRuntimeUrl(openclawHostedUrl, openclawHostedUrlEnv);
+    process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER || portalRuntimeConfig.codeInterpreterContainerId || codeContainer.id;
+  const finalCodeInterpreterContainerStatus =
+    codeContainer.status || portalRuntimeConfig.codeInterpreterContainerStatus || (finalCodeInterpreterContainerId ? "created" : "");
+  const finalOpenclawHostedUrl = hostedRuntimeUrl(openclawHostedUrlEnv, openclawHostedUrl);
   const finalLlamaIndexHostedUrl =
-    llamaIndexHostedUrl ||
     llamaIndexHostedUrlEnv ||
+    llamaIndexHostedUrl ||
     (llamaIndexLaunchable && llamaIndexControlTower.hostedApplicationId
       ? hostedApplicationInvokeUrl(llamaIndexControlTower.hostedApplicationId, process.env.OCI_GENAI_REGION || "us-chicago-1")
       : "");
+  const hostedAgentRuntimeManaged = Boolean(hostedAgentUrlEnv || hostedAgentDeploymentIdEnv);
+  const langGraphRuntimeManaged = Boolean(langGraphHostedUrlEnv || langGraphDeploymentIdEnv);
+  const openclawRuntimeManaged = Boolean(openclawHostedUrlEnv || openclawDeploymentIdEnv);
+  const llamaIndexRuntimeManaged = Boolean(llamaIndexHostedUrlEnv || llamaIndexDeploymentIdEnv);
+  const devopsHostedBuildRunId =
+    process.env.OCI_DEVOPS_HOSTED_IMAGE_BUILD_RUN_ID || portalRuntimeValue("devopsHostedImageBuildRunId");
+  const devopsHostedBuildPipelineId = portalRuntimeValue("devopsHostedImageBuildPipelineId");
 
   return [
     component(
@@ -2387,65 +3365,80 @@ function demoRuntimeComponents() {
       finalConversationId ? "created" : "not-created",
       finalConversationId || "Run provisioning to create OCI conversation"
     ),
-    ...fileSearchRuntimeComponents({ vectorStore, vectorStoreFiles, vectorStoreId: finalVectorStoreId }),
+    ...fileSearchRuntimeComponents({
+      vectorStore: finalVectorStore,
+      vectorStoreFiles: finalVectorStoreFiles,
+      vectorStoreId: finalVectorStoreId,
+      seedDocumentCount: portalRuntimeConfig.fileSearchSeedDocumentCount,
+      seedDocumentCompletedCount: portalRuntimeConfig.fileSearchSeedDocumentCompletedCount
+    }),
     component(
       "generated.code_interpreter_container",
       "Code Interpreter Container",
-      finalCodeInterpreterContainerId ? statusFromLifecycle(codeContainer.status, "created") : "not-created",
+      finalCodeInterpreterContainerId ? statusFromLifecycle(finalCodeInterpreterContainerStatus, "created") : "not-created",
       finalCodeInterpreterContainerId || "Run provisioning to create code container"
     ),
     component(
       "generated.code_interpreter_container_status",
       "Code Interpreter Container Status",
-      finalCodeInterpreterContainerId ? statusFromLifecycle(codeContainer.status, "created") : "not-created",
-      codeContainer.status || "Run provisioning to create code container"
+      finalCodeInterpreterContainerId ? statusFromLifecycle(finalCodeInterpreterContainerStatus, "created") : "not-created",
+      finalCodeInterpreterContainerStatus || "Run provisioning to create code container"
     ),
     component(
       "generated.hosted_agent_ocir_repository",
       "Hosted Agent OCIR Repository",
-      hostedAgent.repositoryId ? "created" : "not-created",
-      hostedAgent.repositoryName || "Run provisioning to create OCIR repository"
+      hostedAgent.repositoryId || hostedAgentRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(hostedAgent.repositoryName, hostedAgentRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OCIR repository"
     ),
     component(
       "generated.hosted_agent_ocir_repository_id",
       "Hosted Agent OCIR Repository ID",
-      hostedAgent.repositoryId ? statusFromLifecycle(ocirRepository["lifecycle-state"], "created") : "not-created",
-      hostedAgent.repositoryId || "Run provisioning to create OCIR repository"
+      hostedAgent.repositoryId || hostedAgentRuntimeManaged ? statusFromLifecycle(ocirRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(hostedAgent.repositoryId, hostedAgentRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OCIR repository"
     ),
     component(
       "generated.hosted_agent_ocir_image_count",
       "Hosted Agent OCIR Image Count",
-      ocirRepository.id ? "created" : "not-created",
-      ocirRepository.id ? `${ocirRepository["image-count"] || 0} image(s), ${ocirRepository["layer-count"] || 0} layer(s)` : "Run provisioning to push hosted agent image"
+      ocirRepository.id || hostedAgentRuntimeManaged ? "created" : "not-created",
+      ocirRepository.id
+        ? `${ocirRepository["image-count"] || 0} image(s), ${ocirRepository["layer-count"] || 0} layer(s)`
+        : hostedAgentRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to push hosted agent image"
     ),
     component(
       "generated.hosted_agent_image",
       "Hosted Agent Image URI",
-      hostedAgent.imageUri ? "created" : "not-created",
-      hostedAgent.imageUri || "Run provisioning to push hosted agent image"
+      hostedAgent.imageUri || hostedAgentRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(hostedAgent.imageUri, hostedAgentRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to push hosted agent image"
     ),
     component(
       "generated.llamaindex_control_tower_ocir_repository",
       "LlamaIndex Control Tower OCIR Repository",
-      llamaIndexControlTower.repositoryId ? "created" : "not-created",
-      llamaIndexControlTower.repositoryName || "Run provisioning to create LlamaIndex OCIR repository"
+      llamaIndexControlTower.repositoryId || llamaIndexRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(llamaIndexControlTower.repositoryName, llamaIndexRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LlamaIndex OCIR repository"
     ),
     component(
       "generated.llamaindex_control_tower_ocir_repository_id",
       "LlamaIndex Control Tower OCIR Repository ID",
-      llamaIndexControlTower.repositoryId ? statusFromLifecycle(llamaIndexRepository["lifecycle-state"], "created") : "not-created",
-      llamaIndexControlTower.repositoryId || "Run provisioning to create LlamaIndex OCIR repository"
+      llamaIndexControlTower.repositoryId || llamaIndexRuntimeManaged ? statusFromLifecycle(llamaIndexRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(llamaIndexControlTower.repositoryId, llamaIndexRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LlamaIndex OCIR repository"
     ),
     component(
       "generated.llamaindex_control_tower_hosted_application",
       "LlamaIndex Control Tower Hosted Application",
-      llamaIndexControlTower.hostedApplicationId ? statusFromLifecycle(llamaIndexControlTower.hostedApplicationLifecycleState, "created") : "not-created",
-      llamaIndexControlTower.hostedApplicationId || "Run provisioning to create LlamaIndex hosted application"
+      runtimeManagedStatus(llamaIndexControlTower.hostedApplicationId || hostedApplicationIdFromInvokeUrl(finalLlamaIndexHostedUrl), hostedApplicationIdFromInvokeUrl(llamaIndexHostedUrlEnv), llamaIndexControlTower.hostedApplicationLifecycleState),
+      llamaIndexControlTower.hostedApplicationId || hostedApplicationIdFromInvokeUrl(finalLlamaIndexHostedUrl) || "Run provisioning to create LlamaIndex hosted application"
     ),
     component(
       "generated.llamaindex_control_tower_hosted_deployment",
       "LlamaIndex Control Tower Hosted Deployment",
-      finalLlamaIndexDeploymentId ? statusFromLifecycle(llamaIndexControlTower.hostedDeploymentLifecycleState, "created") : "not-created",
+      runtimeManagedStatus(finalLlamaIndexDeploymentId, llamaIndexDeploymentIdEnv, llamaIndexControlTower.hostedDeploymentLifecycleState),
       finalLlamaIndexDeploymentId || "Run provisioning to create LlamaIndex hosted deployment"
     ),
     component(
@@ -2457,25 +3450,28 @@ function demoRuntimeComponents() {
     component(
       "generated.llamaindex_control_tower_image",
       "LlamaIndex Control Tower Image URI",
-      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) ? "created" : "not-created",
-      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) || "Run provisioning to push LlamaIndex image"
+      llamaIndexControlTower.imageUri || artifactContainerUri(llamaIndexArtifact) || llamaIndexRuntimeManaged ? "created" : "not-created",
+      llamaIndexControlTower.imageUri ||
+        artifactContainerUri(llamaIndexArtifact) ||
+        runtimeManagedValue("", llamaIndexRuntimeManaged, "Managed by Resource Manager DevOps") ||
+        "Run provisioning to push LlamaIndex image"
     ),
     component(
       "generated.hosted_agent_application",
       "OCI Hosted Application",
-      finalHostedAgentApplicationId ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
+      runtimeManagedStatus(finalHostedAgentApplicationId, hostedAgentApplicationIdEnv, hostedApplication.status),
       finalHostedAgentApplicationId || "Run provisioning to create hosted application"
     ),
     component(
       "generated.hosted_agent_application_work_request",
       "OCI Hosted Application Work Request",
-      hostedApplication.id ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
-      hostedApplication.id || "Run provisioning to create hosted application"
+      hostedApplication.id || hostedAgentRuntimeManaged ? statusFromLifecycle(hostedApplication.status, "created") : "not-created",
+      hostedApplication.id || (hostedAgentRuntimeManaged ? "Managed by Resource Manager DevOps" : "Run provisioning to create hosted application")
     ),
     component(
       "generated.hosted_agent_deployment",
       "OCI Hosted Deployment",
-      finalHostedAgentDeploymentId ? statusFromLifecycle(lifecycleValue(hostedDeployment), "created") : "not-created",
+      runtimeManagedStatus(finalHostedAgentDeploymentId, hostedAgentDeploymentIdEnv, lifecycleValue(hostedDeployment)),
       finalHostedAgentDeploymentId || "Run provisioning to create hosted deployment"
     ),
     component(
@@ -2487,37 +3483,44 @@ function demoRuntimeComponents() {
     component(
       "generated.hosted_agent_deployment_artifact",
       "OCI Hosted Deployment Artifact",
-      hostedArtifact.id ? statusFromLifecycle(hostedArtifact.status, "created") : "not-created",
-      artifactContainerUri(hostedArtifact) ? `${artifactContainerUri(hostedArtifact)}:${hostedArtifact.tag || ""}` : "Run provisioning to attach hosted deployment artifact"
+      hostedArtifact.id || hostedAgentRuntimeManaged ? statusFromLifecycle(hostedArtifact.status, "created") : "not-created",
+      artifactContainerUri(hostedArtifact)
+        ? `${artifactContainerUri(hostedArtifact)}:${hostedArtifact.tag || ""}`
+        : hostedAgentRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to attach hosted deployment artifact"
     ),
     component(
       "generated.langgraph_hosted_agent_ocir_repository",
       "LangGraph Agent OCIR Repository",
-      langGraphAgent.repositoryId ? "created" : "not-created",
-      langGraphAgent.repositoryName || "Run provisioning to create LangGraph OCIR repository"
+      langGraphAgent.repositoryId || langGraphRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(langGraphAgent.repositoryName, langGraphRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LangGraph OCIR repository"
     ),
     component(
       "generated.langgraph_hosted_agent_ocir_repository_id",
       "LangGraph Agent OCIR Repository ID",
-      langGraphAgent.repositoryId ? statusFromLifecycle(langGraphRepository["lifecycle-state"], "created") : "not-created",
-      langGraphAgent.repositoryId || "Run provisioning to create LangGraph OCIR repository"
+      langGraphAgent.repositoryId || langGraphRuntimeManaged ? statusFromLifecycle(langGraphRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(langGraphAgent.repositoryId, langGraphRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create LangGraph OCIR repository"
     ),
     component(
       "generated.langgraph_hosted_agent_image",
       "LangGraph Agent Image URI",
-      langGraphAgent.imageUri ? "created" : "not-created",
-      langGraphAgent.imageUri || "Run provisioning to push LangGraph hosted agent image"
+      langGraphAgent.imageUri || langGraphRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(langGraphAgent.imageUri, langGraphRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to push LangGraph hosted agent image"
     ),
     component(
       "generated.langgraph_hosted_agent_application",
       "LangGraph OCI Hosted Application",
-      finalLangGraphApplicationId ? statusFromLifecycle(langGraphApplication.status, "created") : "not-created",
+      runtimeManagedStatus(finalLangGraphApplicationId, langGraphApplicationIdEnv, langGraphApplication.status),
       finalLangGraphApplicationId || "Run provisioning to create LangGraph hosted application"
     ),
     component(
       "generated.langgraph_hosted_agent_deployment",
       "LangGraph OCI Hosted Deployment",
-      finalLangGraphDeploymentId ? statusFromLifecycle(lifecycleValue(langGraphDeployment), "created") : "not-created",
+      runtimeManagedStatus(finalLangGraphDeploymentId, langGraphDeploymentIdEnv, lifecycleValue(langGraphDeployment)),
       finalLangGraphDeploymentId || "Run provisioning to create LangGraph hosted deployment"
     ),
     component(
@@ -2529,95 +3532,88 @@ function demoRuntimeComponents() {
     component(
       "generated.langgraph_hosted_agent_deployment_artifact",
       "LangGraph OCI Hosted Deployment Artifact",
-      langGraphArtifact.id ? statusFromLifecycle(langGraphArtifact.status, "created") : "not-created",
+      langGraphArtifact.id || langGraphRuntimeManaged ? statusFromLifecycle(langGraphArtifact.status, "created") : "not-created",
       artifactContainerUri(langGraphArtifact)
         ? `${artifactContainerUri(langGraphArtifact)}:${langGraphArtifact.tag || ""}`
-        : "Run provisioning to attach LangGraph hosted deployment artifact"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_ocir_repository",
-      "Langfuse OCIR Repository",
-      langfuseRepositoryId ? "created" : "not-created",
-      langfuseObservability.repositoryName || "Run provisioning to create Langfuse OCIR repository"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_ocir_repository_id",
-      "Langfuse OCIR Repository ID",
-      langfuseRepositoryId ? statusFromLifecycle(langfuseRepository["lifecycle-state"], "created") : "not-created",
-      langfuseRepositoryId || "Run provisioning to create Langfuse OCIR repository"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_image",
-      "Langfuse Image URI",
-      langfuseObservability.imageUri ? "created" : "not-created",
-      langfuseObservability.imageUri || "Run provisioning to push Langfuse image"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_application",
-      "Langfuse OCI Hosted Application",
-      finalLangfuseApplicationId ? statusFromLifecycle(langfuseApplication.status, "created") : "not-created",
-      finalLangfuseApplicationId || "Run provisioning to create Langfuse hosted application"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_deployment",
-      "Langfuse OCI Hosted Deployment",
-      finalLangfuseDeploymentId ? statusFromLifecycle(lifecycleValue(langfuseDeployment), "created") : "not-created",
-      finalLangfuseDeploymentId || "Run provisioning to create Langfuse hosted deployment"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_deployment_artifact",
-      "Langfuse OCI Hosted Deployment Artifact",
-      langfuseArtifact.id ? statusFromLifecycle(langfuseArtifact.status, "created") : "not-created",
-      artifactContainerUri(langfuseArtifact) ? `${artifactContainerUri(langfuseArtifact)}:${langfuseArtifact.tag || ""}` : "Run provisioning to attach Langfuse hosted deployment artifact"
-    ),
-    component(
-      "generated.langfuse_hosted_observability_url",
-      "Langfuse Hosted URL",
-      finalLangfuseHostedUrl ? "created" : "not-created",
-      finalLangfuseHostedUrl || "Run provisioning to create Langfuse hosted URL"
+        : langGraphRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to attach LangGraph hosted deployment artifact"
     ),
     component(
       "generated.openclaw_hosted_gateway_ocir_repository",
       "OpenClaw OCIR Repository",
-      openclawGateway.repositoryId ? "created" : "not-created",
-      openclawGateway.repositoryName || "Run provisioning to create OpenClaw OCIR repository"
+      openclawGateway.repositoryId || openclawRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(openclawGateway.repositoryName, openclawRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OpenClaw OCIR repository"
     ),
     component(
       "generated.openclaw_hosted_gateway_ocir_repository_id",
       "OpenClaw OCIR Repository ID",
-      openclawGateway.repositoryId ? statusFromLifecycle(openclawRepository["lifecycle-state"], "created") : "not-created",
-      openclawGateway.repositoryId || "Run provisioning to create OpenClaw OCIR repository"
+      openclawGateway.repositoryId || openclawRuntimeManaged ? statusFromLifecycle(openclawRepository["lifecycle-state"], "created") : "not-created",
+      runtimeManagedValue(openclawGateway.repositoryId, openclawRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to create OpenClaw OCIR repository"
     ),
     component(
       "generated.openclaw_hosted_gateway_image",
       "OpenClaw Image URI",
-      openclawGateway.imageUri ? "created" : "not-created",
-      openclawGateway.imageUri || "Run provisioning to push OpenClaw image"
+      openclawGateway.imageUri || openclawRuntimeManaged ? "created" : "not-created",
+      runtimeManagedValue(openclawGateway.imageUri, openclawRuntimeManaged, "Managed by Resource Manager DevOps")
+        || "Run provisioning to push OpenClaw image"
     ),
     component(
       "generated.openclaw_hosted_gateway_application",
       "OpenClaw OCI Hosted Application",
-      finalOpenclawApplicationId ? statusFromLifecycle(openclawApplication.status, "created") : "not-created",
+      runtimeManagedStatus(finalOpenclawApplicationId, openclawApplicationIdEnv, openclawApplication.status),
       finalOpenclawApplicationId || "Run provisioning to create OpenClaw hosted application"
     ),
     component(
       "generated.openclaw_hosted_gateway_deployment",
       "OpenClaw OCI Hosted Deployment",
-      finalOpenclawDeploymentId ? statusFromLifecycle(lifecycleValue(openclawDeployment), "created") : "not-created",
+      runtimeManagedStatus(finalOpenclawDeploymentId, openclawDeploymentIdEnv, lifecycleValue(openclawDeployment)),
       finalOpenclawDeploymentId || "Run provisioning to create OpenClaw hosted deployment"
     ),
     component(
       "generated.openclaw_hosted_gateway_deployment_artifact",
       "OpenClaw OCI Hosted Deployment Artifact",
-      openclawArtifact.id ? statusFromLifecycle(openclawArtifact.status, "created") : "not-created",
-      artifactContainerUri(openclawArtifact) ? `${artifactContainerUri(openclawArtifact)}:${openclawArtifact.tag || ""}` : "Run provisioning to attach OpenClaw hosted deployment artifact"
+      openclawArtifact.id || openclawRuntimeManaged ? statusFromLifecycle(openclawArtifact.status, "created") : "not-created",
+      artifactContainerUri(openclawArtifact)
+        ? `${artifactContainerUri(openclawArtifact)}:${openclawArtifact.tag || ""}`
+        : openclawRuntimeManaged
+          ? "Managed by Resource Manager DevOps"
+          : "Run provisioning to attach OpenClaw hosted deployment artifact"
     ),
     component(
       "generated.openclaw_hosted_gateway_url",
       "OpenClaw Hosted URL",
       finalOpenclawHostedUrl ? "created" : "not-created",
       finalOpenclawHostedUrl || "Run provisioning to create OpenClaw hosted URL"
-    )
+    ),
+    ...devopsHostedDeploymentComponents({
+      buildRunId: devopsHostedBuildRunId,
+      buildPipelineId: devopsHostedBuildPipelineId,
+      deployments: {
+        hostedAgent: {
+          label: "Hosted Agent",
+          url: finalHostedAgentUrl,
+          deploymentId: finalHostedAgentDeploymentId
+        },
+        langGraph: {
+          label: "LangGraph",
+          url: finalLangGraphHostedUrl,
+          deploymentId: finalLangGraphDeploymentId
+        },
+        openclaw: {
+          label: "OpenClaw",
+          url: finalOpenclawHostedUrl,
+          deploymentId: finalOpenclawDeploymentId
+        },
+        llamaIndex: {
+          label: "LlamaIndex",
+          url: finalLlamaIndexHostedUrl,
+          deploymentId: finalLlamaIndexDeploymentId
+        }
+      }
+    })
   ];
 }
 
@@ -2665,7 +3661,15 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
     : [];
   const portalRuntimeConfig = readPortalRuntimeConfig({ refresh });
   const currentState = await readAllTerraformStates();
-  const provisionedDetails = readProvisionedDetails();
+  const localProvisionedDetails = readProvisionedDetails();
+  const provisionedDetails = {
+    ...localProvisionedDetails,
+    projectId: localProvisionedDetails.projectId || portalRuntimeConfig.projectId || "",
+    projectDisplayName:
+      localProvisionedDetails.projectDisplayName ||
+      (portalRuntimeConfig.resourceSuffix ? `${baseProjectDisplayName}-${portalRuntimeConfig.resourceSuffix}` : ""),
+    apiKeySecret: localProvisionedDetails.apiKeySecret || resolveRuntimeSecret("OCI_GENAI_API_KEY")
+  };
   const runtimeComponents = [
     ...demoRuntimeComponents(),
     ...sharedResponsesDemoComponents({
@@ -2701,9 +3705,6 @@ export async function getResponsesInfrastructureState({ refresh = false } = {}) 
       langGraphHostedUrl: runtimeValue("LangGraph Hosted Agent URL"),
       langGraphHostedDeploymentId: runtimeValue("LangGraph OCI Hosted Deployment"),
       langGraphHostedDeploymentStatus: runtimeStatus("LangGraph OCI Hosted Deployment"),
-      langfuseHostedUrl: runtimeValue("Langfuse Hosted URL"),
-      langfuseHostedDeploymentId: runtimeValue("Langfuse OCI Hosted Deployment"),
-      langfuseHostedDeploymentStatus: runtimeStatus("Langfuse OCI Hosted Deployment"),
       openclawHostedUrl: runtimeValue("OpenClaw Hosted URL"),
       openclawHostedDeploymentId: runtimeValue("OpenClaw OCI Hosted Deployment"),
       openclawHostedDeploymentStatus: runtimeStatus("OpenClaw OCI Hosted Deployment"),
@@ -2824,8 +3825,18 @@ function readBootstrapLogEntries(limit = 12) {
     .slice(0, limit);
 }
 
-export function readAdminLogSummary() {
-  const history = readDemoRunHistory();
+function readPortalAuditActivity(filters = {}) {
+  const queryFilters = Object.fromEntries(
+    Object.entries(filters)
+      .map(([key, value]) => [key, adminFilterValue(value)])
+      .filter(([, value]) => Boolean(value))
+  );
+  const result = callPortalAuthStore("query_activity", { filters: queryFilters });
+  return result.status === "success" ? result : { status: "unavailable", metrics: {}, events: [] };
+}
+
+export function readAdminLogSummary(filters = {}) {
+  const history = readDemoRunHistory(filters);
   const demoLogs = history.runs.slice(0, 30).map((run) => redactForDemoLog({
     source: "demo",
     name: run.featureId || "unknown",
@@ -2844,22 +3855,42 @@ export function readAdminLogSummary() {
       logs: run.logs || []
     }, null, 2)
   }));
-  const bootstrapLogs = readBootstrapLogEntries();
-  const logs = [...demoLogs, ...bootstrapLogs]
+  const bootstrapLogs = hasAdminActivityFilters(filters) ? [] : readBootstrapLogEntries();
+  const activity = readPortalAuditActivity(filters);
+  const auditLogs = (Array.isArray(activity.events) ? activity.events : []).map((event) => redactForDemoLog({
+    source: "audit",
+    name: event.featureId || event.eventType || "portal",
+    status: event.status || "unknown",
+    createdAt: event.createdAt || "",
+    path: event.userEmail || "",
+    sizeBytes: 0,
+    preview: JSON.stringify({
+      userEmail: event.userEmail || "",
+      eventType: event.eventType || "",
+      action: event.action || "",
+      durationMs: event.durationMs || 0,
+      details: event.details || {}
+    }, null, 2)
+  }));
+  const logs = [...demoLogs, ...bootstrapLogs, ...auditLogs]
     .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
     .slice(0, 60);
 
+  const runHistoryReference = portalRunHistoryReference();
   return redactForDemoLog({
     generatedAt: new Date().toISOString(),
     sources: [
       { name: "demo", count: demoLogs.length },
       { name: "bootstrap", count: bootstrapLogs.length },
-      { name: "container", count: 0 }
+      { name: "audit", count: auditLogs.length },
+      { name: "hosted-application", count: 0 }
     ],
     containerLogs: {
-      status: "manual",
-      note: "Portal startup logs are shown from local log capture. OCI container logs can be retrieved with the container retrieve-logs command when a container OCID is available.",
-      command: `oci container-instances container retrieve-logs --container-id <container-ocid> --region ${process.env.OCI_GENAI_REGION || "us-chicago-1"}`
+      status: hasObjectStorageReference(runHistoryReference) ? "object-storage" : "local",
+      note: hasObjectStorageReference(runHistoryReference)
+        ? `Demo logs, counters, and metrics are read from Object Storage object ${runHistoryReference.bucket}/${runHistoryReference.object}. Hosted application runtime logs are available through OCI service logging.`
+        : "Demo logs, counters, and metrics are read from local portal log capture. Hosted application runtime logs are available through OCI service logging.",
+      command: ""
     },
     logs
   });
@@ -2896,9 +3927,20 @@ summary = summarize_rows_with_responses_api(rows, config)`,
     "hosted-agentic-applications": `metadata = read_hosted_agent_metadata()
 request = build_incident_payload(prompt, metadata)
 result = call_hosted_agent_or_return_config(metadata, request)`,
-    "langgraph-hosted-agent-mcp": `graph = load_langgraph_runtime()
-mcp_tools = graph.discover_mcp_tools()
-selected_tool = graph.select_tool(prompt, mcp_tools)
+    "openai-compatible-chat": `response = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": prompt}],
+    temperature=temperature,
+)`,
+    "responses-streaming-structured-output": `stream = client.responses.create(
+    model=model,
+    input=prompt,
+    stream=True,
+    text={"format": {"type": "json_schema", "schema": schema}},
+)`,
+    "langgraph-hosted-agent-mcp": `graph = StateGraph(AgentState)
+compiled = graph.compile()
+selected_tool = compiled.invoke({"prompt": prompt})["selected_tool"]
 response = call_oci_responses_api(build_agent_prompt(graph, selected_tool), temperature, model, config)`,
     "agentic-control-tower": `workflow = build_llamaindex_control_tower()
 workflow_result = run_workflow(workflow, prompt, idcs_posture)
@@ -2906,9 +3948,9 @@ response = call_oci_responses_api(build_control_tower_prompt(workflow_result), t
     "agentic-rag-planner": `plan = build_retrieval_plan(prompt)
 queries = plan["retrievalQueries"]
 response = call_oci_responses_api(build_grounded_plan_prompt(plan), temperature, model, config)`,
-    "locus-sdk-agentic-workflows": `workflow = build_locus_agent_workflow(prompt)
-tools = select_locus_tools(workflow)
-memory = load_locus_memory_context(workflow)
+    "locus-sdk-agentic-workflows": `from locus.agent import Agent
+from locus.tools import tool
+workflow = build_locus_agent_workflow(prompt, Agent, tool)
 response = call_oci_responses_api(build_locus_prompt(workflow), temperature, model, config)`,
     "human-approval-agent": `approval = classify_agent_action_risk(prompt)
 if approval["approvalRequired"]:
@@ -3027,8 +4069,15 @@ sendJson(response, 200, parsed);`,
   ];
 }
 
-async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt = Date.now(), hostedRuntime = {}) {
+async function runHostedLlamaIndexControlTower(
+  payload,
+  runtimeConfig,
+  startedAt = Date.now(),
+  hostedRuntime = {},
+  { identity = bootstrapPortalIdentity(), sessionId = "" } = {}
+) {
   const featureId = "agentic-control-tower";
+  const identityFields = identityLogFields(identity, sessionId);
   const targetUrl = llamaIndexControlTowerProxyTargetUrl(
     "/api/llamaindex/launch/agent/control-tower/respond",
     "",
@@ -3055,6 +4104,7 @@ async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt
     throw new Error(`Hosted LlamaIndex response was not JSON: ${responseBody.slice(0, 500)}`);
   }
   const durationMs = Date.now() - startedAt;
+  const status = upstream.ok ? "success" : "failed";
   const result = {
     feature: "Agentic Control Tower",
     mode: "agentic-control-tower",
@@ -3073,16 +4123,28 @@ async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt
       "Called hosted LlamaIndex control tower endpoint",
       "Returned hosted workflow response to portal"
     ],
-    status: upstream.ok ? "success" : "failed",
+    status,
     durationMs
   };
-  result.logFile = writeDemoLog(featureId, {
+  const logFile = writeDemoLog(featureId, {
+    ...identityFields,
     action: "run-hosted",
-    status: upstream.ok ? "success" : "failed",
+    status,
     durationMs,
     runtimeConfig,
     request: requestPayload,
     response: result
+  });
+  result.logFile = logFile;
+  recordPortalAuditEvent({
+    sessionId,
+    identity,
+    eventType: "demo_run",
+    featureId,
+    action: "run",
+    status,
+    durationMs,
+    details: { request: payload, logFile }
   });
   if (!upstream.ok) {
     const error = new Error(parsed.error || `Hosted LlamaIndex call failed with status ${upstream.status}`);
@@ -3092,7 +4154,7 @@ async function runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt
   return result;
 }
 
-export function runFeatureDemo(featureId, payload) {
+export function runFeatureDemo(featureId, payload, { identity = bootstrapPortalIdentity(), sessionId = "" } = {}) {
   const scriptName = demoScripts[featureId];
   if (!scriptName) {
     return Promise.reject(new Error(`No runnable demo is configured for ${featureId}.`));
@@ -3100,6 +4162,19 @@ export function runFeatureDemo(featureId, payload) {
 
   const provisionedDetails = readProvisionedDetails();
   const startedAt = Date.now();
+  const identityFields = identityLogFields(identity, sessionId);
+  const recordRunAudit = ({ status, durationMs, logFile = "" }) => {
+    recordPortalAuditEvent({
+      sessionId,
+      identity,
+      eventType: "demo_run",
+      featureId,
+      action: "run",
+      status,
+      durationMs,
+      details: { request: payload, logFile }
+    });
+  };
   const idcsPosture = idcsDemoCredentialPosture();
   const hostedRuntime = resolvePayloadHostedRuntime(featureId, payload);
   const hostedLlamaIndexMetadata = featureId === "agentic-control-tower" ? readLlamaIndexControlTowerMetadata() : {};
@@ -3107,7 +4182,7 @@ export function runFeatureDemo(featureId, payload) {
   const runtimeConfig = {
     region: payload.region || process.env.OCI_GENAI_REGION || "",
     projectConfigured: Boolean(payload.projectId || provisionedDetails.projectId || process.env.OCI_GENAI_PROJECT_ID),
-    apiKeyConfigured: Boolean(payload.apiKey || provisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY),
+    apiKeyConfigured: Boolean(payload.apiKey || provisionedDetails.apiKeySecret || resolveRuntimeSecret("OCI_GENAI_API_KEY")),
     conversationConfigured: Boolean(payload.conversationId || process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId")),
     vectorStoreConfigured: Boolean(payload.vectorStoreId || process.env.OCI_GENAI_VECTOR_STORE_ID),
     codeInterpreterContainerConfigured: Boolean(payload.codeInterpreterContainer || process.env.OCI_GENAI_CODE_INTERPRETER_CONTAINER),
@@ -3123,7 +4198,7 @@ export function runFeatureDemo(featureId, payload) {
     hostedLlamaIndexUrl &&
     (hostedRuntime.hostedUrl || String(hostedLlamaIndexMetadata.hostedDeploymentLifecycleState || "").toUpperCase() === "ACTIVE")
   ) {
-    return runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt, hostedRuntime);
+    return runHostedLlamaIndexControlTower(payload, runtimeConfig, startedAt, hostedRuntime, { identity, sessionId });
   }
 
   return new Promise((resolve, reject) => {
@@ -3133,7 +4208,7 @@ export function runFeatureDemo(featureId, payload) {
       env: demoProcessEnv(process.env, {
         OCI_GENAI_REGION: payload.region || process.env.OCI_GENAI_REGION || "",
         OCI_GENAI_PROJECT_ID: payload.projectId || provisionedDetails.projectId || process.env.OCI_GENAI_PROJECT_ID || "",
-        OCI_GENAI_API_KEY: payload.apiKey || provisionedDetails.apiKeySecret || process.env.OCI_GENAI_API_KEY || "",
+        OCI_GENAI_API_KEY: payload.apiKey || provisionedDetails.apiKeySecret || resolveRuntimeSecret("OCI_GENAI_API_KEY"),
         OCI_GENAI_CONVERSATION_ID: payload.conversationId || process.env.OCI_GENAI_CONVERSATION_ID || portalRuntimeValue("conversationId"),
         OCI_GENAI_VECTOR_STORE_ID: payload.vectorStoreId || process.env.OCI_GENAI_VECTOR_STORE_ID || portalRuntimeValue("vectorStoreId"),
         OCI_GENAI_CODE_INTERPRETER_CONTAINER:
@@ -3160,20 +4235,23 @@ export function runFeatureDemo(featureId, payload) {
     child.on("error", (error) => {
       const durationMs = Date.now() - startedAt;
       const runError = new Error(error.message);
+      const logFile = writeDemoLog(featureId, {
+        ...identityFields,
+        action: "run",
+        status: "failed",
+        durationMs,
+        runtimeConfig,
+        request: payload,
+        stdout,
+        stderr,
+        error: error.message
+      });
+      recordRunAudit({ status: "failed", durationMs, logFile });
       runError.payload = {
         status: "failed",
         durationMs,
         error: error.message,
-        logFile: writeDemoLog(featureId, {
-          action: "run",
-          status: "failed",
-          durationMs,
-          runtimeConfig,
-          request: payload,
-          stdout,
-          stderr,
-          error: error.message
-        })
+        logFile
       };
       reject(runError);
     });
@@ -3199,6 +4277,7 @@ export function runFeatureDemo(featureId, payload) {
           });
           parsed.logs = [{ label: "python", status: "failed", command: `${pythonExecutable} backend/demos/${scriptName}`, stdout, stderr }];
           parsed.logFile = writeDemoLog(featureId, {
+            ...identityFields,
             action: "run",
             status: "failed",
             durationMs,
@@ -3208,6 +4287,7 @@ export function runFeatureDemo(featureId, payload) {
             stderr,
             response: parsed
           });
+          recordRunAudit({ status: "failed", durationMs, logFile: parsed.logFile });
           console.error(`[demo-run] failed feature=${featureId} exit=${code} durationMs=${durationMs} error=${error}`);
           const runError = new Error(error);
           runError.payload = parsed;
@@ -3224,6 +4304,7 @@ export function runFeatureDemo(featureId, payload) {
             logs: [{ label: "python", status: "failed", command: `${pythonExecutable} backend/demos/${scriptName}`, stdout, stderr }]
           };
           runError.payload.logFile = writeDemoLog(featureId, {
+            ...identityFields,
             action: "run",
             status: "failed",
             durationMs,
@@ -3233,6 +4314,7 @@ export function runFeatureDemo(featureId, payload) {
             stderr,
             error
           });
+          recordRunAudit({ status: "failed", durationMs, logFile: runError.payload.logFile });
           reject(runError);
         }
         return;
@@ -3245,6 +4327,7 @@ export function runFeatureDemo(featureId, payload) {
         parsed.trace = buildRunTrace({ featureId, scriptName, payload, runtimeConfig, stdout, stderr, parsed, status: "success", durationMs });
         parsed.logs = [{ label: "python", status: "success", command: `${pythonExecutable} backend/demos/${scriptName}`, stdout, stderr }];
         parsed.logFile = writeDemoLog(featureId, {
+          ...identityFields,
           action: "run",
           status: "success",
           durationMs,
@@ -3254,25 +4337,29 @@ export function runFeatureDemo(featureId, payload) {
           stderr,
           response: parsed
         });
+        recordRunAudit({ status: "success", durationMs, logFile: parsed.logFile });
         console.log(`[demo-run] completed feature=${featureId} exit=${code} durationMs=${durationMs}`);
         resolve(parsed);
       } catch (error) {
         console.error(`[demo-run] failed feature=${featureId} exit=${code} durationMs=${durationMs} error=${error.message}`);
         const runError = new Error(`Python demo returned invalid JSON: ${error.message}`);
+        const logFile = writeDemoLog(featureId, {
+          ...identityFields,
+          action: "run",
+          status: "failed",
+          durationMs,
+          runtimeConfig,
+          request: payload,
+          stdout,
+          stderr,
+          error: runError.message
+        });
+        recordRunAudit({ status: "failed", durationMs, logFile });
         runError.payload = {
           status: "failed",
           durationMs,
           error: runError.message,
-          logFile: writeDemoLog(featureId, {
-            action: "run",
-            status: "failed",
-            durationMs,
-            runtimeConfig,
-            request: payload,
-            stdout,
-            stderr,
-            error: runError.message
-          })
+          logFile
         };
         reject(runError);
       }
@@ -3291,15 +4378,97 @@ export const server = createServer(async (request, response) => {
   const parsedUrl = new URL(requestUrl, `http://${host}:${port}`);
   const requestPath = parsedUrl.pathname;
 
+  if ((request.method === "GET" || request.method === "HEAD") && ["/health", "/healthz", "/readyz"].includes(requestPath)) {
+    if (request.method === "HEAD") {
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store"
+      });
+      response.end();
+      return;
+    }
+    sendJson(response, 200, { status: "ok" });
+    return;
+  }
+
+  if ((request.method === "GET" || request.method === "HEAD") && requestPath === "/" && !isAuthorizedRequest(request)) {
+    if (request.method === "HEAD") {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store"
+      });
+      response.end();
+      return;
+    }
+    sendLoginPage(response);
+    return;
+  }
+
   if (request.method === "GET" && requestPath === "/login") {
     if (isAuthorizedRequest(request)) {
-      response.writeHead(302, { Location: "/" });
+      response.writeHead(302, { Location: "./" });
       response.end();
       return;
     }
 
     sendLoginPage(response);
     return;
+  }
+
+  if (request.method === "GET" && requestPath === "/auth/sso/start") {
+    const config = resolvePortalSsoConfig();
+    if (!portalSsoIsConfigured(config)) {
+      sendLoginPage(response, 503, { error: "SSO sign-in is not configured. Use the local oci login." });
+      return;
+    }
+
+    const stateRecord = createPortalSsoState();
+    response.writeHead(302, {
+      Location: buildPortalSsoAuthorizeUrl(config, stateRecord),
+      "Set-Cookie": stateRecord.cookie,
+      "Cache-Control": "no-store"
+    });
+    response.end();
+    return;
+  }
+
+  if (request.method === "GET" && requestPath === "/auth/sso/callback") {
+    const config = resolvePortalSsoConfig();
+    try {
+      if (!portalSsoIsConfigured(config)) {
+        throw new Error("SSO is not configured.");
+      }
+      if (parsedUrl.searchParams.get("error")) {
+        throw new Error(`SSO provider rejected sign-in: ${parsedUrl.searchParams.get("error")}`);
+      }
+
+      const code = parsedUrl.searchParams.get("code") || "";
+      const state = parsedUrl.searchParams.get("state") || "";
+      const cookieState = parseCookies(request.headers.cookie || "")[portalSsoStateCookie] || "";
+      const stateRecord = consumePortalSsoState(state, cookieState);
+      const tokenPayload = await exchangePortalSsoCode(config, code);
+      const claims = await validatePortalSsoIdToken(tokenPayload.id_token, config, { nonce: stateRecord.nonce });
+      const identity = portalSsoIdentityFromClaims(claims, config);
+      const token = createPortalSessionForIdentity(identity);
+      openPortalAuthSession(token, identity, request);
+
+      response.writeHead(302, {
+        Location: "./",
+        "Set-Cookie": [sessionCookie(token), clearPortalSsoStateCookie()],
+        "Cache-Control": "no-store"
+      });
+      response.end();
+      return;
+    } catch (error) {
+      console.warn(`[portal-sso] callback failed: ${redactSensitiveText(error.message)}`);
+      sendLoginPage(
+        response,
+        401,
+        { error: "SSO sign-in failed. Try again or use the local oci login." },
+        { "Set-Cookie": clearPortalSsoStateCookie() }
+      );
+      return;
+    }
   }
 
   if (request.method === "POST" && requestPath === "/login") {
@@ -3309,9 +4478,9 @@ export const server = createServer(async (request, response) => {
     const password = String(form.get("password") || "");
 
     if (username === portalAuthUser && password === portalAuthPassword) {
-      const token = createPortalSession();
+      const token = createPortalSessionForIdentity(bootstrapPortalIdentity());
       response.writeHead(302, {
-        Location: "/",
+        Location: "./",
         "Set-Cookie": sessionCookie(token),
         "Cache-Control": "no-store"
       });
@@ -3332,11 +4501,17 @@ export const server = createServer(async (request, response) => {
   if (request.method === "POST" && requestPath === "/logout") {
     const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
     if (sessionToken) {
+      const identity = portalSessionIdentities.get(sessionToken);
+      if (identity) {
+        callPortalAuthStore("close_session", { sessionToken, identity });
+      }
+      portalSessionIdentities.delete(sessionToken);
       portalSessionTokens.delete(sessionToken);
+      portalSessionAuditIds.delete(sessionToken);
     }
 
     response.writeHead(302, {
-      Location: "/login",
+      Location: "./login",
       "Set-Cookie": clearSessionCookie(),
       "Cache-Control": "no-store"
     });
@@ -3349,18 +4524,30 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
-  if (requestPath === "/api/langfuse/launch" || requestPath.startsWith("/api/langfuse/launch/")) {
-    await proxyLangfuseLaunch(request, response, parsedUrl);
+  const identity = resolvePortalIdentity(request) || bootstrapPortalIdentity();
+  const sessionId = portalAuditSessionIdForRequest(request);
+  const accessControlPath = normalizedRequestPathForAccessControl(requestPath);
+
+  if (
+    (accessControlPath === "/admin.html" || accessControlPath.startsWith("/api/admin/")) &&
+    !requireAdminIdentity(request, response, identity, accessControlPath)
+  ) {
     return;
   }
 
   if (requestPath === "/api/openclaw/launch" || requestPath.startsWith("/api/openclaw/launch/")) {
-    await proxyOpenClawLaunch(request, response, parsedUrl);
+    await proxyOpenClawLaunch(request, response, parsedUrl, { identity, sessionId });
     return;
   }
 
   if (requestPath === "/api/llamaindex/launch" || requestPath.startsWith("/api/llamaindex/launch/")) {
-    await proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl);
+    await proxyLlamaIndexControlTowerLaunch(request, response, parsedUrl, { identity, sessionId });
+    return;
+  }
+
+  const hostedLaunchMatch = requestPath.match(/^\/api\/hosted\/launch\/([a-z0-9-]+)(?:\/.*)?$/);
+  if (hostedLaunchMatch) {
+    await proxyHostedApplicationLaunch(request, response, parsedUrl, hostedLaunchMatch[1], { identity, sessionId });
     return;
   }
 
@@ -3369,7 +4556,7 @@ export const server = createServer(async (request, response) => {
     try {
       const body = await readRequestBody(request);
       const payload = body ? JSON.parse(body) : {};
-      const result = await runFeatureDemo(runMatch[1], payload);
+      const result = await runFeatureDemo(runMatch[1], payload, { identity, sessionId });
       sendJson(response, 200, result);
     } catch (error) {
       sendJson(response, 500, {
@@ -3399,7 +4586,8 @@ export const server = createServer(async (request, response) => {
 
   if (request.method === "GET" && requestPath === "/api/admin/demo-runs") {
     try {
-      sendJson(response, 200, readDemoRunHistory());
+      const filters = parseAdminActivityFilters(parsedUrl.searchParams);
+      sendJson(response, 200, readDemoRunHistory(filters));
     } catch (error) {
       sendJson(response, 500, {
         metrics: {
@@ -3460,7 +4648,8 @@ export const server = createServer(async (request, response) => {
 
   if (request.method === "GET" && requestPath === "/api/admin/logs") {
     try {
-      sendJson(response, 200, readAdminLogSummary());
+      const filters = parseAdminActivityFilters(parsedUrl.searchParams);
+      sendJson(response, 200, readAdminLogSummary(filters));
     } catch (error) {
       sendJson(response, 500, {
         generatedAt: new Date().toISOString(),
@@ -3476,8 +4665,19 @@ export const server = createServer(async (request, response) => {
     return;
   }
 
-  if (isLangfusePassthroughPath(requestPath)) {
-    await proxyLangfuseLaunch(request, response, parsedUrl);
+  if (request.method === "GET" && requestPath === "/api/admin/change-log") {
+    try {
+      sendJson(response, 200, readPortalChangeLog());
+    } catch (error) {
+      sendJson(response, 500, {
+        name: "OCI Enterprise AI Portal Change Log",
+        generatedAt: new Date().toISOString(),
+        source: "unavailable",
+        object: {},
+        entries: [],
+        error: error.message
+      });
+    }
     return;
   }
 
@@ -3486,7 +4686,8 @@ export const server = createServer(async (request, response) => {
   const extension = extname(pathToServe);
 
   response.writeHead(200, {
-    "Content-Type": contentTypes[extension] ?? "application/octet-stream"
+    "Content-Type": contentTypes[extension] ?? "application/octet-stream",
+    "Cache-Control": "no-store"
   });
 
   createReadStream(pathToServe).pipe(response);
@@ -3512,7 +4713,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(`Portal login username: ${portalAuthUser}`);
     if (portalAuthPasswordConfig.source === "local-file") {
       console.log(`Portal login password source: ${portalAuthPasswordFile}`);
-    } else if (portalAuthPasswordConfig.source === "env-file") {
+    } else if (portalAuthPasswordConfig.source === "env") {
       console.log("Portal login password source: OCI_PORTAL_PASSWORD");
     } else {
       console.log(`Generated portal login password: ${portalAuthPassword}`);

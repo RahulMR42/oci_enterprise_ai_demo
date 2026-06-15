@@ -63,11 +63,11 @@
 <text class="box-text" x="535" y="226" text-anchor="middle">backend/demos/locus_sdk_agentic_workflows.py</text>
 
   <rect class="box-outline box-purple" x="415" y="350" width="240" height="124"/>
-  <text class="box-title" x="535" y="380" text-anchor="middle">Locus SDK agent workflow on OCI Responses</text>
-<text class="box-text" x="535" y="406" text-anchor="middle">Runs a guided Locus SDK workflow plan</text>
-<text class="box-text" x="535" y="425" text-anchor="middle">based on the public Locus</text>
-<text class="box-text" x="535" y="444" text-anchor="middle">documentation: agent loop, tool</text>
-<text class="box-text" x="535" y="463" text-anchor="middle">execution, MCP-ready tools,</text>
+  <text class="box-title" x="535" y="380" text-anchor="middle">Oracle Locus SDK Agent and tools</text>
+<text class="box-text" x="535" y="406" text-anchor="middle">Loads Oracle's Locus SDK, builds a</text>
+<text class="box-text" x="535" y="425" text-anchor="middle">demo Agent/tool contract with</text>
+<text class="box-text" x="535" y="444" text-anchor="middle">locus.agent.Agent and</text>
+<text class="box-text" x="535" y="463" text-anchor="middle">locus.tools.tool, then uses OCI</text>
 
   <rect class="box-outline box-green" x="785" y="170" width="240" height="112"/>
   <text class="box-title" x="905" y="200" text-anchor="middle">Terraform module</text>
@@ -75,9 +75,8 @@
 
   <rect class="box-outline box-green" x="785" y="350" width="240" height="124"/>
   <text class="box-title" x="905" y="380" text-anchor="middle">Data and OCI resources</text>
-<text class="box-text" x="905" y="406" text-anchor="middle">Tool registry, MCP integration,</text>
-<text class="box-text" x="905" y="425" text-anchor="middle">memory, checkpoints, streaming</text>
-<text class="box-text" x="905" y="444" text-anchor="middle">events</text>
+<text class="box-text" x="905" y="406" text-anchor="middle">Tool registry, SDK contract, memory,</text>
+<text class="box-text" x="905" y="425" text-anchor="middle">checkpoints, streaming events</text>
 
   <rect class="box-outline box-orange" x="1145" y="170" width="170" height="112"/>
   <text class="box-title" x="1230" y="200" text-anchor="middle">Security</text>
@@ -86,9 +85,9 @@
 
   <rect class="box-outline box-orange" x="1145" y="350" width="170" height="124"/>
   <text class="box-title" x="1230" y="380" text-anchor="middle">Capabilities</text>
-<text class="box-text" x="1230" y="406" text-anchor="middle">Locus agent loop, Tools</text>
-<text class="box-text" x="1230" y="425" text-anchor="middle">and MCP, Memory and</text>
-<text class="box-text" x="1230" y="444" text-anchor="middle">checkpoints</text>
+<text class="box-text" x="1230" y="406" text-anchor="middle">Locus SDK Agent class,</text>
+<text class="box-text" x="1230" y="425" text-anchor="middle">Tool decorator contract,</text>
+<text class="box-text" x="1230" y="444" text-anchor="middle">Memory and checkpoints</text>
 
   <rect class="box-outline box-gray" x="110" y="760" width="1180" height="82"/>
   <text class="box-title" x="135" y="790">Response path</text>

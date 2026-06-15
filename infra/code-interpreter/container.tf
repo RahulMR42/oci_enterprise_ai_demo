@@ -1,6 +1,6 @@
 resource "terraform_data" "code_interpreter_container" {
   triggers_replace = [
-    "resource-manager-generated-runtime-files-20260604",
+    "resource-manager-generated-runtime-files-20260608",
     var.resource_suffix,
     var.oci_genai_project_id
   ]
@@ -56,14 +56,40 @@ client = OpenAI(
     api_key="$api_key",
     project="$project_id",
 )
-container = client.containers.create(
-    name="${self.input.display_name}",
-    memory_limit="${self.input.memory_limit}",
-)
-if hasattr(container, "model_dump"):
-    print(json.dumps(container.model_dump(mode="json")))
+
+def dump(value):
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if hasattr(value, "model_dump_json"):
+        return json.loads(value.model_dump_json())
+    return dict(value)
+
+def existing_container():
+    try:
+        listed = client.containers.list(limit=100)
+    except Exception:
+        return None
+    items = getattr(listed, "data", None) or (listed.get("data", []) if isinstance(listed, dict) else [])
+    for item in items:
+        payload = dump(item)
+        status = str(payload.get("status") or payload.get("state") or "").lower()
+        if status in {"deleted", "deleting", "expired", "failed"}:
+            continue
+        if payload.get("name") == "${self.input.display_name}":
+            return payload
+    return None
+
+payload = existing_container()
+if not payload:
+    container = client.containers.create(
+        name="${self.input.display_name}",
+        memory_limit="${self.input.memory_limit}",
+    )
+    payload = dump(container)
+if hasattr(payload, "model_dump"):
+    print(json.dumps(payload.model_dump(mode="json")))
 else:
-    print(container.model_dump_json())
+    print(json.dumps(payload))
 PY
       )"
       printf '%s\n' "$container_json" > '${path.module}/.terraform/generated/container.json'

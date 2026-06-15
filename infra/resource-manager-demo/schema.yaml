@@ -1,7 +1,7 @@
 title: Enterprise AI Demo Resource Manager Stack
-description: Deploys the Enterprise AI demo portal, shared OCI Generative AI resources, OCI DevOps image pipeline, hosted applications, and portal container instance.
+description: Deploys the Enterprise AI demo portal, shared OCI Generative AI resources, OCI DevOps image pipeline, and hosted applications.
 schemaVersion: 1.1.0
-version: 20260527
+version: 20260615
 locale: en
 
 variableGroups:
@@ -27,34 +27,29 @@ variableGroups:
       - app_deploy
       - oci_ha_hosted_agent_deploy
       - oci_ha_langgraph_deploy
-      - oci_ha_langfuse_deploy
       - oci_ha_openclaw_deploy
       - oci_ha_llamaindex_deploy
       - existing_hosted_deployment_exports_json
-  - title: Portal Container
+      - existing_portal_runtime_config_json
+  - title: Portal Hosted Application
     variables:
       - portal_container_enabled
       - portal_container_repository_id
       - portal_container_repository_name
       - portal_container_image_tag
-      - portal_container_port
-      - portal_container_shape
-      - portal_container_ocpus
-      - portal_container_memory_gbs
-      - portal_vcn_cidr
-      - portal_subnet_cidr
-      - portal_private_subnet_cidr
-      - portal_auth_password
+      - portal_auth_password_secret_id
   - title: OCI Generative AI Runtime
     variables:
       - project_display_name
       - oci_genai_project_id
-      - oci_genai_api_key
+      - oci_genai_api_key_secret_id
   - title: Hosted Application Auth
     variables:
       - idcs_domain_url
       - idcs_audience
       - idcs_scope
+      - hosted_app_idcs_client_secret_id
+      - portal_sso_admin_emails
       - openclaw_gateway_token
   - title: Advanced and Local-Exec Switches
     variables:
@@ -67,7 +62,6 @@ variableGroups:
       - hosted_app_container_cli
       - hosted_app_ocir_region_key
       - portal_container_image_uri
-      - langfuse_image_repository_uri
       - openclaw_image_repository_uri
       - llamaindex_image_repository_uri
       - profile
@@ -153,9 +147,9 @@ variables:
     default: false
   app_deploy:
     title: APP_DEPLOY
-    description: Set to all to build, deliver, and deploy every hosted application. Leave empty to use the OCI_HA_* per-application switches; enable the needed switches on the first deployment so those hosted apps are created.
+    description: Set to all to build, deliver, and deploy every hosted application, portal to deploy only the Enterprise AI portal hosted application, or leave empty to use the OCI_HA_* per-application switches; enable the needed switches on the first deployment so those hosted apps are created.
     type: string
-    default: ""
+    default: all
   oci_ha_hosted_agent_deploy:
     title: OCI_HA_HOSTED_AGENT_DEPLOY
     description: When true, build, deliver, and deploy the hosted-agent hosted application through OCI DevOps. Set true on the first deployment if the hosted-agent app should be created; leave false on later selective runs unless replacing it.
@@ -164,11 +158,6 @@ variables:
   oci_ha_langgraph_deploy:
     title: OCI_HA_LANGGRAPH_DEPLOY
     description: When true, build, deliver, and deploy the LangGraph hosted application through OCI DevOps. Set true on the first deployment if the LangGraph app should be created; leave false on later selective runs unless replacing it.
-    type: boolean
-    default: false
-  oci_ha_langfuse_deploy:
-    title: OCI_HA_LANGFUSE_DEPLOY
-    description: When true, build, deliver, and deploy the Langfuse hosted application through OCI DevOps. Set true on the first deployment if the Langfuse app should be created; leave false on later selective runs unless replacing it.
     type: boolean
     default: false
   oci_ha_openclaw_deploy:
@@ -187,8 +176,15 @@ variables:
     type: text
     required: false
     default: "{}"
+  existing_portal_runtime_config_json:
+    title: Existing Portal Runtime Config
+    description: Non-sensitive JSON copy of portal-runtime-config.json used to retain generated conversation, vector store, and code interpreter IDs across redeployments.
+    type: text
+    required: false
+    default: "{}"
   portal_container_enabled:
-    title: Deploy Portal Container Instance
+    title: Deploy Portal Hosted Application
+    description: Builds and deploys the portal as a no-auth OCI Generative AI hosted application.
     type: boolean
     default: true
   portal_container_repository_id:
@@ -204,45 +200,11 @@ variables:
     title: Portal Image Tag
     type: string
     default: latest
-  portal_container_port:
-    title: Portal Port
-    type: integer
-    default: 5173
-    minimum: 1024
-    maximum: 65535
-  portal_container_shape:
-    title: Portal Container Shape
-    type: string
-    default: CI.Standard.E4.Flex
-  portal_container_ocpus:
-    title: Portal OCPUs
-    type: number
-    default: 1
-    minimum: 1
-    maximum: 4
-  portal_container_memory_gbs:
-    title: Portal Memory GB
-    type: number
-    default: 4
-    minimum: 1
-    maximum: 64
-  portal_vcn_cidr:
-    title: Portal VCN CIDR
-    type: string
-    default: 10.42.0.0/16
-  portal_subnet_cidr:
-    title: Portal Public Subnet CIDR
-    type: string
-    default: 10.42.1.0/24
-  portal_private_subnet_cidr:
-    title: Portal Private Subnet CIDR
-    type: string
-    default: 10.42.2.0/24
-  portal_auth_password:
-    title: Optional Portal Login Password
-    description: Leave empty to generate a sensitive Terraform output.
-    type: password
-    required: false
+  portal_auth_password_secret_id:
+    title: Portal Password Secret OCID
+    description: OCI Vault secret OCID containing the portal login password. The hosted application receives it as a VAULT environment variable.
+    type: ocid
+    required: true
     sensitive: true
   project_display_name:
     title: OCI Generative AI Project Display Name Prefix
@@ -252,9 +214,10 @@ variables:
     title: Existing OCI Generative AI Project OCID
     type: ocid
     required: false
-  oci_genai_api_key:
-    title: Existing OCI Generative AI API Key
-    type: password
+  oci_genai_api_key_secret_id:
+    title: OCI GenAI API Key Secret OCID
+    description: Optional OCI Vault secret OCID containing the OCI Generative AI API key for the portal hosted application.
+    type: ocid
     required: false
     sensitive: true
   idcs_domain_url:
@@ -270,6 +233,17 @@ variables:
     title: IDCS Scope
     type: string
     required: true
+  hosted_app_idcs_client_secret_id:
+    title: Hosted Launch Client Secret OCID
+    description: Optional OCI Vault secret OCID containing the IDCS OAuth client secret used by portal launch proxy routes.
+    type: ocid
+    required: false
+    sensitive: true
+  portal_sso_admin_emails:
+    title: Portal SSO Admin Emails
+    description: Optional comma-separated email allowlist for users who should receive portal administrator access after SSO sign-in.
+    type: string
+    required: false
   openclaw_gateway_token:
     title: OpenClaw Gateway Token
     type: password
@@ -285,19 +259,19 @@ variables:
     default: false
   conversation_store_local_exec_enabled:
     title: Enable Conversation Store Local-Exec
-    description: Enable this on first-time deployments to create an OCI Conversations API object and inject OCI_GENAI_CONVERSATION_ID into the portal runtime config.
+    description: Legacy/local fallback only. Leave disabled for Resource Manager; OCI DevOps creates or reuses the OCI Conversations API object with resource principal auth.
     type: boolean
-    default: true
+    default: false
   file_search_local_exec_enabled:
     title: Enable File Search Local-Exec
-    description: Enable this on first-time deployments to create the Vector Store and inject OCI_GENAI_VECTOR_STORE_ID into the portal runtime config.
+    description: Legacy/local fallback only. Leave disabled for Resource Manager; OCI DevOps creates or reuses the Vector Store and seeds bundled PDFs with resource principal auth.
     type: boolean
-    default: true
+    default: false
   code_interpreter_local_exec_enabled:
     title: Enable Code Interpreter Local-Exec
-    description: Enable this on first-time deployments to create the Code Interpreter container and inject OCI_GENAI_CODE_INTERPRETER_CONTAINER into the portal runtime config.
+    description: Legacy/local fallback only. Leave disabled for Resource Manager; OCI DevOps creates or reuses the Code Interpreter container with resource principal auth.
     type: boolean
-    default: true
+    default: false
   hosted_app_push_image:
     title: Build Images From Terraform Local-Exec
     type: boolean
@@ -315,10 +289,6 @@ variables:
     default: ord
   portal_container_image_uri:
     title: Optional Full Portal Image URI
-    type: string
-    required: false
-  langfuse_image_repository_uri:
-    title: Optional Langfuse Image Repository URI
     type: string
     required: false
   openclaw_image_repository_uri:

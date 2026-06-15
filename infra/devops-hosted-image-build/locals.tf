@@ -19,7 +19,6 @@ locals {
   repositories = {
     hosted_agent = "enterprise-ai-demo/hosted-agent-${var.resource_suffix}"
     langgraph    = "enterprise-ai-demo/hosted-langgraph-agent-${var.resource_suffix}"
-    langfuse     = "enterprise-ai-demo/hosted-langfuse-${var.resource_suffix}"
     openclaw     = "enterprise-ai-demo/hosted-openclaw-${var.resource_suffix}"
     llamaindex   = "enterprise-ai-demo/hosted-llamaindex-control-tower-${var.resource_suffix}"
     portal       = "enterprise-ai-demo/portal-rm"
@@ -35,11 +34,6 @@ locals {
       artifact_name   = "langgraph-image"
       build_spec_file = "infra/devops-hosted-image-build/build_spec_image_langgraph.yaml"
       display_name    = "langgraph-agent"
-    }
-    langfuse = {
-      artifact_name   = "langfuse-image"
-      build_spec_file = "infra/devops-hosted-image-build/build_spec_image_langfuse.yaml"
-      display_name    = "langfuse"
     }
     openclaw = {
       artifact_name   = "openclaw-image"
@@ -69,11 +63,6 @@ locals {
       display_name    = "langgraph-agent"
       stage_name      = "deploy-langgraph-agent"
     }
-    langfuse = {
-      build_spec_file = "infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml"
-      display_name    = "langfuse"
-      stage_name      = "deploy-langfuse"
-    }
     openclaw = {
       build_spec_file = "infra/devops-hosted-image-build/build_spec_deploy_openclaw.yaml"
       display_name    = "openclaw"
@@ -86,14 +75,17 @@ locals {
     }
   }
 
-  deploy_all_hosted_applications = lower(var.app_deploy) == "all"
-  app_deploy_pipeline_value      = local.deploy_all_hosted_applications ? "all" : "none"
+  normalized_app_deploy          = lower(trimspace(var.app_deploy))
+  deploy_all_hosted_applications = local.normalized_app_deploy == "all"
+  deploy_portal_only             = local.normalized_app_deploy == "portal"
+  effective_deploy_only_app      = local.deploy_all_hosted_applications ? false : (local.deploy_portal_only || var.deploy_only_app)
+  app_deploy_pipeline_value      = local.deploy_all_hosted_applications ? "all" : local.deploy_portal_only ? "portal" : "none"
+  deploy_only_app_pipeline_value = local.effective_deploy_only_app ? "true" : "false"
   selected_hosted_application_deployments = {
     for key, deployment in local.hosted_application_deployments : key => deployment
-    if local.deploy_all_hosted_applications || contains(compact([
+    if local.deploy_all_hosted_applications || local.effective_deploy_only_app || contains(compact([
       var.deploy_hosted_agent_hosted_application ? "hosted_agent" : "",
       var.deploy_langgraph_hosted_application ? "langgraph" : "",
-      var.deploy_langfuse_hosted_application ? "langfuse" : "",
       var.deploy_openclaw_hosted_application ? "openclaw" : "",
       var.deploy_llamaindex_hosted_application ? "llamaindex" : ""
     ]), key)

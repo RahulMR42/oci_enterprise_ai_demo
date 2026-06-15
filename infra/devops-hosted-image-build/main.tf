@@ -4,24 +4,6 @@ data "oci_objectstorage_namespace" "this" {
 
 locals {
   build_openclaw_gateway_token = var.openclaw_gateway_token != "" ? var.openclaw_gateway_token : sha256("${var.resource_suffix}-openclaw-gateway-token")
-  build_langfuse_database_url  = var.langfuse_database_url != "" ? var.langfuse_database_url : "postgresql://unused:unused@127.0.0.1:5432/unused"
-  build_langfuse_clickhouse_url = (
-    var.langfuse_clickhouse_url != "" ? var.langfuse_clickhouse_url : "http://127.0.0.1:8123"
-  )
-  build_langfuse_clickhouse_migration_url = (
-    var.langfuse_clickhouse_migration_url != "" ? var.langfuse_clickhouse_migration_url : "clickhouse://127.0.0.1:9000"
-  )
-  build_langfuse_clickhouse_user         = var.langfuse_clickhouse_user != "" ? var.langfuse_clickhouse_user : "clickhouse"
-  build_langfuse_clickhouse_password     = var.langfuse_clickhouse_password != "" ? var.langfuse_clickhouse_password : sha256("${var.resource_suffix}-langfuse-clickhouse")
-  build_langfuse_redis_connection_string = var.langfuse_redis_connection_string != "" ? var.langfuse_redis_connection_string : "redis://127.0.0.1:6379"
-  build_langfuse_s3_event_upload_bucket  = var.langfuse_s3_event_upload_bucket != "" ? var.langfuse_s3_event_upload_bucket : "unused-${var.resource_suffix}"
-  build_langfuse_s3_media_upload_bucket  = var.langfuse_s3_media_upload_bucket != "" ? var.langfuse_s3_media_upload_bucket : "unused-${var.resource_suffix}"
-  build_langfuse_s3_upload_region        = var.langfuse_s3_upload_region != "" ? var.langfuse_s3_upload_region : var.region
-  build_langfuse_s3_upload_endpoint      = var.langfuse_s3_upload_endpoint != "" ? var.langfuse_s3_upload_endpoint : "https://objectstorage.${var.region}.oraclecloud.com"
-  build_langfuse_nextauth_secret         = var.langfuse_nextauth_secret != "" ? var.langfuse_nextauth_secret : sha256("${var.resource_suffix}-langfuse-nextauth")
-  build_langfuse_salt                    = var.langfuse_salt != "" ? var.langfuse_salt : sha256("${var.resource_suffix}-langfuse-salt")
-  build_langfuse_encryption_key          = var.langfuse_encryption_key != "" ? var.langfuse_encryption_key : sha256("${var.resource_suffix}-langfuse-encryption")
-  build_langfuse_networking_config_json  = var.langfuse_networking_config_json != "" ? var.langfuse_networking_config_json : "{}"
 }
 
 resource "oci_devops_project" "this" {
@@ -201,13 +183,8 @@ resource "oci_devops_build_pipeline" "this" {
     }
     items {
       name          = "DEPLOY_ONLY_APP"
-      default_value = var.deploy_only_app ? "true" : "false"
-      description   = "When true, hosted app deployment stages are skipped and only the portal app container redeploys."
-    }
-    items {
-      name          = "OCI_HA_LANGFUSE_DEPLOY"
-      default_value = var.deploy_langfuse_hosted_application ? "true" : "false"
-      description   = "When true, deploy the Langfuse hosted application stage."
+      default_value = local.deploy_only_app_pipeline_value
+      description   = "When true, non-portal hosted app deployment stages are skipped and only the portal hosted application is updated."
     }
     items {
       name          = "APP_DEPLOY"
@@ -240,24 +217,29 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Portal OCIR repository dependency marker."
     }
     items {
-      name          = "PORTAL_PRIVATE_SUBNET_ID"
-      default_value = var.portal_private_subnet_id
-      description   = "Private subnet used by the rolling portal deployment stage."
+      name          = "PORTAL_AUTH_PASSWORD_SECRET_ID"
+      default_value = var.portal_auth_password_secret_id
+      description   = "OCI Vault secret OCID containing the portal login password."
     }
     items {
-      name          = "PORTAL_NETWORK_SECURITY_GROUP_ID"
-      default_value = var.portal_network_security_group_id
-      description   = "NSG assigned to rolling portal container instances."
+      name          = "PORTAL_AUTH_DB_DSN"
+      default_value = var.portal_auth_db_dsn
+      description   = "NL2SQL Autonomous Database connection string used by portal protected-user auth."
     }
     items {
-      name          = "PORTAL_LOAD_BALANCER_ID"
-      default_value = var.portal_load_balancer_id
-      description   = "Load balancer updated by the rolling portal deployment stage."
+      name          = "PORTAL_AUTH_DB_ID"
+      default_value = var.portal_auth_db_id
+      description   = "NL2SQL Autonomous Database OCID used to generate the portal protected-user auth wallet."
     }
     items {
-      name          = "PORTAL_BACKEND_SET_NAME"
-      default_value = var.portal_backend_set_name
-      description   = "Load balancer backend set updated by the rolling portal deployment stage."
+      name          = "PORTAL_AUTH_DB_USER"
+      default_value = var.portal_auth_db_user
+      description   = "NL2SQL Autonomous Database user for portal protected-user auth."
+    }
+    items {
+      name          = "PORTAL_AUTH_DB_PASSWORD_SECRET_ID"
+      default_value = var.portal_auth_db_password_secret_id
+      description   = "OCI Vault secret OCID containing the NL2SQL Autonomous Database password."
     }
     items {
       name          = "SHARED_POLICY_ID"
@@ -285,15 +267,30 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "Identity domain OAuth client id used by portal hosted UI launch proxy."
     }
     items {
-      name          = "LANGFUSE_CLICKHOUSE_USER"
-      default_value = var.langfuse_clickhouse_user
-      description   = "ClickHouse user used by hosted Langfuse."
+      name          = "OCI_HOSTED_APP_IDCS_APP_ID"
+      default_value = var.hosted_app_idcs_client_app_id
+      description   = "Identity Domains app OCID for the portal SSO callback OAuth client."
+    }
+    items {
+      name          = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID"
+      default_value = var.hosted_app_idcs_client_secret_id
+      description   = "OCI Vault secret OCID containing the hosted UI launch proxy OAuth client secret."
+    }
+    items {
+      name          = "PORTAL_SSO_ADMIN_EMAILS"
+      default_value = var.portal_sso_admin_emails
+      description   = "Comma-separated email allowlist for portal SSO administrators."
+    }
+    items {
+      name          = "OCI_GENAI_API_KEY_SECRET_ID"
+      default_value = var.oci_genai_api_key_secret_id
+      description   = "OCI Vault secret OCID containing the OCI Generative AI API key."
     }
   }
 }
 
 resource "oci_devops_build_pipeline_stage" "build" {
-  count = var.enabled && !var.deploy_only_app ? 1 : 0
+  count = var.enabled ? 1 : 0
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
@@ -447,13 +444,94 @@ resource "oci_devops_build_pipeline_stage" "deploy_hosted" {
   depends_on = [oci_devops_build_pipeline_stage.deliver_image]
 }
 
+resource "oci_devops_build_pipeline_stage" "provision_generated_runtime" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "provision-generated-runtime"
+  description                        = "Creates or reuses OCI Generative AI runtime objects and updates portal runtime config before rollout."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_provision_generated_runtime.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 3600
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 1
+    memory_in_gbs     = 8
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [oci_devops_build_pipeline_stage.deliver_image]
+}
+
+resource "oci_devops_build_pipeline_stage" "bootstrap_portal_auth_schema" {
+  count = var.enabled ? 1 : 0
+
+  build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
+  build_pipeline_stage_type          = "BUILD"
+  display_name                       = "bootstrap-portal-auth-schema"
+  description                        = "Initializes the portal protected-user auth schema in the NL2SQL Autonomous Database before rollout."
+  build_spec_file                    = "infra/devops-hosted-image-build/build_spec_bootstrap_portal_auth_schema.yaml"
+  image                              = "OL8_X86_64_STANDARD_10"
+  primary_build_source               = "enterprise-ai-demo"
+  is_pass_all_parameters_enabled     = true
+  stage_execution_timeout_in_seconds = 900
+
+  build_pipeline_stage_predecessor_collection {
+    items {
+      id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
+    }
+    items {
+      id = oci_devops_build_pipeline_stage.provision_generated_runtime[0].id
+    }
+  }
+
+  build_runner_shape_config {
+    build_runner_type = "CUSTOM"
+    ocpus             = 1
+    memory_in_gbs     = 8
+  }
+
+  build_source_collection {
+    items {
+      name            = "enterprise-ai-demo"
+      connection_type = var.create_devops_repository ? "DEVOPS_CODE_REPOSITORY" : var.source_connection_type
+      connection_id   = var.create_github_connection ? oci_devops_connection.github[0].id : (var.source_connection_id != "" ? var.source_connection_id : null)
+      repository_id   = var.create_devops_repository ? oci_devops_repository.source[0].id : (var.source_repository_id != "" ? var.source_repository_id : null)
+      repository_url  = var.create_devops_repository ? oci_devops_repository.source[0].http_url : (var.source_repo_url != "" ? var.source_repo_url : null)
+      branch          = var.create_devops_repository ? var.devops_repository_branch : var.source_branch
+    }
+  }
+
+  depends_on = [oci_devops_build_pipeline_stage.provision_generated_runtime]
+}
+
 resource "oci_devops_build_pipeline_stage" "deploy_portal" {
   count = var.enabled ? 1 : 0
 
   build_pipeline_id                  = oci_devops_build_pipeline.this[0].id
   build_pipeline_stage_type          = "BUILD"
-  display_name                       = "deploy-portal-container"
-  description                        = "Creates a replacement portal container instance, smoke-tests it, switches the load balancer, and removes old portal instances."
+  display_name                       = "deploy-portal-hosted-application"
+  description                        = "Creates or updates the no-auth portal OCI Generative AI hosted application and promotes the latest portal image artifact."
   build_spec_file                    = "infra/devops-hosted-image-build/build_spec_deploy_portal.yaml"
   image                              = "OL8_X86_64_STANDARD_10"
   primary_build_source               = "enterprise-ai-demo"
@@ -463,6 +541,12 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
   build_pipeline_stage_predecessor_collection {
     items {
       id = oci_devops_build_pipeline_stage.deliver_image["portal"].id
+    }
+    items {
+      id = oci_devops_build_pipeline_stage.provision_generated_runtime[0].id
+    }
+    items {
+      id = oci_devops_build_pipeline_stage.bootstrap_portal_auth_schema[0].id
     }
     dynamic "items" {
       for_each = oci_devops_build_pipeline_stage.deploy_hosted
@@ -490,7 +574,12 @@ resource "oci_devops_build_pipeline_stage" "deploy_portal" {
     }
   }
 
-  depends_on = [oci_devops_build_pipeline_stage.deliver_image]
+  # oci_devops_build_pipeline_stage.deploy_portal must stay after bootstrap_portal_auth_schema so protected-user tables exist before traffic.
+  depends_on = [
+    oci_devops_build_pipeline_stage.deliver_image,
+    oci_devops_build_pipeline_stage.provision_generated_runtime,
+    oci_devops_build_pipeline_stage.bootstrap_portal_auth_schema
+  ]
 }
 
 resource "oci_devops_build_run" "this" {
@@ -538,11 +627,7 @@ resource "oci_devops_build_run" "this" {
     }
     items {
       name  = "DEPLOY_ONLY_APP"
-      value = var.deploy_only_app ? "true" : "false"
-    }
-    items {
-      name  = "OCI_HA_LANGFUSE_DEPLOY"
-      value = var.deploy_langfuse_hosted_application ? "true" : "false"
+      value = local.deploy_only_app_pipeline_value
     }
     items {
       name  = "APP_DEPLOY"
@@ -569,44 +654,24 @@ resource "oci_devops_build_run" "this" {
       value = var.portal_container_repository_id
     }
     items {
-      name  = "PORTAL_PRIVATE_SUBNET_ID"
-      value = var.portal_private_subnet_id
+      name  = "PORTAL_AUTH_PASSWORD_SECRET_ID"
+      value = var.portal_auth_password_secret_id
     }
     items {
-      name  = "PORTAL_NETWORK_SECURITY_GROUP_ID"
-      value = var.portal_network_security_group_id
+      name  = "PORTAL_AUTH_DB_DSN"
+      value = var.portal_auth_db_dsn
     }
     items {
-      name  = "PORTAL_LOAD_BALANCER_ID"
-      value = var.portal_load_balancer_id
+      name  = "PORTAL_AUTH_DB_ID"
+      value = var.portal_auth_db_id
     }
     items {
-      name  = "PORTAL_BACKEND_SET_NAME"
-      value = var.portal_backend_set_name
+      name  = "PORTAL_AUTH_DB_USER"
+      value = var.portal_auth_db_user
     }
     items {
-      name  = "PORTAL_PUBLIC_URL"
-      value = var.portal_public_url
-    }
-    items {
-      name  = "PORTAL_CONTAINER_PORT"
-      value = tostring(var.portal_container_port)
-    }
-    items {
-      name  = "PORTAL_CONTAINER_SHAPE"
-      value = var.portal_container_shape
-    }
-    items {
-      name  = "PORTAL_CONTAINER_OCPUS"
-      value = tostring(var.portal_container_ocpus)
-    }
-    items {
-      name  = "PORTAL_CONTAINER_MEMORY_GBS"
-      value = tostring(var.portal_container_memory_gbs)
-    }
-    items {
-      name  = "PORTAL_AUTH_PASSWORD"
-      value = var.portal_auth_password
+      name  = "PORTAL_AUTH_DB_PASSWORD_SECRET_ID"
+      value = var.portal_auth_db_password_secret_id
     }
     items {
       name  = "PORTAL_RUNTIME_CONFIG_NAMESPACE"
@@ -633,8 +698,24 @@ resource "oci_devops_build_run" "this" {
       value = var.portal_run_history_object
     }
     items {
+      name  = "PORTAL_CHANGE_LOG_NAMESPACE"
+      value = var.portal_change_log_namespace
+    }
+    items {
+      name  = "PORTAL_CHANGE_LOG_BUCKET"
+      value = var.portal_change_log_bucket
+    }
+    items {
+      name  = "PORTAL_CHANGE_LOG_OBJECT"
+      value = var.portal_change_log_object
+    }
+    items {
       name  = "PORTAL_VECTOR_STORE_ID"
       value = var.portal_vector_store_id != null && var.portal_vector_store_id != "" ? var.portal_vector_store_id : " "
+    }
+    items {
+      name  = "PORTAL_CONVERSATION_ID"
+      value = var.portal_conversation_id != null && var.portal_conversation_id != "" ? var.portal_conversation_id : " "
     }
     items {
       name  = "PORTAL_CODE_INTERPRETER_CONTAINER_ID"
@@ -661,76 +742,28 @@ resource "oci_devops_build_run" "this" {
       value = var.hosted_app_idcs_client_id
     }
     items {
-      name  = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET"
-      value = var.hosted_app_idcs_client_secret
+      name  = "OCI_HOSTED_APP_IDCS_APP_ID"
+      value = var.hosted_app_idcs_client_app_id
+    }
+    items {
+      name  = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID"
+      value = var.hosted_app_idcs_client_secret_id
+    }
+    items {
+      name  = "PORTAL_SSO_ADMIN_EMAILS"
+      value = var.portal_sso_admin_emails
     }
     items {
       name  = "OCI_GENAI_PROJECT_ID"
       value = var.oci_genai_project_id
     }
     items {
-      name  = "OCI_GENAI_API_KEY"
-      value = var.oci_genai_api_key
+      name  = "OCI_GENAI_API_KEY_SECRET_ID"
+      value = var.oci_genai_api_key_secret_id
     }
     items {
       name  = "OPENCLAW_GATEWAY_TOKEN"
       value = local.build_openclaw_gateway_token
-    }
-    items {
-      name  = "LANGFUSE_DATABASE_URL"
-      value = local.build_langfuse_database_url
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_URL"
-      value = local.build_langfuse_clickhouse_url
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_MIGRATION_URL"
-      value = local.build_langfuse_clickhouse_migration_url
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_USER"
-      value = local.build_langfuse_clickhouse_user
-    }
-    items {
-      name  = "LANGFUSE_CLICKHOUSE_PASSWORD"
-      value = local.build_langfuse_clickhouse_password
-    }
-    items {
-      name  = "LANGFUSE_REDIS_CONNECTION_STRING"
-      value = local.build_langfuse_redis_connection_string
-    }
-    items {
-      name  = "LANGFUSE_S3_EVENT_UPLOAD_BUCKET"
-      value = local.build_langfuse_s3_event_upload_bucket
-    }
-    items {
-      name  = "LANGFUSE_S3_MEDIA_UPLOAD_BUCKET"
-      value = local.build_langfuse_s3_media_upload_bucket
-    }
-    items {
-      name  = "LANGFUSE_S3_UPLOAD_REGION"
-      value = local.build_langfuse_s3_upload_region
-    }
-    items {
-      name  = "LANGFUSE_S3_UPLOAD_ENDPOINT"
-      value = local.build_langfuse_s3_upload_endpoint
-    }
-    items {
-      name  = "LANGFUSE_NEXTAUTH_SECRET"
-      value = local.build_langfuse_nextauth_secret
-    }
-    items {
-      name  = "LANGFUSE_SALT"
-      value = local.build_langfuse_salt
-    }
-    items {
-      name  = "LANGFUSE_ENCRYPTION_KEY"
-      value = local.build_langfuse_encryption_key
-    }
-    items {
-      name  = "LANGFUSE_NETWORKING_CONFIG_JSON"
-      value = local.build_langfuse_networking_config_json
     }
   }
 
@@ -738,6 +771,8 @@ resource "oci_devops_build_run" "this" {
     oci_devops_build_pipeline_stage.build_image,
     oci_devops_build_pipeline_stage.deliver_image,
     oci_devops_build_pipeline_stage.deploy_hosted,
+    oci_devops_build_pipeline_stage.provision_generated_runtime,
+    oci_devops_build_pipeline_stage.bootstrap_portal_auth_schema,
     oci_devops_build_pipeline_stage.deploy_portal,
     oci_logging_log.devops,
     terraform_data.seed_devops_repository

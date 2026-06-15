@@ -3,21 +3,23 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from common_oci import (
     OCI_RESPONSES_MODEL,
     call_oci_responses_api,
     config_from_env,
+    demo_data_path,
     read_payload,
+    read_json_store,
     response_output_text,
     response_to_json,
     validate_config,
+    write_json_store,
 )
 
 
 DOCS_URL = "https://docs.oracle.com/en-us/iaas/Content/generative-ai/overview.htm"
-AUDIT_PATH = Path(__file__).resolve().parents[1] / "data" / "governance_audit_log.json"
+AUDIT_PATH = demo_data_path("governance_audit_log.json")
 
 
 POLICIES = [
@@ -28,17 +30,11 @@ POLICIES = [
 
 
 def _load_audit():
-    if not AUDIT_PATH.exists():
-        return {"events": []}
-    try:
-        return json.loads(AUDIT_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"events": []}
+    return read_json_store(AUDIT_PATH, {"events": []})
 
 
 def _write_audit(audit):
-    AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    AUDIT_PATH.write_text(json.dumps(audit, indent=2), encoding="utf-8")
+    return write_json_store(AUDIT_PATH, audit)
 
 
 def _evaluate(prompt):

@@ -19,6 +19,44 @@ export const aiFeatures = [
     capabilities: ["Live OCI Responses API call", "OpenAI-compatible endpoint", "JSON response inspection"]
   },
   {
+    id: "openai-compatible-chat",
+    title: "OpenAI-Compatible Chat Completions",
+    serviceArea: "OCI Generative AI",
+    summary: "Call OCI Generative AI through the OpenAI-compatible Chat Completions endpoint.",
+    details:
+      "Runs a live Chat Completions request against the OCI OpenAI-compatible base URL. This is for teams with existing chat-completions code that need OCI authentication, project scoping, and model execution.",
+    provisioningDetails:
+      "Reuses the OCI Generative AI project and API key from infra/responses-api. No additional Terraform resources are required because Chat Completions runs through the same OCI OpenAI-compatible endpoint.",
+    status: "Live API",
+    accent: "green",
+    terraformPath: "infra/responses-api",
+    sdkModule: "backend/demos/openai_compatible_chat.py",
+    sampleUseCase: "Move an existing chat assistant to OCI by changing base URL, API key, project, and model.",
+    demoHref: "#demo-openai-compatible-chat",
+    docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/chat-completions-api.htm",
+    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
+    capabilities: ["Chat Completions API", "OpenAI-compatible client", "OCI project-scoped execution"]
+  },
+  {
+    id: "responses-streaming-structured-output",
+    title: "Responses Streaming + Structured Output",
+    serviceArea: "OCI Generative AI",
+    summary: "Stream OCI Responses API events while enforcing a structured JSON output contract.",
+    details:
+      "Runs a live OCI Responses API request with streaming enabled and a JSON schema output contract. The workbench aggregates stream events, exposes the first events for inspection, and parses the final structured payload when available.",
+    provisioningDetails:
+      "Reuses the OCI Generative AI project and API key from infra/responses-api. No additional Terraform resources are required because streaming and structured output are request-level Responses API capabilities.",
+    status: "Live API",
+    accent: "blue",
+    terraformPath: "infra/responses-api",
+    sdkModule: "backend/demos/responses_streaming_structured_output.py",
+    sampleUseCase: "Stream an incident triage summary into a UI while preserving a machine-readable result for workflow routing.",
+    demoHref: "#demo-responses-streaming-structured-output",
+    docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/responses-api.htm",
+    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
+    capabilities: ["Streaming events", "Structured JSON schema", "Responses API event trace"]
+  },
+  {
     id: "conversation-store",
     title: "Conversation Store",
     serviceArea: "OCI App Layer",
@@ -214,10 +252,10 @@ export const aiFeatures = [
     serviceArea: "OCI Generative AI Agents",
     summary: "Deploy a separate LangGraph agent as an OCI hosted application and route tool work through an MCP-style gateway.",
     details:
-      "Runs a live OCI Responses API request over generated metadata for a separate LangGraph hosted application. The hosted container source uses LangGraph to select an MCP tool, call the tool, and draft a governed agent response.",
+      "Runs a live OCI Responses API request over generated metadata for a separate LangGraph hosted application. Both the hosted container source and portal runner compile LangGraph StateGraph workflows to select an MCP tool, call the tool, and draft a governed agent response.",
     provisioningDetails:
       "Uses the hosted-agentic-applications Terraform module to create an additional OCIR repository, hosted application, and hosted deployment for the LangGraph runtime.",
-    status: "Live Hosted App",
+    status: "Live Hosted API",
     accent: "violet",
     terraformPath: "infra/hosted-agentic-applications",
     sdkModule: "backend/demos/langgraph_hosted_agent_mcp.py",
@@ -236,7 +274,7 @@ export const aiFeatures = [
       "Runs an A2A collaboration plan across the hosted incident-response agent and the hosted LangGraph MCP agent. The demo discovers agent cards, creates task messages, records handoff, and uses OCI Responses API to summarize the coordinated outcome.",
     provisioningDetails:
       "Reuses the hosted-agentic-applications Terraform module. The existing hosted agent and LangGraph hosted application supply the A2A-capable agent endpoints and metadata.",
-    status: "Live A2A",
+    status: "Live Agent API",
     accent: "teal",
     terraformPath: "infra/hosted-agentic-applications",
     sdkModule: "backend/demos/a2a_agent_collaboration.py",
@@ -245,25 +283,6 @@ export const aiFeatures = [
     docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/overview.htm",
     actions: ["Provision Infra", "Run Demo", "Delete Infra"],
     capabilities: ["Agent cards", "Task handoff", "Hosted agent reuse"]
-  },
-  {
-    id: "langfuse-hosted-observability",
-    title: "Langfuse Hosted Observability",
-    serviceArea: "OCI Generative AI Agents",
-    summary: "Deploy Langfuse observability with managed OCI dependencies and a hosted UI.",
-    details:
-      "Launches a separate Langfuse web container through OCI Generative AI Hosted Applications with managed OCI PostgreSQL, ClickHouse, Redis, and Object Storage wired through private networking.",
-    provisioningDetails:
-      "Reuses the hosted-agentic-applications Terraform module to create private networking, managed dependencies, a separate OCIR image, hosted application, hosted deployment, and generated runtime URL metadata for Langfuse.",
-    status: "Live Hosted UI",
-    accent: "blue",
-    terraformPath: "infra/hosted-agentic-applications",
-    sdkModule: "apps/hosted-langfuse/Dockerfile",
-    sampleUseCase: "Open a hosted Langfuse console to inspect LLM traces, prompts, scores, and evaluation telemetry.",
-    demoHref: "#demo-langfuse-hosted-observability",
-    docsHref: "https://docs.oracle.com/en-us/iaas/Content/generative-ai/overview.htm",
-    actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["Real Langfuse UI", "Managed OCI dependencies", "Separate hosted deployment"]
   },
   {
     id: "openclaw-hosted-agent-gateway",
@@ -292,8 +311,8 @@ export const aiFeatures = [
     details:
       "Runs a real LlamaIndex workflow in an OCI Generative AI Hosted Application with deterministic enterprise tools, evidence review, approval gating, memory note generation, and hosted runtime output. The portal calls the hosted app through the server-side IDCS proxy without exposing secrets.",
     provisioningDetails:
-      "Uses the hosted-agentic-applications Terraform module to create an OCIR image, OCI hosted application, hosted deployment, and generated runtime metadata. The launch path reuses the Terraform-generated IDCS launch client metadata.",
-    status: "Live Hosted OSS Agent",
+      "Uses the hosted-agentic-applications Terraform module to create an OCIR image, OCI hosted application, hosted deployment, and generated runtime metadata. The backend proxy reuses Terraform-generated IDCS client metadata.",
+    status: "Live Hosted Flow",
     accent: "green",
     terraformPath: "infra/hosted-agentic-applications",
     sdkModule: "backend/demos/agentic_control_tower.py",
@@ -301,7 +320,7 @@ export const aiFeatures = [
     demoHref: "#demo-agentic-control-tower",
     docsHref: "https://docs.llamaindex.ai/en/stable/module_guides/workflow/",
     actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]
+    capabilities: ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy execution"]
   },
   {
     id: "agentic-rag-planner",
@@ -328,9 +347,9 @@ export const aiFeatures = [
     serviceArea: "OCI Generative AI Agents",
     summary: "Explore Oracle's Locus SDK patterns for agent loops, tools, memory, orchestration, streaming, and production controls.",
     details:
-      "Runs a guided Locus SDK workflow plan based on the public Locus documentation: agent loop, tool execution, MCP-ready tools, conversation and long-term memory, orchestrator or swarm composition, checkpointing, streaming events, and OCI Responses model providers.",
+      "Loads Oracle's Locus SDK, builds a demo Agent/tool contract with locus.agent.Agent and locus.tools.tool, then uses OCI Responses API to synthesize the production workflow across tools, memory, checkpointing, streaming events, and governance.",
     provisioningDetails:
-      "Uses the shared OCI Generative AI project/API key for the live synthesis step. The demo is a portal-side SDK exploration pattern and does not create additional OCI infrastructure.",
+      "Uses the shared OCI Generative AI project/API key for the live synthesis step. The demo uses portal-side Locus SDK code and does not create additional OCI infrastructure.",
     status: "Live SDK Explorer",
     accent: "violet",
     terraformPath: "infra/responses-api",
@@ -339,7 +358,7 @@ export const aiFeatures = [
     demoHref: "#demo-locus-sdk-agentic-workflows",
     docsHref: "https://locusagents.oracle.com/",
     actions: ["Provision Infra", "Run Demo", "Delete Infra"],
-    capabilities: ["Locus agent loop", "Tools and MCP", "Memory and checkpoints"]
+    capabilities: ["Locus SDK Agent class", "Tool decorator contract", "Memory and checkpoints"]
   },
   {
     id: "human-approval-agent",

@@ -20,6 +20,10 @@ const defaultProvisionConfig = {
   sourceBranch: "oci-rms"
 };
 
+function portalRelativeUrl(path = "") {
+  return `./${String(path || "").replace(/^\/+/, "")}`;
+}
+
 const infraState = {
   status: "not-created",
   projectId: "",
@@ -37,9 +41,6 @@ const infraState = {
   langGraphHostedUrl: "",
   langGraphHostedDeploymentId: "",
   langGraphHostedDeploymentStatus: "",
-  langfuseHostedUrl: "",
-  langfuseHostedDeploymentId: "",
-  langfuseHostedDeploymentStatus: "",
   openclawHostedUrl: "",
   openclawHostedDeploymentId: "",
   openclawHostedDeploymentStatus: "",
@@ -55,50 +56,19 @@ const minInitialRunCount = 20;
 const maxInitialRunCount = 35;
 const defaultDemoRating = 2;
 const maxDemoRating = 3;
-const hostedUiLaunchDemoIds = [
-  "langfuse-hosted-observability",
-  "openclaw-hosted-agent-gateway",
-  "agentic-control-tower"
-];
-
-const hostedRuntimeReferences = {
-  "hosted-agentic-applications": {
-    label: "Hosted agent reference",
-    urlKey: "hostedAgentUrl",
-    deploymentIdKey: "hostedAgentDeploymentId",
-    placeholder: "Paste hosted agent invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "langgraph-hosted-agent-mcp": {
-    label: "LangGraph hosted reference",
-    urlKey: "langGraphHostedUrl",
-    deploymentIdKey: "langGraphHostedDeploymentId",
-    placeholder: "Paste LangGraph invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "a2a-agent-collaboration": {
-    label: "Primary hosted agent reference",
-    urlKey: "hostedAgentUrl",
-    deploymentIdKey: "hostedAgentDeploymentId",
-    placeholder: "Paste primary hosted agent invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "agentic-control-tower": {
-    label: "LlamaIndex hosted reference",
-    urlKey: "llamaIndexHostedUrl",
-    deploymentIdKey: "llamaIndexHostedDeploymentId",
-    placeholder: "Paste LlamaIndex invoke URL, hosted application OCID, or hosted deployment OCID"
-  },
-  "langfuse-hosted-observability": {
-    label: "Langfuse hosted reference",
-    urlKey: "langfuseHostedUrl",
-    deploymentIdKey: "langfuseHostedDeploymentId",
-    placeholder: "Paste Langfuse hosted URL or invoke URL"
-  },
+const hostedApplicationLaunchConfigs = {
   "openclaw-hosted-agent-gateway": {
-    label: "OpenClaw hosted reference",
-    urlKey: "openclawHostedUrl",
-    deploymentIdKey: "openclawHostedDeploymentId",
-    placeholder: "Paste OpenClaw hosted URL or invoke URL"
+    label: "OpenClaw Hosted Agent Gateway",
+    shortLabel: "OpenClaw",
+    launchUrl: portalRelativeUrl("/api/openclaw/launch/"),
+    hostedUrlKey: "openclawHostedUrl",
+    hostedDeploymentIdKey: "openclawHostedDeploymentId",
+    hostedDeploymentStatusKey: "openclawHostedDeploymentStatus",
+    uiKind: "agent gateway"
   }
 };
+
+const launchOnlyDemoIds = new Set(["openclaw-hosted-agent-gateway"]);
 
 function escapeHtml(value = "") {
   return String(value)
@@ -176,23 +146,19 @@ function renderRunCountBadge(featureId) {
 }
 
 function demoCardActionLabel(featureId) {
-  return hostedUiLaunchDemoIds.includes(featureId) ? "Launch" : "Run";
+  return launchOnlyDemoIds.has(featureId) ? "Launch" : "Run";
 }
 
-function hostedReferenceDetails(featureId) {
-  const config = hostedReferenceConfig(featureId);
+function hostedApplicationLaunchConfig(featureId) {
+  const config = hostedApplicationLaunchConfigs[featureId];
   if (!config) {
     return null;
   }
-  const hostedUrl = infraState[config.urlKey] || "";
-  const hostedDeploymentId = infraState[config.deploymentIdKey] || "";
-  const value = hostedUrl || hostedDeploymentId;
-  if (!value) {
-    return null;
-  }
   return {
-    label: config.label,
-    value
+    ...config,
+    hostedUrl: infraState[config.hostedUrlKey] || "",
+    hostedDeploymentId: infraState[config.hostedDeploymentIdKey] || "",
+    hostedDeploymentStatus: infraState[config.hostedDeploymentStatusKey] || ""
   };
 }
 
@@ -258,6 +224,26 @@ const demoDefaults = {
     output: "Configure the shared OCI project/API key, then run the live Responses API demo.",
     sessionVisible: false,
     sessionId: ""
+  },
+  "openai-compatible-chat": {
+    title: "OpenAI-Compatible Chat Completions Workbench",
+    prompt: "Draft a concise customer update for delayed checkout confirmations using the OCI Chat Completions API.",
+    button: "Run Chat Completions Demo",
+    output: "Run a live OCI Chat Completions request through the OpenAI-compatible endpoint.",
+    sessionVisible: false,
+    sessionId: "",
+    toolResourceVisible: false,
+    toolResourceId: ""
+  },
+  "responses-streaming-structured-output": {
+    title: "Responses Streaming + Structured Output Workbench",
+    prompt: "Summarize this checkout incident as JSON with severity and next actions: payment callbacks are delayed and premium customers are waiting.",
+    button: "Run Streaming Demo",
+    output: "Run a live streaming OCI Responses API call and inspect the aggregated structured output.",
+    sessionVisible: false,
+    sessionId: "",
+    toolResourceVisible: false,
+    toolResourceId: ""
   },
   "conversation-store": {
     title: "Conversation Store Workbench",
@@ -385,21 +371,12 @@ const demoDefaults = {
     toolResourceVisible: false,
     toolResourceId: ""
   },
-  "langfuse-hosted-observability": {
-    title: "Langfuse Hosted Observability",
-    prompt: "",
-    button: "Launch",
-    output: "Open the minimal Langfuse hosted deployment in a new browser tab.",
-    sessionVisible: false,
-    sessionId: "",
-    toolResourceVisible: false,
-    toolResourceId: ""
-  },
   "openclaw-hosted-agent-gateway": {
     title: "OpenClaw Hosted Agent Gateway",
     prompt: "",
     button: "Launch",
-    output: "Open the hosted OpenClaw Control UI in a new browser tab.",
+    output: "Open the hosted OpenClaw agent gateway UI through the IDCS-authenticated portal proxy.",
+    promptVisible: false,
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -407,9 +384,9 @@ const demoDefaults = {
   },
   "agentic-control-tower": {
     title: "Agentic Control Tower Workbench",
-    prompt: "",
-    button: "Launch",
-    output: "Open the hosted LlamaIndex Control Tower through the IDCS-authenticated launch proxy.",
+    prompt: "Coordinate incident triage across planning, tool review, approval, memory, and audit before drafting the final response.",
+    button: "Run Control Tower Flow",
+    output: "Run the hosted LlamaIndex workflow through the backend IDCS-authenticated proxy and inspect request, trace, logs, and response output.",
     sessionVisible: false,
     sessionId: "",
     toolResourceVisible: false,
@@ -509,6 +486,8 @@ const demoDefaults = {
 
 const demoScriptNames = {
   "responses-api": "responses_api.py",
+  "openai-compatible-chat": "openai_compatible_chat.py",
+  "responses-streaming-structured-output": "responses_streaming_structured_output.py",
   "conversation-store": "conversation_store.py",
   guardrails: "guardrails.py",
   "file-search-vector-store-rag": "file_search_vector_store_rag.py",
@@ -523,6 +502,7 @@ const demoScriptNames = {
   "a2a-agent-collaboration": "a2a_agent_collaboration.py",
   "agentic-control-tower": "agentic_control_tower.py",
   "agentic-rag-planner": "agentic_rag_planner.py",
+  "locus-sdk-agentic-workflows": "locus_sdk_agentic_workflows.py",
   "human-approval-agent": "human_approval_agent.py",
   "governance-center": "governance_center.py",
   "document-understanding-genai": "document_understanding_genai.py",
@@ -545,6 +525,34 @@ const demoBriefs = {
     result: [
       "Turns an operational support note into a concise business summary.",
       "Shows the baseline request/response pattern used by the other demos."
+    ]
+  },
+  "openai-compatible-chat": {
+    services: [
+      "OCI Chat Completions API through the OpenAI-compatible endpoint.",
+      "OpenAI SDK chat.completions path backed by OCI Generative AI authentication."
+    ],
+    security: [
+      "Uses the Terraform-created OCI Generative AI API key and project OCID.",
+      "Keeps chat execution scoped to the configured OCI region and project."
+    ],
+    result: [
+      "Shows how existing Chat Completions code can move to OCI.",
+      "Useful for teams migrating stateless chat assistants before adopting Responses API."
+    ]
+  },
+  "responses-streaming-structured-output": {
+    services: [
+      "OCI Responses API streaming event path.",
+      "Structured JSON schema contract for machine-readable output."
+    ],
+    security: [
+      "Uses the shared OCI project and API key.",
+      "Schema-constrained output is easier to route through governed workflows."
+    ],
+    result: [
+      "Streams incremental events and aggregates the final output.",
+      "Useful for UI progress, workflow automation, and downstream incident routing."
     ]
   },
   "conversation-store": {
@@ -715,20 +723,6 @@ const demoBriefs = {
       "Useful for cross-agent triage, workflow lookup, and coordinated customer response."
     ]
   },
-  "langfuse-hosted-observability": {
-    services: [
-      "OCI Generative AI Hosted Application for a real Langfuse web container.",
-      "OCI Hosted Deployment backed by a private OCIR Langfuse image."
-    ],
-    security: [
-      "Hosted application inbound auth uses the configured IDCS domain, audience, and scope.",
-      "Database, ClickHouse, Redis, and object-storage secrets are injected as runtime environment variables."
-    ],
-    result: [
-      "Opens a live Langfuse observability UI from the portal.",
-      "Useful for demonstrating trace and prompt observability next to hosted agent deployments."
-    ]
-  },
   "openclaw-hosted-agent-gateway": {
     services: [
       "OCI Generative AI Hosted Application for an OpenClaw gateway container.",
@@ -773,7 +767,7 @@ const demoBriefs = {
   },
   "locus-sdk-agentic-workflows": {
     services: [
-      "Locus SDK agent loop mapped to OCI Responses model providers.",
+      "Oracle Locus SDK Agent and tool decorator contract.",
       "Tool execution, MCP integration, memory, checkpoints, and streaming event patterns."
     ],
     security: [
@@ -891,6 +885,18 @@ const flowDiagrams = {
     nodes: ["Portal prompt", "Responses API", "OCI model", "Structured answer"],
     mermaid: "flowchart LR\n  A[Portal prompt] --> B[Responses API]\n  B --> C[OCI model]\n  C --> D[Structured answer]"
   },
+  "openai-compatible-chat": {
+    title: "OpenAI-Compatible Chat Flow",
+    nodes: ["Chat messages", "OpenAI-compatible endpoint", "OCI Chat Completions", "Assistant message"],
+    mermaid:
+      "flowchart LR\n  A[Chat messages] --> B[OpenAI-compatible OCI endpoint]\n  B --> C[OCI Chat Completions]\n  C --> D[Assistant message]"
+  },
+  "responses-streaming-structured-output": {
+    title: "Responses Streaming Flow",
+    nodes: ["Prompt", "Responses API stream", "JSON schema", "Stream events", "Structured result"],
+    mermaid:
+      "flowchart LR\n  A[Prompt] --> B[Responses API stream]\n  A --> C[JSON schema]\n  B --> D[Stream events]\n  C --> E[Structured result]\n  D --> E"
+  },
   "conversation-store": {
     title: "Conversation Store Flow",
     nodes: ["Session turn", "OCI Conversations API", "Responses API", "Context-aware answer"],
@@ -954,12 +960,6 @@ const flowDiagrams = {
     nodes: ["Agent card discovery", "A2A task", "Incident agent", "LangGraph agent", "Coordinated answer"],
     mermaid:
       "flowchart LR\n  A[Agent card discovery] --> B[A2A task]\n  B --> C[Incident agent]\n  C --> D[LangGraph agent]\n  D --> E[Coordinated answer]"
-  },
-  "langfuse-hosted-observability": {
-    title: "Langfuse Hosted Observability Flow",
-    nodes: ["Langfuse image", "External stores", "OCI hosted app", "Hosted deployment URL", "Langfuse UI"],
-    mermaid:
-      "flowchart LR\n  A[Langfuse image] --> B[OCI hosted app]\n  C[External stores] --> B\n  B --> D[Hosted deployment URL]\n  D --> E[Langfuse UI]"
   },
   "openclaw-hosted-agent-gateway": {
     title: "OpenClaw Hosted Gateway Flow",
@@ -1029,6 +1029,22 @@ const ociFeatureCodeSnippets = {
     input=prompt,
     temperature=temperature,
 )`,
+  "openai-compatible-chat": `response = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": prompt}],
+    temperature=temperature,
+)`,
+  "responses-streaming-structured-output": [
+    `stream = client.responses.create(
+    model=model,
+    input=prompt,
+    stream=True,
+    text={"format": {"type": "json_schema", "schema": schema}},
+)`,
+    `for event in stream:
+    collect_stream_delta(event)
+structured_output = json.loads(output_text)`
+  ],
   "conversation-store": `response = client.responses.create(
     model=model,
     input=prompt,
@@ -1073,8 +1089,6 @@ state = {"messages": prompt, "mcp_tools": discovered_tools}`,
 task = send_a2a_task(agent_card, prompt)`,
     `response = collect_agent_result(task)`
   ],
-  "langfuse-hosted-observability": `deployment = read_langfuse_hosted_observability_metadata()
-window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "openclaw-hosted-agent-gateway": `deployment = read_openclaw_hosted_gateway_metadata()
 window.open(deployment.url, "_blank", "noopener,noreferrer")`,
   "agentic-control-tower": [
@@ -1094,16 +1108,17 @@ queries = plan["retrievalQueries"]`,
 )`
   ],
   "locus-sdk-agentic-workflows": [
-    `agent = Agent(
-    name="IncidentAgent",
-    tools=[lookup_order, create_ticket],
-    memory=memory_manager,
-)`,
-    `workflow = Orchestrator(
-    agents=[agent],
-    checkpointer=checkpoint_store,
-)
-events = workflow.stream(prompt)`
+    `from locus.agent import Agent
+from locus.tools import tool
+
+@tool
+def lookup_order_status(order_id: str) -> dict:
+    return lookup_order(order_id)`,
+    `agent_contract = {
+    "agentClass": Agent.__name__,
+    "tools": [lookup_order_status],
+    "modelProvider": "OCI Responses API",
+}`
   ],
   "human-approval-agent": [
     `approval = classify_agent_action_risk(prompt)
@@ -1138,6 +1153,10 @@ const defaultFeatureSourceFiles = [
 
 const ociFeatureSourceFiles = {
   "responses-api": [{ label: "Backend demo", path: "backend/demos/responses_api.py" }],
+  "openai-compatible-chat": [{ label: "Backend demo", path: "backend/demos/openai_compatible_chat.py" }],
+  "responses-streaming-structured-output": [
+    { label: "Backend demo", path: "backend/demos/responses_streaming_structured_output.py" }
+  ],
   "conversation-store": [
     { label: "Backend demo", path: "backend/demos/conversation_store.py" },
     { label: "Terraform", path: "infra/conversation-store/conversation.tf" }
@@ -1167,11 +1186,6 @@ const ociFeatureSourceFiles = {
     { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langgraph.yaml" }
   ],
   "a2a-agent-collaboration": [{ label: "Backend demo", path: "backend/demos/a2a_agent_collaboration.py" }],
-  "langfuse-hosted-observability": [
-    { label: "Hosted image", path: "apps/hosted-langfuse/Dockerfile" },
-    { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_langfuse.yaml" },
-    { label: "Hosted Terraform", path: "infra/hosted-agentic-applications/langfuse_hosted_application.tf" }
-  ],
   "openclaw-hosted-agent-gateway": [
     { label: "Hosted image", path: "apps/hosted-openclaw/Dockerfile" },
     { label: "Deploy spec", path: "infra/devops-hosted-image-build/build_spec_deploy_openclaw.yaml" },
@@ -1191,7 +1205,6 @@ const ociFeatureSourceFiles = {
 
 function featureCard(feature, index) {
   const hasFlowDiagram = Boolean(flowDiagrams[feature.id]);
-  const hostedReference = hostedReferenceDetails(feature.id);
 
   return `
     <article class="feature-card accent-${feature.accent}" tabindex="0" data-card style="--card-index: '${String(index + 1).padStart(2, "0")}'">
@@ -1207,11 +1220,6 @@ function featureCard(feature, index) {
             <p class="category">${feature.serviceArea}</p>
             <h2>${feature.title}</h2>
             <p class="summary">${feature.summary}</p>
-            ${
-              hostedReference
-                ? `<p class="hosted-card-reference"><span>${escapeHtml(hostedReference.label)}</span><code>${escapeHtml(hostedReference.value)}</code></p>`
-                : ""
-            }
           </div>
           <div class="rating-shell" data-rating-shell="${feature.id}" data-rating-placement="card">
             ${renderDemoRatingControl(feature.id, "card")}
@@ -1254,8 +1262,8 @@ function renderPortal() {
           </div>
           <div class="nav-actions">
             <a class="nav-link" href="#catalog">Catalog</a>
-            <a class="nav-link" href="/admin.html" target="_blank" rel="noreferrer">Administration</a>
-            <form method="post" action="/logout">
+            <a class="nav-link" href="${portalRelativeUrl("/admin.html")}" target="_blank" rel="noreferrer">Administration</a>
+            <form method="post" action="${portalRelativeUrl("/logout")}">
               <button class="nav-link logout-button" type="submit">Logout</button>
             </form>
           </div>
@@ -1367,7 +1375,7 @@ function renderPortal() {
           </div>
         </div>
         <div class="demo-body" id="responses-demo-body">
-          <label class="demo-field" for="responses-prompt">
+          <label class="demo-field" id="responses-prompt-field" for="responses-prompt">
             <span>Prompt</span>
             <textarea id="responses-prompt" rows="5">Summarize this support note: database latency increased after deployment and customers are seeing slower checkout confirmations.</textarea>
           </label>
@@ -1376,11 +1384,11 @@ function renderPortal() {
               <span>Session ID</span>
               <input id="responses-session-id" value="" />
             </label>
-            <label>
+            <label id="responses-model-field">
               <span>OCI Responses model</span>
               <input id="responses-model" value="openai.gpt-oss-120b" />
             </label>
-            <label>
+            <label id="responses-project-field">
               <span>Project OCID</span>
               <input id="responses-project-id-display" placeholder="OCI project OCID" />
             </label>
@@ -1392,11 +1400,12 @@ function renderPortal() {
               <input id="responses-code-container-refresh" type="checkbox" />
               <span>Create new container</span>
             </label>
-            <label>
+            <label id="responses-temperature-field">
               <span>Temperature</span>
               <input id="responses-temperature" type="number" min="0" max="1" step="0.1" value="0.2" />
             </label>
             <button id="responses-run-button" type="button">Run demo</button>
+            <button id="responses-launch-button" class="secondary-run-action" type="button" hidden>Launch hosted app</button>
           </div>
           <div class="demo-output-grid">
             <section>
@@ -1571,7 +1580,7 @@ function attachCardInteractions() {
   document.querySelectorAll("[data-destroy-demo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      window.open("/admin.html", "_blank", "noopener");
+      window.open(portalRelativeUrl("/admin.html"), "_blank", "noopener");
     });
   });
 }
@@ -1581,10 +1590,6 @@ function getResponsesConfig() {
     region: defaultProvisionConfig.region,
     projectId: document.getElementById("responses-project-id-display").value.trim() || infraState.projectId
   };
-}
-
-function hostedReferenceConfig(featureId) {
-  return hostedRuntimeReferences[featureId] || null;
 }
 
 function visibleRequestPayload(payload = {}) {
@@ -1656,10 +1661,12 @@ function defaultWiringHref(featureId) {
 function openDemoDialog(featureId) {
   const defaults = demoDefaults[featureId] || demoDefaults["responses-api"];
   const feature = aiFeatures.find((item) => item.id === featureId) || aiFeatures[0];
+  const launchConfig = hostedApplicationLaunchConfig(featureId);
+  const isLaunchOnly = launchOnlyDemoIds.has(featureId);
   activeDemoId = featureId;
-  document
-    .getElementById("responses-demo-dialog")
-    .classList.toggle("is-launch-demo", hostedUiLaunchDemoIds.includes(featureId));
+  const dialog = document.getElementById("responses-demo-dialog");
+  dialog.classList.toggle("has-hosted-launch", Boolean(launchConfig));
+  dialog.classList.toggle("is-launch-only", isLaunchOnly);
   document.getElementById("demo-dialog-title").textContent = defaults.title;
   document.getElementById("demo-details-summary").textContent = feature.details || feature.summary;
   document.getElementById("demo-details-use-case").textContent = `Use case: ${feature.sampleUseCase}`;
@@ -1679,8 +1686,17 @@ function openDemoDialog(featureId) {
     wiringLink.removeAttribute("aria-label");
   }
   document.getElementById("responses-prompt").value = defaults.prompt;
+  document.getElementById("responses-prompt-field").hidden = defaults.promptVisible === false;
+  document.getElementById("responses-model-field").hidden = isLaunchOnly;
+  document.getElementById("responses-project-field").hidden = isLaunchOnly;
+  document.getElementById("responses-temperature-field").hidden = isLaunchOnly;
   document.getElementById("responses-model").value = defaults.model || "openai.gpt-oss-120b";
+  document.getElementById("responses-run-button").hidden = isLaunchOnly;
   document.getElementById("responses-run-button").textContent = defaults.button || "Run demo";
+  document.getElementById("responses-launch-button").hidden = !launchConfig;
+  document.getElementById("responses-launch-button").textContent = launchConfig
+    ? `Launch ${launchConfig.shortLabel}`
+    : "Launch hosted app";
   const ratingShell = document.getElementById("demo-rating-shell");
   ratingShell.dataset.ratingShell = featureId;
   ratingShell.innerHTML = renderDemoRatingControl(featureId, "dialog");
@@ -1706,7 +1722,7 @@ function openDemoDialog(featureId) {
         : "";
   document.getElementById("responses-tool-resource-id").value = defaults.toolResourceId || provisionedToolResourceId || "";
   syncDemoInfraFields();
-  document.getElementById("responses-demo-dialog").showModal();
+  dialog.showModal();
 }
 
 function writeActionLogs(action, payload, targetId = "responses-action-logs") {
@@ -2204,26 +2220,6 @@ const demoTechnicalFlows = {
     },
     defaultTechnicalFlow[4]
   ],
-  "langfuse-hosted-observability": [
-    defaultTechnicalFlow[0],
-    {
-      ...defaultTechnicalFlow[1],
-      title: "Hosted App Auth",
-      subtitle: "IDCS inbound auth",
-      feature: "OCI Hosted Application protects the Langfuse deployment with the configured IDCS boundary.",
-      auth: "Langfuse dependency credentials are injected as hosted application environment variables.",
-      interaction: "Terraform surfaces only the hosted URL and deployment metadata."
-    },
-    {
-      ...defaultTechnicalFlow[2],
-      title: "Langfuse Runtime",
-      subtitle: "Observability UI",
-      feature: "OCI Hosted Deployment runs the real Langfuse web container from private OCIR.",
-      auth: "Postgres, ClickHouse, Redis, and object storage remain external to keep this deployment minimal.",
-      interaction: "The portal opens the hosted Langfuse URL in a new tab for trace inspection."
-    },
-    defaultTechnicalFlow[4]
-  ],
   "agentic-rag-planner": [
     defaultTechnicalFlow[0],
     {
@@ -2549,8 +2545,6 @@ function applyProvisionedValues(result) {
   const hostedAgentDeploymentComponent = componentByName("OCI Hosted Deployment");
   const langGraphUrlComponent = componentByName("LangGraph Hosted Agent URL");
   const langGraphDeploymentComponent = componentByName("LangGraph OCI Hosted Deployment");
-  const langfuseUrlComponent = componentByName("Langfuse Hosted URL");
-  const langfuseDeploymentComponent = componentByName("Langfuse OCI Hosted Deployment");
   const openclawUrlComponent = componentByName("OpenClaw Hosted URL");
   const openclawDeploymentComponent = componentByName("OpenClaw OCI Hosted Deployment");
   const llamaIndexUrlComponent = componentByName("LlamaIndex Control Tower Hosted URL");
@@ -2576,10 +2570,6 @@ function applyProvisionedValues(result) {
     values.langGraphHostedDeploymentId || provisionedComponentValue(langGraphDeploymentComponent);
   infraState.langGraphHostedDeploymentStatus =
     values.langGraphHostedDeploymentStatus || langGraphDeploymentComponent?.status || "";
-  infraState.langfuseHostedUrl = values.langfuseHostedUrl || provisionedComponentValue(langfuseUrlComponent);
-  infraState.langfuseHostedDeploymentId = values.langfuseHostedDeploymentId || provisionedComponentValue(langfuseDeploymentComponent);
-  infraState.langfuseHostedDeploymentStatus =
-    values.langfuseHostedDeploymentStatus || langfuseDeploymentComponent?.status || "";
   infraState.openclawHostedUrl = values.openclawHostedUrl || provisionedComponentValue(openclawUrlComponent);
   infraState.openclawHostedDeploymentId = values.openclawHostedDeploymentId || provisionedComponentValue(openclawDeploymentComponent);
   infraState.openclawHostedDeploymentStatus =
@@ -2600,7 +2590,7 @@ function syncDemoInfraFields() {
 
 async function loadResponsesInfrastructureState({ refresh = false } = {}) {
   try {
-    const response = await fetch(`/api/features/responses-api/state${refresh ? "?refresh=true" : ""}`);
+    const response = await fetch(portalRelativeUrl(`/api/features/responses-api/state${refresh ? "?refresh=true" : ""}`));
     const result = await response.json();
 
     if (Array.isArray(result.components) && result.components.length > 0) {
@@ -2652,12 +2642,14 @@ document.getElementById("flow-close-button").addEventListener("click", () => {
 });
 
 document.getElementById("responses-run-button").addEventListener("click", async () => {
-  const runButton = document.getElementById("responses-run-button");
-  const actionLogs = document.getElementById("responses-action-logs");
-  if (hostedUiLaunchDemoIds.includes(activeDemoId)) {
+  if (launchOnlyDemoIds.has(activeDemoId)) {
+    incrementFeatureRunCount(activeDemoId);
     launchExternalDemo(activeDemoId);
     return;
   }
+
+  const runButton = document.getElementById("responses-run-button");
+  const actionLogs = document.getElementById("responses-action-logs");
   const prompt = document.getElementById("responses-prompt").value;
   const temperature = Number.parseFloat(document.getElementById("responses-temperature").value);
   const model = document.getElementById("responses-model").value.trim() || "openai.gpt-oss-120b";
@@ -2710,7 +2702,7 @@ document.getElementById("responses-run-button").addEventListener("click", async 
   runButton.textContent = "Running...";
 
   try {
-    const response = await fetch(`/api/features/${activeDemoId}/run`, {
+    const response = await fetch(portalRelativeUrl(`/api/features/${activeDemoId}/run`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -2767,37 +2759,13 @@ document.getElementById("responses-run-button").addEventListener("click", async 
   }
 });
 
+document.getElementById("responses-launch-button").addEventListener("click", () => {
+  incrementFeatureRunCount(activeDemoId);
+  launchExternalDemo(activeDemoId);
+});
+
 function launchExternalDemo(featureId) {
-  const launchConfigs = {
-    "langfuse-hosted-observability": {
-      label: "Langfuse Hosted Observability",
-      shortLabel: "Langfuse",
-      launchUrl: "/api/langfuse/launch/auth/sign-in",
-      hostedUrl: infraState.langfuseHostedUrl,
-      hostedDeploymentId: infraState.langfuseHostedDeploymentId,
-      hostedDeploymentStatus: infraState.langfuseHostedDeploymentStatus,
-      uiKind: "observability"
-    },
-    "openclaw-hosted-agent-gateway": {
-      label: "OpenClaw Hosted Agent Gateway",
-      shortLabel: "OpenClaw",
-      launchUrl: "/api/openclaw/launch/",
-      hostedUrl: infraState.openclawHostedUrl,
-      hostedDeploymentId: infraState.openclawHostedDeploymentId,
-      hostedDeploymentStatus: infraState.openclawHostedDeploymentStatus,
-      uiKind: "agent gateway"
-    },
-    "agentic-control-tower": {
-      label: "Agentic Control Tower",
-      shortLabel: "LlamaIndex Control Tower",
-      launchUrl: "/api/llamaindex/launch/",
-      hostedUrl: infraState.llamaIndexHostedUrl,
-      hostedDeploymentId: infraState.llamaIndexHostedDeploymentId,
-      hostedDeploymentStatus: infraState.llamaIndexHostedDeploymentStatus,
-      uiKind: "control tower"
-    }
-  };
-  const config = launchConfigs[featureId];
+  const config = hostedApplicationLaunchConfig(featureId);
   if (!config) {
     return;
   }

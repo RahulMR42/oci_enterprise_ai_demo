@@ -1,0 +1,124 @@
+{
+  "name": "OCI Enterprise AI Portal Change Log",
+  "generatedAt": "2026-06-08T17:27:14Z",
+  "entries": [
+    {
+      "version": "0.0.26",
+      "releasedAt": "2026-06-08T17:27:14Z",
+      "localTime": "2026-06-08T22:57:14+0530",
+      "summary": "Add protected users and user-aware audit logs backed by the NL2SQL Autonomous Database.",
+      "changes": [
+        "The default oci bootstrap credentials remain available for admin login and deployment smoke tests.",
+        "Protected users can sign up and sign in with email/password credentials stored as salted hashes in the existing NL2SQL Autonomous Database.",
+        "Demo runs and hosted UI launches now record user identity, event type, status, and duration for administration filtering.",
+        "Resource Manager and DevOps pass NL2SQL Autonomous Database connection metadata into the portal container without creating a second database.",
+        "OCI DevOps now runs bootstrap-portal-auth-schema before portal rollout so the protected-user and audit tables are created before the portal receives traffic.",
+        "Portal and administration assets now use version 0.0.26."
+      ]
+    },
+    {
+      "version": "0.0.25",
+      "releasedAt": "2026-06-08T14:08:00Z",
+      "localTime": "2026-06-08T19:38:00+0530",
+      "summary": "Preserve DevOps-generated runtime metadata after Resource Manager apply.",
+      "changes": [
+        "The provision-generated-runtime DevOps stage now exports Conversation Store, File Search, and Code Interpreter runtime values for Resource Manager to retain.",
+        "Resource Manager runtime-config writes now include the DevOps-generated Code Interpreter status and File Search seed-document counts instead of overwriting them with stale placeholders.",
+        "The portal infrastructure view treats exported File Search seed counts as created state when per-document metadata is not present.",
+        "Portal and administration assets now use version 0.0.25."
+      ]
+    },
+    {
+      "version": "0.0.24",
+      "releasedAt": "2026-06-08T13:14:35Z",
+      "localTime": "2026-06-08T18:44:35+0530",
+      "summary": "Move generated runtime provisioning into the OCI DevOps build pipeline.",
+      "changes": [
+        "Added a provision-generated-runtime DevOps build stage that creates or reuses the Conversation Store conversation, File Search Vector Store, bundled PDF seed documents, and Code Interpreter container with resource principal auth before portal rollout.",
+        "Resource Manager local-exec switches for Conversation Store, File Search, and Code Interpreter now default to false because the DevOps stage owns those generated runtime API calls.",
+        "The portal infrastructure view now reads DevOps-generated File Search seed metadata and Code Interpreter container status from runtime config.",
+        "Portal and administration assets now use version 0.0.24."
+      ]
+    },
+    {
+      "version": "0.0.23",
+      "releasedAt": "2026-06-08T12:50:50Z",
+      "localTime": "2026-06-08T18:20:50+0530",
+      "summary": "Force Resource Manager regeneration for generated demo runtime resources.",
+      "changes": [
+        "Conversation Store, File Search seed documents, and Code Interpreter now use a refreshed Terraform replacement token so Resource Manager reruns local-exec and recreates generated runtime metadata.",
+        "The deployment enables File Search local-exec so bundled PDF seed documents are uploaded and visible in the infrastructure pane.",
+        "Portal and administration assets now use version 0.0.23."
+      ]
+    },
+    {
+      "version": "0.0.22",
+      "releasedAt": "2026-06-08T11:22:16Z",
+      "localTime": "2026-06-08T16:52:21+0530",
+      "summary": "Fix duplicated streaming JSON parsing for structured-output demos.",
+      "changes": [
+        "Responses Streaming + Structured Output now extracts the first complete balanced JSON object when OCI streaming emits adjacent duplicate output objects.",
+        "Added a parser-level regression test for duplicated streamed structured output.",
+        "Portal and administration assets now use version 0.0.22."
+      ]
+    },
+    {
+      "version": "0.0.21",
+      "releasedAt": "2026-06-08T10:41:55Z",
+      "localTime": "2026-06-08T16:11:55+0530",
+      "summary": "Fix Responses streaming parser for structured-output demos.",
+      "changes": [
+        "Responses Streaming + Structured Output now ignores reasoning deltas and aggregates only response output-text deltas.",
+        "Structured output parsing now recovers the JSON object from the streamed final output when the provider includes surrounding text.",
+        "Portal and administration assets now use version 0.0.21."
+      ]
+    },
+    {
+      "version": "0.0.20",
+      "releasedAt": "2026-06-08T09:45:12Z",
+      "localTime": "2026-06-08T15:15:12+0530",
+      "summary": "Add SDK-backed LangGraph/Locus runners and two OCI Generative AI API cards.",
+      "changes": [
+        "LangGraph Hosted Agent + MCP now compiles a portal-side LangGraph StateGraph before live OCI synthesis, matching the hosted runtime SDK.",
+        "Locus SDK Agentic Workflows now imports Oracle Locus SDK Agent/tool symbols and builds a real SDK tool contract before OCI synthesis.",
+        "Added OpenAI-Compatible Chat Completions and Responses Streaming + Structured Output demo cards backed by the existing infra/responses-api stack.",
+        "Run-window documentation, wiring diagrams, code references, and script dispatch were updated for the new cards.",
+        "Portal and administration assets now use version 0.0.20 to bypass stale 0.0.19 browser assets."
+      ]
+    },
+    {
+      "version": "0.0.19",
+      "releasedAt": "2026-06-08T07:35:00Z",
+      "localTime": "2026-06-08T13:05:00+0530",
+      "summary": "Fix hosted card layout and restrict Launch-only behavior to real hosted UI demos.",
+      "changes": [
+        "Hosted UI launch-only behavior is limited to the demos that expose a portal launch proxy.",
+        "Hosted Agentic Applications, LangGraph, A2A, and Control Tower stay as Run demos with request and response payload output.",
+        "Long hosted endpoint references are removed from card faces so Run and Flow actions remain visible.",
+        "Portal and administration assets now use version 0.0.19 to bypass stale 0.0.18 browser assets."
+      ]
+    },
+    {
+      "version": "0.0.18",
+      "releasedAt": "2026-06-08T05:45:11Z",
+      "localTime": "2026-06-08T11:15:11+0530",
+      "summary": "Fix hosted UI launch actions and add administration change tracking.",
+      "changes": [
+        "Every hosted deployment UI demo now exposes Launch inside the run window, and UI-only hosted demos use Launch as the only visible action.",
+        "The run dialog header is limited to Documentation and OCI wiring diagram links.",
+        "Launch-only hosted demos hide prompt, model, project, and temperature fields.",
+        "Portal and administration assets include a version query string to avoid stale browser caches.",
+        "Administration includes an Object Storage-backed change log view."
+      ]
+    },
+    {
+      "version": "0.0.17",
+      "releasedAt": "2026-06-05T16:45:31Z",
+      "summary": "Hosted deployment infrastructure rollout.",
+      "changes": [
+        "Resource Manager apply deployed the hosted application infrastructure and portal runtime metadata.",
+        "Portal version shown on the login page was 0.0.17."
+      ]
+    }
+  ]
+}

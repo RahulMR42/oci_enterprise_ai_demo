@@ -9,11 +9,13 @@ function escapeXml(value) {
 }
 
 test("demo features provide card and flip-side content", () => {
-  assert.equal(aiFeatures.length, 25);
+  assert.equal(aiFeatures.length, 26);
 
   const featureIds = aiFeatures.map((feature) => feature.id);
   assert.deepEqual(featureIds, [
     "responses-api",
+    "openai-compatible-chat",
+    "responses-streaming-structured-output",
     "conversation-store",
     "guardrails",
     "file-search-vector-store-rag",
@@ -26,7 +28,6 @@ test("demo features provide card and flip-side content", () => {
     "hosted-agentic-applications",
     "langgraph-hosted-agent-mcp",
     "a2a-agent-collaboration",
-    "langfuse-hosted-observability",
     "openclaw-hosted-agent-gateway",
     "agentic-control-tower",
     "agentic-rag-planner",
@@ -65,6 +66,14 @@ test("demo features provide card and flip-side content", () => {
   }
 });
 
+test("demo catalog does not expose Langfuse demos or documentation", () => {
+  const catalogText = JSON.stringify(aiFeatures);
+
+  assert.equal(aiFeatures.some((feature) => /langfuse/i.test(feature.id)), false);
+  assert.equal(aiFeatures.some((feature) => /langfuse/i.test(feature.title)), false);
+  assert.doesNotMatch(catalogText, /langfuse/i);
+});
+
 test("demo catalog does not expose n8n demos or documentation", () => {
   const catalogText = JSON.stringify(aiFeatures);
 
@@ -74,13 +83,18 @@ test("demo catalog does not expose n8n demos or documentation", () => {
   assert.doesNotMatch(catalogText, /n8n/i);
 });
 
-test("portal stylesheet uses Oracle Redwood palette tokens", () => {
+test("portal stylesheet uses Oracle Cloud palette tokens", () => {
   const styles = readFileSync("src/styles.css", "utf8");
+  const server = readFileSync("server.mjs", "utf8");
 
-  assert.match(styles, /--redwood-brand-red:\s*#c74634;/);
-  assert.match(styles, /--redwood-bg:\s*#f7f4ef;/);
-  assert.match(styles, /--redwood-ink:\s*#312d2a;/);
+  assert.match(styles, /--oci-brand-red:\s*#c74634;/);
+  assert.match(styles, /--oci-cloud-ink:\s*#1f1f1f;/);
+  assert.match(styles, /--oci-console-bg:\s*#f8f7f4;/);
+  assert.match(styles, /--oci-cyan:\s*#00758f;/);
+  assert.match(server, /--oci-brand-red:\s*#c74634;/);
+  assert.match(server, /Oracle Cloud/);
   assert.doesNotMatch(styles, /#1d4ed8/);
+  assert.doesNotMatch(server, /#1d4ed8/);
 });
 
 test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
@@ -91,8 +105,8 @@ test("Agentic Control Tower demo describes LlamaIndex and IDCS posture", () => {
   assert.equal(feature.sdkModule, "backend/demos/agentic_control_tower.py");
   assert.match(feature.summary, /LlamaIndex/);
   assert.match(feature.details, /IDCS proxy/);
-  assert.match(feature.provisioningDetails, /Terraform-generated IDCS launch client/);
-  assert.deepEqual(feature.capabilities, ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy launch"]);
+  assert.match(feature.provisioningDetails, /Terraform-generated IDCS client/);
+  assert.deepEqual(feature.capabilities, ["Hosted LlamaIndex runtime", "Tool critique loop", "IDCS proxy execution"]);
 });
 
 test("Conversation Store demo describes OCI-managed Conversations API state", () => {
@@ -115,10 +129,67 @@ test("File Search demo states that vector store provisioning is required by defa
   assert.deepEqual(feature.capabilities, ["File ingestion", "Vector retrieval", "Grounded answers"]);
 });
 
+test("new OCI Generative AI cards use exact documented API features and shared infra", () => {
+  const chat = aiFeatures.find((item) => item.id === "openai-compatible-chat");
+  const streaming = aiFeatures.find((item) => item.id === "responses-streaming-structured-output");
+
+  assert.ok(chat);
+  assert.equal(chat.title, "OpenAI-Compatible Chat Completions");
+  assert.equal(chat.terraformPath, "infra/responses-api");
+  assert.equal(chat.sdkModule, "backend/demos/openai_compatible_chat.py");
+  assert.equal(chat.docsHref, "https://docs.oracle.com/en-us/iaas/Content/generative-ai/chat-completions-api.htm");
+  assert.match(chat.details, /Chat Completions/);
+  assert.deepEqual(chat.capabilities, [
+    "Chat Completions API",
+    "OpenAI-compatible client",
+    "OCI project-scoped execution"
+  ]);
+
+  assert.ok(streaming);
+  assert.equal(streaming.title, "Responses Streaming + Structured Output");
+  assert.equal(streaming.terraformPath, "infra/responses-api");
+  assert.equal(streaming.sdkModule, "backend/demos/responses_streaming_structured_output.py");
+  assert.equal(streaming.docsHref, "https://docs.oracle.com/en-us/iaas/Content/generative-ai/responses-api.htm");
+  assert.match(streaming.details, /streaming enabled and a JSON schema output contract/);
+  assert.deepEqual(streaming.capabilities, [
+    "Streaming events",
+    "Structured JSON schema",
+    "Responses API event trace"
+  ]);
+});
+
+test("LangGraph and Locus executable demos load their SDKs", () => {
+  const langgraphBackend = readFileSync("backend/demos/langgraph_hosted_agent_mcp.py", "utf8");
+  const langgraphHosted = readFileSync("apps/hosted-langgraph-agent/app.py", "utf8");
+  const locusBackend = readFileSync("backend/demos/locus_sdk_agentic_workflows.py", "utf8");
+  const requirements = readFileSync("requirements.txt", "utf8");
+
+  assert.match(langgraphHosted, /from langgraph\.graph import END, StateGraph/);
+  assert.match(langgraphBackend, /from langgraph\.graph import END, StateGraph/);
+  assert.match(langgraphBackend, /StateGraph\(_LangGraphState\)/);
+  assert.match(requirements, /langgraph==0\.2\.76/);
+
+  assert.match(locusBackend, /from locus\.agent import Agent/);
+  assert.match(locusBackend, /from locus\.tools import tool/);
+  assert.match(locusBackend, /@tool/);
+  assert.match(requirements, /locus-sdk\[oci\]==0\.2\.0b26/);
+});
+
+test("Responses streaming demo does not mix reasoning deltas into structured output", () => {
+  const streamingBackend = readFileSync("backend/demos/responses_streaming_structured_output.py", "utf8");
+
+  assert.match(streamingBackend, /event_type == "response\.output_text\.delta"/);
+  assert.match(streamingBackend, /def _parse_structured_output\(output\):/);
+  assert.doesNotMatch(streamingBackend, /"delta" in event_json/);
+  assert.doesNotMatch(streamingBackend, /response\.reasoning_text\.delta/);
+});
+
 test("portal exposes mermaid-style flow diagrams for feature cards", () => {
   const main = readFileSync("src/main.js", "utf8");
 
   assert.match(main, /const flowDiagrams = \{/);
+  assert.match(main, /"openai-compatible-chat"[\s\S]*OpenAI-compatible OCI endpoint/);
+  assert.match(main, /"responses-streaming-structured-output"[\s\S]*JSON schema/);
   assert.match(main, /"file-search-vector-store-rag"[\s\S]*Bundled Oracle PDFs/);
   assert.match(main, /"batch-inference"[\s\S]*Async processing/);
   assert.match(main, /"model-evaluation"[\s\S]*Promotion gate/);
@@ -133,15 +204,6 @@ test("portal exposes mermaid-style flow diagrams for feature cards", () => {
   assert.match(main, /data-show-flow/);
   assert.match(main, /flow-dialog/);
   assert.match(main, /openFlowDiagram/);
-});
-
-test("Langfuse demo describes managed OCI dependencies", () => {
-  const feature = aiFeatures.find((item) => item.id === "langfuse-hosted-observability");
-
-  assert.ok(feature);
-  assert.match(feature.details, /managed OCI PostgreSQL, ClickHouse, Redis, and Object Storage/);
-  assert.match(feature.provisioningDetails, /private networking, managed dependencies/);
-  assert.deepEqual(feature.capabilities, ["Real Langfuse UI", "Managed OCI dependencies", "Separate hosted deployment"]);
 });
 
 test("OpenClaw demo describes hosted gateway constraints", () => {
@@ -163,7 +225,7 @@ test("every demo card has a generated OCI wiring picture", () => {
   assert.match(main, /function defaultWiringHref\(featureId\)/);
   assert.match(main, /docs\/wiring\/\$\{featureId\}\.svg/);
   assert.match(generator, /Generated \$\{aiFeatures\.length\} wiring diagrams/);
-  assert.match(generator, /langfuse-hosted-observability/);
+  assert.doesNotMatch(generator, /langfuse-hosted-observability/);
 
   for (const feature of aiFeatures) {
     const diagramPath = `docs/wiring/${feature.id}.svg`;
@@ -204,15 +266,21 @@ test("portal stores star-only ratings and card run counts locally", () => {
 
 test("portal opens administration as a separate page", () => {
   const main = readFileSync("src/main.js", "utf8");
+  const indexHtml = readFileSync("index.html", "utf8");
   const adminHtml = readFileSync("admin.html", "utf8");
   const admin = readFileSync("src/admin.js", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  const version = packageJson.version.replaceAll(".", "\\.");
 
-  assert.match(main, /href="\/admin\.html"/);
+  assert.match(main, /href="\$\{portalRelativeUrl\("\/admin\.html"\)\}"/);
   assert.match(main, /target="_blank"/);
   assert.doesNotMatch(main, /id="administration"/);
+  assert.match(indexHtml, new RegExp(`href="\\.\\/src\\/styles\\.css\\?v=${version}"`));
+  assert.match(indexHtml, new RegExp(`src="\\.\\/src\\/main\\.js\\?v=${version}"`));
   assert.match(adminHtml, /id="administration"/);
-  assert.match(adminHtml, /src="\/src\/admin\.js"/);
+  assert.match(adminHtml, new RegExp(`href="\\.\\/src\\/styles\\.css\\?v=${version}"`));
+  assert.match(adminHtml, new RegExp(`src="\\.\\/src\\/admin\\.js\\?v=${version}"`));
   assert.match(admin, /loadAdministrationDashboard/);
   assert.match(main, /Administration/);
   assert.match(admin, /admin-metric-grid/);
@@ -220,22 +288,33 @@ test("portal opens administration as a separate page", () => {
   assert.match(adminHtml, /admin-tab-runs/);
   assert.match(adminHtml, /admin-tab-infra/);
   assert.match(adminHtml, /admin-tab-logs/);
+  assert.match(adminHtml, /admin-tab-changes/);
   assert.match(adminHtml, /admin-panel-runs/);
   assert.match(adminHtml, /admin-panel-infra/);
   assert.match(adminHtml, /admin-panel-logs/);
+  assert.match(adminHtml, /admin-panel-changes/);
   assert.match(adminHtml, /admin-demo-table/);
+  assert.match(adminHtml, /admin-change-log/);
   assert.match(admin, /\/api\/admin\/demo-runs/);
   assert.match(admin, /\/api\/admin\/infra/);
   assert.match(admin, /\/api\/admin\/logs/);
+  assert.match(admin, /\/api\/admin\/change-log/);
   assert.doesNotMatch(admin, /\/api\/features\/responses-api\/state/);
   assert.doesNotMatch(adminHtml, /Hosted application references/);
   assert.match(adminHtml, /admin-run-status-filter/);
   assert.match(adminHtml, /admin-log-source-filter/);
   assert.match(adminHtml, /admin-infra-status-filter/);
+  assert.match(adminHtml, /admin-user-filter/);
+  assert.match(adminHtml, /admin-event-type-filter/);
+  assert.match(adminHtml, /admin-from-filter/);
+  assert.match(adminHtml, /admin-to-filter/);
   assert.match(adminHtml, /admin-resource-list/);
   assert.match(adminHtml, /admin-schema-grid/);
   assert.match(adminHtml, /admin-container-log-note/);
   assert.match(admin, /admin-run-status-filter/);
+  assert.match(admin, /URLSearchParams/);
+  assert.match(admin, /userEmail/);
+  assert.match(admin, /eventType/);
   assert.match(admin, /entry\.preview \|\| ""/);
   assert.match(admin, /component\.value \|\| ""/);
   assert.match(adminHtml, /Usage summary/);
@@ -245,4 +324,5 @@ test("portal opens administration as a separate page", () => {
   assert.doesNotMatch(main, /id="infra-action-logs"/);
   assert.match(styles, /\.admin-section/);
   assert.match(styles, /\.admin-demo-row/);
+  assert.match(styles, /\.admin-change-entry/);
 });

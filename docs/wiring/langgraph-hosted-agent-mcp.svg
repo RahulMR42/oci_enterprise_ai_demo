@@ -34,7 +34,7 @@
   </defs>
   <rect class="page" width="1400" height="900"/>
   <text class="title" x="700" y="44" text-anchor="middle">LangGraph Hosted Agent + MCP - OCI Wiring Diagram</text>
-  <text class="subtitle" x="700" y="69" text-anchor="middle">OCI Generative AI Agents | Live Hosted App</text>
+  <text class="subtitle" x="700" y="69" text-anchor="middle">OCI Generative AI Agents | Live Hosted API</text>
 
   <rect class="lane lane-portal" x="50" y="105" width="280" height="610"/>
   <rect class="lane lane-runtime" x="370" y="105" width="330" height="610"/>
@@ -63,11 +63,11 @@
 <text class="box-text" x="535" y="226" text-anchor="middle">backend/demos/langgraph_hosted_agent_mcp.py</text>
 
   <rect class="box-outline box-purple" x="415" y="350" width="240" height="124"/>
-  <text class="box-title" x="535" y="380" text-anchor="middle">LangGraph hosted runtime on OCI</text>
+  <text class="box-title" x="535" y="380" text-anchor="middle">LangGraph StateGraph runtime on OCI</text>
 <text class="box-text" x="535" y="406" text-anchor="middle">Runs a live OCI Responses API request</text>
 <text class="box-text" x="535" y="425" text-anchor="middle">over generated metadata for a separate</text>
-<text class="box-text" x="535" y="444" text-anchor="middle">LangGraph hosted application. The</text>
-<text class="box-text" x="535" y="463" text-anchor="middle">hosted container source uses LangGraph</text>
+<text class="box-text" x="535" y="444" text-anchor="middle">LangGraph hosted application. Both the</text>
+<text class="box-text" x="535" y="463" text-anchor="middle">hosted container source and portal</text>
 
   <rect class="box-outline box-green" x="785" y="170" width="240" height="112"/>
   <text class="box-title" x="905" y="200" text-anchor="middle">Terraform module</text>
@@ -76,7 +76,7 @@
   <rect class="box-outline box-green" x="785" y="350" width="240" height="124"/>
   <text class="box-title" x="905" y="380" text-anchor="middle">Data and OCI resources</text>
 <text class="box-text" x="905" y="406" text-anchor="middle">OCIR image, MCP tool path, hosted</text>
-<text class="box-text" x="905" y="425" text-anchor="middle">metadata</text>
+<text class="box-text" x="905" y="425" text-anchor="middle">metadata, local graph plan</text>
 
   <rect class="box-outline box-orange" x="1145" y="170" width="170" height="112"/>
   <text class="box-title" x="1230" y="200" text-anchor="middle">Security</text>
