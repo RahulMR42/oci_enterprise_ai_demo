@@ -846,10 +846,10 @@ In the HTTP route, compute:
 
 - [ ] **Step 5: Audit hosted launches**
 
-Update `proxyLangfuseLaunch`, `proxyOpenClawLaunch`, `proxyLlamaIndexControlTowerLaunch`, and `proxyHostedApplicationLaunch` to accept an options object:
+Update `proxyOpenClawLaunch`, `proxyLlamaIndexControlTowerLaunch`, and `proxyHostedApplicationLaunch` to accept an options object:
 
 ```js
-async function proxyLangfuseLaunch(request, response, parsedUrl, { identity = bootstrapPortalIdentity(), sessionId = "" } = {}) {
+async function proxyOpenClawLaunch(request, response, parsedUrl, { identity = bootstrapPortalIdentity(), sessionId = "" } = {}) {
 ```
 
 At the end of each proxy path, call `recordPortalAuditEvent()` with:
@@ -859,7 +859,7 @@ recordPortalAuditEvent({
   sessionId,
   identity,
   eventType: "hosted_launch",
-  featureId: "langfuse-hosted-observability",
+  featureId: "openclaw-hosted-gateway",
   action: request.method,
   status: upstream.ok ? "success" : "failed",
   durationMs,
