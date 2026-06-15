@@ -39,4 +39,9 @@ for (const file of files) {
   writeFileSync(file.path, `${JSON.stringify(file.update(data), null, 2)}\n`);
 }
 
+for (const path of ["index.html", "admin.html"]) {
+  const html = readFileSync(path, "utf8").replace(/\?v=\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/g, `?v=${version}`);
+  writeFileSync(path, html);
+}
+
 console.log(`Set app version to ${version}`);
