@@ -81,15 +81,20 @@ def _read_nl2sql_infra():
 
 
 def _ensure_database():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(DB_PATH)
+    database_location = str(DB_PATH)
+    try:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(DB_PATH)
+    except (OSError, sqlite3.Error):
+        connection = sqlite3.connect(":memory:")
+        database_location = "in-memory SQLite fallback"
     for statement in SEED_SQL:
         connection.execute(statement)
     connection.executemany("insert or ignore into customers values(?, ?, ?, ?)", SEED_ROWS["customers"])
     connection.executemany("insert or ignore into orders values(?, ?, ?, ?, ?)", SEED_ROWS["orders"])
     connection.executemany("insert or ignore into support_cases values(?, ?, ?, ?, ?, ?)", SEED_ROWS["support_cases"])
     connection.commit()
-    return connection
+    return connection, database_location
 
 
 def _extract_json_object(text):
@@ -194,7 +199,7 @@ def run_demo(payload):
         "explanation": "Fallback SQL selected because the model response was not parseable JSON.",
     }
     sql = _validate_select(str(sql_plan.get("sql") or _fallback_sql(prompt)))
-    connection = _ensure_database()
+    connection, database_location = _ensure_database()
     rows = _query_rows(connection, sql)
     answer_prompt = (
         "Summarize these SQL results for the business user. Include the SQL that was executed.\n\n"
@@ -213,7 +218,7 @@ def run_demo(payload):
         *trace,
         "Called OCI Responses API to generate SQL",
         "Validated SELECT-only SQL",
-        f"Executed query against bundled sample database at {DB_PATH}",
+        f"Executed query against bundled sample database at {database_location}",
         "Called OCI Responses API to summarize SQL results",
     ]
     return result

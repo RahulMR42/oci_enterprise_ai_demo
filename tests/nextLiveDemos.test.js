@@ -104,7 +104,11 @@ test("stateful python demos use writable runtime data paths", () => {
   });
 
   for (const path of Object.values(defaultPaths)) {
-    assert.ok(path.startsWith("/tmp/enterprise-ai-demo/backend-data/"), path);
+    assert.ok(
+      path.startsWith("/dev/shm/enterprise-ai-demo/backend-data/") ||
+        path.startsWith("/tmp/enterprise-ai-demo/backend-data/"),
+      path
+    );
   }
 
   const demoDataDir = mkdtempSync(join(tmpdir(), "enterprise-ai-demo-data-"));
@@ -120,4 +124,36 @@ test("stateful python demos use writable runtime data paths", () => {
   } finally {
     rmSync(demoDataDir, { recursive: true, force: true });
   }
+});
+
+test("stateful python demos tolerate read-only configured data paths", () => {
+  const script = `
+import sys
+
+sys.path.insert(0, "backend/demos")
+
+import conversation_store
+import governance_center
+import long_term_memory
+import nl2sql_sql_search
+
+connection = nl2sql_sql_search._ensure_database()
+if isinstance(connection, tuple):
+    connection = connection[0]
+connection.close()
+long_term_memory._write_store({"subjects": {}})
+conversation_store._write_store({"sessions": {}})
+governance_center._write_audit({"events": []})
+print("ok")
+`;
+  const result = spawnSync("python3", ["-c", script], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      OCI_PORTAL_DEMO_DATA_DIR: "/proc/enterprise-ai-demo"
+    }
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stdout.trim(), "ok");
 });

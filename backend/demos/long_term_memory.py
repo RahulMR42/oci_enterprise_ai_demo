@@ -9,9 +9,11 @@ from common_oci import (
     config_from_env,
     demo_data_path,
     read_payload,
+    read_json_store,
     response_output_text,
     response_to_json,
     validate_config,
+    write_json_store,
 )
 
 
@@ -20,17 +22,11 @@ STORE_PATH = demo_data_path("long_term_memory_store.json")
 
 
 def _read_store():
-    if not STORE_PATH.exists():
-        return {"subjects": {}}
-    try:
-        return json.loads(STORE_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {"subjects": {}}
+    return read_json_store(STORE_PATH, {"subjects": {}})
 
 
 def _write_store(store):
-    STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STORE_PATH.write_text(json.dumps(store, indent=2), encoding="utf-8")
+    return write_json_store(STORE_PATH, store)
 
 
 def _subject(store, subject_id):
