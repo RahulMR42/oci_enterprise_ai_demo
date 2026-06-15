@@ -42,6 +42,7 @@ ALLOWED_STORE_ACTIONS = {
     "signup",
     "login",
     "open_session",
+    "validate_session",
     "close_session",
     "record_event",
     "query_activity",
@@ -107,7 +108,7 @@ def public_identity(row):
         "userId": row.get("user_id") or row.get("id"),
         "userEmail": email,
         "displayEmail": row.get("display_email") or email,
-        "authType": "protected_user",
+        "authType": row.get("auth_type") or row.get("authType") or "protected_user",
         "role": row.get("role") or "user",
     }
 
@@ -340,6 +341,9 @@ class LocalJsonStore:
             "session_token_hash": hmac_digest(payload.get("sessionToken")),
             "user_id": identity.get("userId"),
             "user_email": email,
+            "display_email": identity.get("displayEmail") or email,
+            "auth_type": identity.get("authType") or "protected_user",
+            "role": identity.get("role") or "user",
             "ip_hash": hmac_digest(payload.get("ip")),
             "user_agent_hash": hmac_digest(payload.get("userAgent")),
             "status": "active",
@@ -348,6 +352,28 @@ class LocalJsonStore:
         })
         self._save(data)
         return {"status": "success", "sessionId": session_id}
+
+    def validate_session(self, payload):
+        data = self._load()
+        token_hash = hmac_digest(payload.get("sessionToken"))
+        session = next(
+            (
+                candidate for candidate in data["sessions"]
+                if candidate.get("session_token_hash") == token_hash
+                and candidate.get("status") == "active"
+            ),
+            None,
+        )
+        if not session:
+            return {"status": "failed", "error": "Session not found."}
+
+        session["last_seen_at"] = utc_now_iso()
+        self._save(data)
+        return {
+            "status": "success",
+            "sessionId": session.get("session_id"),
+            "identity": public_identity(session),
+        }
 
     def close_session(self, payload):
         data = self._load()
@@ -654,6 +680,9 @@ class AdbStore:
                         SESSION_TOKEN_HASH VARCHAR2(128) UNIQUE NOT NULL,
                         USER_ID VARCHAR2(80),
                         USER_EMAIL VARCHAR2(320),
+                        DISPLAY_EMAIL VARCHAR2(320),
+                        AUTH_TYPE VARCHAR2(64),
+                        ROLE VARCHAR2(64),
                         IP_HASH VARCHAR2(128),
                         USER_AGENT_HASH VARCHAR2(128),
                         STATUS VARCHAR2(32) DEFAULT 'active' NOT NULL,
@@ -662,6 +691,12 @@ class AdbStore:
                         CLOSED_AT TIMESTAMP WITH TIME ZONE
                     )
                 """)
+            else:
+                self._ensure_columns(cursor, "PORTAL_AUTH_SESSIONS", {
+                    "DISPLAY_EMAIL": "VARCHAR2(320)",
+                    "AUTH_TYPE": "VARCHAR2(64)",
+                    "ROLE": "VARCHAR2(64)",
+                })
             if "PORTAL_AUDIT_EVENTS" not in existing:
                 cursor.execute("""
                     CREATE TABLE PORTAL_AUDIT_EVENTS (
@@ -691,6 +726,20 @@ class AdbStore:
                 'PORTAL_AUDIT_EVENTS'
             )
         """)
+        return {row[0] for row in cursor.fetchall()}
+
+    def _ensure_columns(self, cursor, table_name, columns):
+        existing_columns = self._existing_columns(cursor, table_name)
+        for column_name, column_type in columns.items():
+            if column_name not in existing_columns:
+                cursor.execute(f"ALTER TABLE {table_name} ADD ({column_name} {column_type})")
+
+    def _existing_columns(self, cursor, table_name):
+        cursor.execute("""
+            SELECT COLUMN_NAME
+            FROM USER_TAB_COLUMNS
+            WHERE TABLE_NAME = :table_name
+        """, {"table_name": table_name})
         return {row[0] for row in cursor.fetchall()}
 
     def signup(self, payload):
@@ -774,21 +823,50 @@ class AdbStore:
             cursor.execute("""
                 INSERT INTO PORTAL_AUTH_SESSIONS (
                     SESSION_ID, SESSION_TOKEN_HASH, USER_ID, USER_EMAIL,
-                    IP_HASH, USER_AGENT_HASH, STATUS, CREATED_AT, LAST_SEEN_AT
+                    DISPLAY_EMAIL, AUTH_TYPE, ROLE, IP_HASH, USER_AGENT_HASH,
+                    STATUS, CREATED_AT, LAST_SEEN_AT
                 ) VALUES (
                     :session_id, :session_token_hash, :user_id, :user_email,
-                    :ip_hash, :user_agent_hash, 'active', SYSTIMESTAMP, SYSTIMESTAMP
+                    :display_email, :auth_type, :role, :ip_hash, :user_agent_hash,
+                    'active', SYSTIMESTAMP, SYSTIMESTAMP
                 )
             """, {
                 "session_id": session_id,
                 "session_token_hash": hmac_digest(payload.get("sessionToken")),
                 "user_id": identity.get("userId"),
                 "user_email": email,
+                "display_email": identity.get("displayEmail") or email,
+                "auth_type": identity.get("authType") or "protected_user",
+                "role": identity.get("role") or "user",
                 "ip_hash": hmac_digest(payload.get("ip")),
                 "user_agent_hash": hmac_digest(payload.get("userAgent")),
             })
         self.connection.commit()
         return {"status": "success", "sessionId": session_id}
+
+    def validate_session(self, payload):
+        token_hash = hmac_digest(payload.get("sessionToken"))
+        with self.connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT SESSION_ID, USER_ID, USER_EMAIL, DISPLAY_EMAIL, AUTH_TYPE, ROLE
+                FROM PORTAL_AUTH_SESSIONS
+                WHERE SESSION_TOKEN_HASH = :token_hash
+                  AND STATUS = 'active'
+            """, {"token_hash": token_hash})
+            row = self._row_as_dict(cursor)
+            if not row:
+                return {"status": "failed", "error": "Session not found."}
+            cursor.execute("""
+                UPDATE PORTAL_AUTH_SESSIONS
+                SET LAST_SEEN_AT = SYSTIMESTAMP
+                WHERE SESSION_ID = :session_id
+            """, {"session_id": row["session_id"]})
+        self.connection.commit()
+        return {
+            "status": "success",
+            "sessionId": row["session_id"],
+            "identity": public_identity(row),
+        }
 
     def close_session(self, payload):
         token_hash = hmac_digest(payload.get("sessionToken"))

@@ -427,6 +427,19 @@ class PortalAuthStoreLocalModeTests(unittest.TestCase):
             self.assertEqual(session["status"], "success")
             self.assertTrue(session["sessionId"].startswith("sess_"))
 
+            validated = self.run_local_command(handle.name, "validate_session", {
+                "sessionToken": "browser-token",
+            })
+            self.assertEqual(validated["status"], "success")
+            self.assertEqual(validated["sessionId"], session["sessionId"])
+            self.assertEqual(validated["identity"]["userEmail"], "user@example.com")
+            self.assertEqual(validated["identity"]["authType"], "protected_user")
+
+            missing = self.run_local_command(handle.name, "validate_session", {
+                "sessionToken": "missing-token",
+            })
+            self.assertEqual(missing["status"], "failed")
+
             event = self.run_local_command(handle.name, "record_event", {
                 "sessionId": session["sessionId"],
                 "identity": login["identity"],

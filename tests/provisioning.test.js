@@ -116,6 +116,41 @@ test("portal sessions resolve bootstrap and protected-user identities", () => {
   assert.equal(isAdminIdentity(bootstrapPortalIdentity()), true);
 });
 
+test("portal session cookies recover identities from durable auth store when memory is cold", () => {
+  const sessions = new Set();
+  const identities = new Map();
+  const sessionToken = "browser-session-token";
+  const durableIdentity = {
+    userId: "usr_durable",
+    userEmail: "sso@example.com",
+    displayEmail: "sso@example.com",
+    authType: "sso",
+    role: "admin"
+  };
+  const request = { headers: { cookie: `oci_portal_session=${sessionToken}` } };
+  const recoveredTokens = [];
+
+  const resolved = resolvePortalIdentity(request, {
+    password: "test-password",
+    sessions,
+    sessionIdentities: identities,
+    authStoreSessionValidator(token) {
+      recoveredTokens.push(token);
+      return {
+        status: "success",
+        sessionId: "sess_durable",
+        identity: durableIdentity
+      };
+    }
+  });
+
+  assert.deepEqual(resolved, durableIdentity);
+  assert.deepEqual(recoveredTokens, [sessionToken]);
+  assert.equal(sessions.has(sessionToken), true);
+  assert.deepEqual(identities.get(sessionToken), durableIdentity);
+  assert.equal(isAuthorizedRequest(request, "test-password", sessions, identities), true);
+});
+
 test("portal SSO config reuses hosted IDCS env and builds invoke callback URL", () => {
   const callback = portalSsoCallbackUrlFromInvokeUrl(
     "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/app123/actions/invoke/"

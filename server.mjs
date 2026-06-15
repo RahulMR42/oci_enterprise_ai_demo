@@ -1247,13 +1247,63 @@ function openPortalAuthSession(token, identity, request) {
   }
 }
 
+function validatePortalAuthSession(sessionToken = "") {
+  return callPortalAuthStore("validate_session", { sessionToken });
+}
+
+function recoverPortalIdentityFromAuthStore(
+  sessionToken,
+  {
+    sessions = portalSessionTokens,
+    sessionIdentities = portalSessionIdentities,
+    sessionAuditIds = portalSessionAuditIds,
+    authStoreSessionValidator = validatePortalAuthSession
+  } = {}
+) {
+  try {
+    const validation = authStoreSessionValidator(sessionToken);
+    const identity = validation?.status === "success" ? validation.identity : null;
+    if (!identity?.userEmail || !identity?.authType) {
+      return null;
+    }
+    sessions.add(sessionToken);
+    sessionIdentities.set(sessionToken, identity);
+    storePortalSessionAuditId(sessionToken, validation, sessionAuditIds);
+    return identity;
+  } catch (error) {
+    console.warn(`[portal-auth-session] validate_session failed: ${redactSensitiveText(error.message)}`);
+    return null;
+  }
+}
+
 export function resolvePortalIdentity(
   request,
-  { password = portalAuthPassword, sessions = portalSessionTokens, sessionIdentities = portalSessionIdentities } = {}
+  {
+    password = portalAuthPassword,
+    sessions = portalSessionTokens,
+    sessionIdentities = portalSessionIdentities,
+    sessionAuditIds = portalSessionAuditIds,
+    authStoreSessionValidator = validatePortalAuthSession
+  } = {}
 ) {
   const sessionToken = parseCookies(request.headers.cookie || "")[portalSessionCookie];
   if (sessionToken && sessions.has(sessionToken)) {
-    return sessionIdentities.get(sessionToken) || null;
+    const identity = sessionIdentities.get(sessionToken);
+    if (identity) {
+      return identity;
+    }
+  }
+
+  if (sessionToken) {
+    const recoveredIdentity = recoverPortalIdentityFromAuthStore(sessionToken, {
+      sessions,
+      sessionIdentities,
+      sessionAuditIds,
+      authStoreSessionValidator
+    });
+    if (recoveredIdentity) {
+      return recoveredIdentity;
+    }
   }
 
   const credentials = parseBasicAuthHeader(request.headers.authorization || "");
