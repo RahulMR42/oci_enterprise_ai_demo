@@ -1084,9 +1084,6 @@ export async function exchangePortalSsoCode(config, code = "", fetchImpl = globa
       code: String(code),
       redirect_uri: config.redirectUri
     });
-    if (config.scope) {
-      body.set("scope", config.scope);
-    }
     const headers = {
       Accept: "application/json",
       "Content-Type": "application/x-www-form-urlencoded"

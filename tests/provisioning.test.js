@@ -324,6 +324,7 @@ test("portal SSO exchanges authorization code at the IDCS token endpoint", async
     assert.equal(body.get("grant_type"), "authorization_code");
     assert.equal(body.get("code"), "auth-code-123");
     assert.equal(body.get("redirect_uri"), "https://portal.example.com/auth/sso/callback");
+    assert.equal(body.has("scope"), false);
     return new Response(JSON.stringify({ id_token: "signed.id.token", access_token: "access-token" }), {
       status: 200,
       headers: { "content-type": "application/json" }
