@@ -3,12 +3,12 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from common_oci import (
     OCI_RESPONSES_MODEL,
     call_oci_responses_api,
     config_from_env,
+    demo_data_path,
     read_payload,
     response_output_text,
     response_to_json,
@@ -17,7 +17,7 @@ from common_oci import (
 
 
 DOCS_URL = "https://docs.oracle.com/en-us/iaas/Content/generative-ai/overview.htm"
-AUDIT_PATH = Path(__file__).resolve().parents[1] / "data" / "governance_audit_log.json"
+AUDIT_PATH = demo_data_path("governance_audit_log.json")
 
 
 POLICIES = [

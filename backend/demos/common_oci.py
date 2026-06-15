@@ -1,10 +1,12 @@
 import json
 import os
+from pathlib import Path
 
 
 OCI_RESPONSES_MODEL = "openai.gpt-oss-120b"
 DEFAULT_REGION = "us-chicago-1"
 DOCS_URL = "https://docs.oracle.com/en-us/iaas/Content/generative-ai/responses-api.htm"
+DEFAULT_DEMO_DATA_DIR = Path("/tmp") / "enterprise-ai-demo" / "backend-data"
 
 
 def read_payload():
@@ -29,6 +31,12 @@ def config_from_env():
         "region": region,
         "base_url": base_url(region),
     }
+
+
+def demo_data_path(filename):
+    root = os.getenv("OCI_PORTAL_DEMO_DATA_DIR") or os.getenv("OCI_DEMO_DATA_DIR") or ""
+    base_dir = Path(root).expanduser() if root.strip() else DEFAULT_DEMO_DATA_DIR
+    return base_dir / filename
 
 
 def validate_config(config):

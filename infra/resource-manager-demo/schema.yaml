@@ -1,7 +1,7 @@
 title: Enterprise AI Demo Resource Manager Stack
 description: Deploys the Enterprise AI demo portal, shared OCI Generative AI resources, OCI DevOps image pipeline, and hosted applications.
 schemaVersion: 1.1.0
-version: 20260527
+version: 20260615
 locale: en
 
 variableGroups:
@@ -49,6 +49,7 @@ variableGroups:
       - idcs_audience
       - idcs_scope
       - hosted_app_idcs_client_secret_id
+      - portal_sso_admin_emails
       - openclaw_gateway_token
   - title: Advanced and Local-Exec Switches
     variables:
@@ -238,6 +239,11 @@ variables:
     type: ocid
     required: false
     sensitive: true
+  portal_sso_admin_emails:
+    title: Portal SSO Admin Emails
+    description: Optional comma-separated email allowlist for users who should receive portal administrator access after SSO sign-in.
+    type: string
+    required: false
   openclaw_gateway_token:
     title: OpenClaw Gateway Token
     type: password

@@ -2,12 +2,12 @@
 import json
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from common_oci import (
     OCI_RESPONSES_MODEL,
     call_oci_responses_api,
     config_from_env,
+    demo_data_path,
     read_payload,
     response_output_text,
     response_to_json,
@@ -16,7 +16,7 @@ from common_oci import (
 
 
 DOCS_URL = "https://docs.oracle.com/en-us/iaas/Content/generative-ai/building-agents.htm"
-STORE_PATH = Path(__file__).resolve().parents[1] / "data" / "long_term_memory_store.json"
+STORE_PATH = demo_data_path("long_term_memory_store.json")
 
 
 def _read_store():

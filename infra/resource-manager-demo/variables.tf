@@ -410,6 +410,12 @@ variable "hosted_app_idcs_client_secret_id" {
   }
 }
 
+variable "portal_sso_admin_emails" {
+  description = "Comma-separated email allowlist for users who should receive portal administrator access after SSO sign-in."
+  type        = string
+  default     = ""
+}
+
 variable "openclaw_image_repository_uri" {
   description = "Optional prebuilt OpenClaw image repository URI."
   type        = string

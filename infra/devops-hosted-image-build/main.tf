@@ -277,6 +277,11 @@ resource "oci_devops_build_pipeline" "this" {
       description   = "OCI Vault secret OCID containing the hosted UI launch proxy OAuth client secret."
     }
     items {
+      name          = "PORTAL_SSO_ADMIN_EMAILS"
+      default_value = var.portal_sso_admin_emails
+      description   = "Comma-separated email allowlist for portal SSO administrators."
+    }
+    items {
       name          = "OCI_GENAI_API_KEY_SECRET_ID"
       default_value = var.oci_genai_api_key_secret_id
       description   = "OCI Vault secret OCID containing the OCI Generative AI API key."
@@ -743,6 +748,10 @@ resource "oci_devops_build_run" "this" {
     items {
       name  = "OCI_HOSTED_APP_IDCS_CLIENT_SECRET_ID"
       value = var.hosted_app_idcs_client_secret_id
+    }
+    items {
+      name  = "PORTAL_SSO_ADMIN_EMAILS"
+      value = var.portal_sso_admin_emails
     }
     items {
       name  = "OCI_GENAI_PROJECT_ID"

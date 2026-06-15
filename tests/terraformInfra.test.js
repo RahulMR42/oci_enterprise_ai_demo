@@ -219,6 +219,22 @@ test("resource manager supports portal-only hosted app build runs", () => {
   assert.match(devopsLocals, /if key != "portal"/);
 });
 
+test("Resource Manager passes portal SSO admin allowlist into the hosted portal", () => {
+  const resourceManagerVariables = read("infra/resource-manager-demo/variables.tf");
+  const resourceManagerSchema = read("infra/resource-manager-demo/schema.yaml");
+  const resourceManagerMain = read("infra/resource-manager-demo/main.tf");
+  const devopsVariables = read("infra/devops-hosted-image-build/variables.tf");
+  const devopsMain = read("infra/devops-hosted-image-build/main.tf");
+  const deployScript = read("infra/devops-hosted-image-build/scripts/deploy_portal_hosted_application.sh");
+
+  assert.match(resourceManagerVariables, /variable "portal_sso_admin_emails"/);
+  assert.match(resourceManagerSchema, /portal_sso_admin_emails/);
+  assert.match(resourceManagerMain, /portal_sso_admin_emails\s+=\s+var\.portal_sso_admin_emails/);
+  assert.match(devopsVariables, /variable "portal_sso_admin_emails"/);
+  assert.match(devopsMain, /name\s+=\s+"PORTAL_SSO_ADMIN_EMAILS"[\s\S]*value\s+=\s+var\.portal_sso_admin_emails/);
+  assert.match(deployScript, /OCI_PORTAL_SSO_ADMIN_EMAILS/);
+});
+
 test("hosted agent terraform creates OCIR repository and OCI hosted deployment", () => {
   const hostedAppIdcsClient = read("infra/hosted-agentic-applications/hosted_app_idcs_client.tf");
   const terraform = [

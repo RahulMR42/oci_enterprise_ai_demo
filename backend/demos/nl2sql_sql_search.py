@@ -9,6 +9,7 @@ from common_oci import (
     OCI_RESPONSES_MODEL,
     call_oci_responses_api,
     config_from_env,
+    demo_data_path,
     read_payload,
     response_output_text,
     response_to_json,
@@ -17,7 +18,7 @@ from common_oci import (
 
 
 DOCS_URL = "https://docs.oracle.com/en-us/iaas/Content/generative-ai/building-agents.htm"
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "sql_search_sample.sqlite"
+DB_PATH = demo_data_path("sql_search_sample.sqlite")
 TFSTATE_PATH = Path(__file__).resolve().parents[2] / "infra" / "nl2sql-sql-search" / "terraform.tfstate"
 
 SCHEMA = """

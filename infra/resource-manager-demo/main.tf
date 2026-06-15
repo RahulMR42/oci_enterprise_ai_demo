@@ -95,6 +95,7 @@ module "devops_hosted_image_build" {
   hosted_app_idcs_client_id        = module.hosted_agentic_applications.hosted_app_idcs_launch_client_id
   hosted_app_idcs_client_app_id    = module.hosted_agentic_applications.hosted_app_idcs_launch_client_app_id
   hosted_app_idcs_client_secret_id = var.hosted_app_idcs_client_secret_id
+  portal_sso_admin_emails          = var.portal_sso_admin_emails
   oci_genai_project_id             = var.oci_genai_project_id
   oci_genai_api_key_secret_id      = var.oci_genai_api_key_secret_id
   openclaw_gateway_token           = var.openclaw_gateway_token

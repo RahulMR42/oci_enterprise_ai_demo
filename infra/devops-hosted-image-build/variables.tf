@@ -256,6 +256,12 @@ variable "hosted_app_idcs_client_secret_id" {
   default     = ""
 }
 
+variable "portal_sso_admin_emails" {
+  description = "Comma-separated email allowlist for users who should receive portal administrator access after SSO sign-in."
+  type        = string
+  default     = ""
+}
+
 variable "oci_genai_project_id" {
   description = "OCI Generative AI project OCID injected into the portal hosted application."
   type        = string
