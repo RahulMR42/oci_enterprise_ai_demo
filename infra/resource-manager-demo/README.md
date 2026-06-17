@@ -61,3 +61,21 @@ Useful outputs for login and validation:
 - `devops_hosted_image_repository_uris`
 
 Sensitive runtime values stay in Vault, Object Storage runtime config, or Terraform sensitive outputs instead of plaintext portal configuration.
+
+## Cleanup
+
+Destroy the stack resources through OCI Resource Manager:
+
+```bash
+env/bin/oci resource-manager job create-destroy-job \
+  --stack-id <stack_ocid> \
+  --display-name "enterprise-ai-demo-destroy-<resource_suffix>"
+```
+
+Wait for the destroy job to reach `SUCCEEDED`:
+
+```bash
+env/bin/oci resource-manager job get --job-id <destroy_job_ocid>
+```
+
+Keep the Resource Manager stack record when you need the RMS history, variables, and logs. The destroy job is what asks Terraform to delete the OCI resources it owns. Use `resource_suffix` and the `enterprise-ai-demo=true` tag to verify any remaining resources in the target compartment.

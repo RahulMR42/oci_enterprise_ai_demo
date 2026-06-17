@@ -106,6 +106,24 @@ Open `portal_url`, log in, and run both normal demos and hosted deployment demos
 
 Non-portal hosted deploy stages clean up older duplicate hosted deployments and applications with the same display name. The portal deploy stage reuses the existing active portal hosted application when present and updates its environment and active image artifact.
 
+## Destroy Stack Resources
+
+Use a destroy job to clean OCI resources created by a Resource Manager stack. The destroy job runs Terraform against the stack state so OCI resources are deleted in dependency order while the Resource Manager stack record, variables, and job history remain available.
+
+```bash
+env/bin/oci resource-manager job create-destroy-job \
+  --stack-id <stack_ocid> \
+  --display-name "enterprise-ai-demo-destroy-<suffix>"
+```
+
+Poll the destroy job until it finishes:
+
+```bash
+env/bin/oci resource-manager job get --job-id <destroy_job_ocid>
+```
+
+Do not delete the Resource Manager stack record when you need to retain RMS history or reuse the same stack shell. The stack uses the six-character `resource_suffix` in display names and freeform tags. If cleanup leaves resources behind because a provider delete operation failed, use that suffix and the `enterprise-ai-demo=true` tag to find and remove stragglers in the same compartment.
+
 ## Publish a New Release Asset
 
 Run the GitHub workflow **Release Resource Manager Stack** from the Actions tab and provide a tag such as `v0.1.0`, or push a `v*` tag. The workflow publishes:

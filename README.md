@@ -17,6 +17,8 @@ The flow covers the hosted UI, local and SSO login, demo execution API, Python d
 | Demo | Runtime | Infrastructure |
 | --- | --- | --- |
 | Responses API | Direct OCI Responses API call through the OpenAI-compatible endpoint | GenAI project and API key |
+| OpenAI-Compatible Chat Completions | Chat Completions request against the OCI OpenAI-compatible endpoint | Shared GenAI project and API key |
+| Responses Streaming + Structured Output | Streamed Responses API events with a JSON schema contract | Shared GenAI project and API key |
 | Conversation Store | OCI Conversations API state plus OCI Responses API | Shared GenAI project and generated conversation ID |
 | Guardrails | Local policy checks plus sanitized OCI call | Shared GenAI project |
 | File Search & Vector Store RAG | OCI File Search tool over a provisioned vector store | Vector store and bundled Oracle PDFs |
@@ -27,10 +29,19 @@ The flow covers the hosted UI, local and SSO login, demo execution API, Python d
 | Long-Term Memory | OCI memory extraction plus local durable memory store | Shared GenAI project |
 | Multi-Model Routing | OCI route candidates, scoring, and selected answer | Shared GenAI project |
 | Hosted Agentic Applications | OCI hosted application and deployment backed by OCIR | OCIR repository, hosted app, hosted deployment |
-| LangGraph Hosted Agent | Hosted LangGraph wrapper image | OCIR repository, hosted app, hosted deployment |
-| OpenClaw Hosted Gateway | Hosted gateway demo UI with run controls and next steps | OCIR repository, hosted app, hosted deployment |
+| LangGraph Hosted Agent + MCP | Hosted LangGraph wrapper and MCP-style tool route | OCIR repository, hosted app, hosted deployment |
+| Agent2Agent Collaboration | A2A-style hosted agent discovery, task exchange, and handoff | Hosted agent and LangGraph hosted metadata |
+| OpenClaw Hosted Agent Gateway | Hosted OpenClaw gateway demo UI with launch controls | OCIR repository, hosted app, hosted deployment |
+| Agentic Control Tower | Hosted LlamaIndex workflow with evidence review and approval gates | OCIR repository, hosted app, hosted deployment, IDCS launch client |
+| Agentic RAG Planner | Retrieval planning and evidence sufficiency checks before answer generation | Shared GenAI project |
+| Locus SDK Agentic Workflows | Locus SDK agent/tool pattern synthesis through OCI Responses | Shared GenAI project |
+| Human-in-the-Loop Agent Approval | Risk classification and approval checkpoint planning | Shared GenAI project |
 | Governance Center | Local policy controls, audit event, and OCI reviewer summary | Shared GenAI project and shared IAM visibility |
 | Document Understanding + GenAI | Bundled PDF metadata/signals plus OCI document summary | Bundled Oracle PDFs |
+| Batch Inference | Batch-style prompt manifest processing and output review | Shared GenAI project and local batch manifest |
+| Model Evaluation | Rubric-based output scoring and promotion gate summary | Shared GenAI project and local evaluation cases |
+| Multimodal Vision | Visual asset inspection and structured triage summary | Shared GenAI project and approved visual manifest |
+| AI Workflow Orchestration | Chained model, tool, approval, retry, and audit workflow | Shared GenAI project and local workflow manifest |
 
 ## Local Setup
 
@@ -112,6 +123,8 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u no_proxy -u NO_
   PORT=5173 \
   ./bash.sh
 ```
+
+For OCI Resource Manager deployments, create a Resource Manager destroy job for the stack and wait for it to succeed. Keep the stack record when you want the RMS history, variables, and job logs available for audit or later reuse.
 
 ## Validate Before Push
 

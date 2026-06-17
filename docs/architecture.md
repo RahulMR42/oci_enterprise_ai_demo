@@ -143,3 +143,5 @@ File logging is enabled by default in `bash.sh` and writes to `logs/`. Set `LOG_
 ## Cleanup Model
 
 `DESTROY_INFRA=true ./bash.sh` destroys demo modules first, then shared IAM, then the shared Responses API module. This keeps dependency order explicit and provides one command to clean the environment.
+
+OCI Resource Manager deployments use the same Terraform dependency graph through Resource Manager jobs. Run a destroy job against the active stack and verify the job succeeds; keep the RMS stack record when job history and variables should remain available. The shared `resource_suffix` groups portal, DevOps, OCIR, Object Storage, ADB, hosted application, generated runtime, and IAM resources for follow-up verification.
